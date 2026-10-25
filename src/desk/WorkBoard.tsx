@@ -1,7 +1,7 @@
 import { ReloadOutlined } from "@ant-design/icons";
 import { Alert, Button, Drawer, Form, Input, Modal, Select, Space, Table, Tag, Typography } from "antd";
 import type { TableColumnsType } from "antd";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, api } from "../api.ts";
 import { formatStamp } from "../copy.ts";
 import type { Staff } from "../types.ts";
@@ -18,6 +18,8 @@ type TaskRow = {
   channel: string;
   campaign_name: string | null;
   note: string | null;
+  assignee_user_id?: string | null;
+  assignee_name?: string | null;
   first_response: { state: string; due_at: string | null };
   last_message: { body: string; sender_type: string; created_at: string | null } | null;
 };
@@ -53,7 +55,45 @@ type AssignResult = {
   over_capacity: boolean;
 };
 
+function chatMoment(value: string | null | undefined): number {
+  if (!value) {
+    return 0;
+  }
+  const time = Date.parse(value);
+  return Number.isNaN(time) ? 0 : time;
+}
+
+function newestFirst(rows: TaskRow[]): TaskRow[] {
+  return [...rows].sort((left, right) => {
+    const leftTime = chatMoment(left.last_message?.created_at) || chatMoment(left.received_at);
+    const rightTime = chatMoment(right.last_message?.created_at) || chatMoment(right.received_at);
+    return rightTime - leftTime;
+  });
+}
+
+function shortTime(value: string | null | undefined): string {
+  if (!value) {
+    return "";
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+  const now = new Date();
+  const sameDay = date.toDateString() === now.toDateString();
+  return new Intl.DateTimeFormat("vi-VN", sameDay ? { hour: "2-digit", minute: "2-digit" } : { day: "2-digit", month: "2-digit" }).format(date);
+}
+
+function chatInitial(name: string): string {
+  const clean = name.replace(/^tg:/i, "").trim();
+  return (clean.slice(0, 1) || "?").toUpperCase();
+}
+
 export function WorkBoard(props: {
+  heading: string;
+  lead: string;
+  layout?: "table" | "chat";
+  scope?: "own" | "staff";
   canUpdate: boolean;
   canCancel: boolean;
   canTransfer: boolean;
@@ -62,7 +102,11 @@ export function WorkBoard(props: {
   onUnauthorized: () => void;
   onMfaSetup: () => void;
 }) {
-  const [status, setStatus] = useState<string>("open");
+  const staffScope = props.scope === "staff";
+  const chatLayout = props.layout === "chat";
+  const threadRef = useRef<HTMLDivElement>(null);
+  const [status, setStatus] = useState<string>(staffScope ? "all" : "open");
+  const [assigneeId, setAssigneeId] = useState("");
   const [items, setItems] = useState<TaskRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<ApiError | null>(null);
@@ -72,10 +116,12 @@ export function WorkBoard(props: {
   const [busy, setBusy] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
   const [staff, setStaff] = useState<Staff[]>([]);
+  const [roster, setRoster] = useState<Staff[]>([]);
   const [staffLoaded, setStaffLoaded] = useState(false);
   const [userId, setUserId] = useState<string | undefined>();
   const [reason, setReason] = useState("Chuyển việc");
   const [warning, setWarning] = useState<string | null>(null);
+  const [reminders, setReminders] = useState<{ id: string; customer_ref: string; site: string | null; due_on: string }[]>([]);
 
   const failAuth = useCallback(
     (caught: ApiError) => {
@@ -92,17 +138,27 @@ export function WorkBoard(props: {
     [props],
   );
 
-  const load = useCallback(async (nextStatus: string) => {
-    const query = nextStatus === "open" ? "" : `?status=${nextStatus}`;
-    const result = await api<{ items: TaskRow[] }>(`/api/v1/tasks${query}`);
+  const load = useCallback(async (nextStatus: string, nextAssignee: string) => {
+    const params = new URLSearchParams();
+    if (staffScope) {
+      params.set("scope", "staff");
+    }
+    if (nextStatus !== "open" && nextStatus !== "all") {
+      params.set("status", nextStatus);
+    }
+    if (staffScope && nextAssignee) {
+      params.set("assignee_id", nextAssignee);
+    }
+    const query = params.toString();
+    const result = await api<{ items: TaskRow[] }>(`/api/v1/tasks${query ? `?${query}` : ""}`);
     setItems(result.items);
     setError(null);
-  }, []);
+  }, [staffScope]);
 
   useEffect(() => {
     let ignore = false;
     setLoading(true);
-    load(status)
+    load(status, assigneeId)
       .catch((caught: unknown) => {
         if (ignore) {
           return;
@@ -120,15 +176,48 @@ export function WorkBoard(props: {
     return () => {
       ignore = true;
     };
-  }, [failAuth, load, status]);
+  }, [assigneeId, failAuth, load, status]);
 
-  async function openTask(id: string) {
+  useEffect(() => {
+    if (!staffScope || !props.canListStaff) {
+      return;
+    }
+    let ignore = false;
+    api<{ items: Staff[] }>("/api/v1/admin/staff")
+      .then((people) => {
+        if (!ignore) {
+          setRoster(people.items.filter((person) => person.status === "active"));
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      ignore = true;
+    };
+  }, [props.canListStaff, staffScope]);
+
+  useEffect(() => {
+    let ignore = false;
+    api<{ items: { id: string; customer_ref: string; site: string | null; due_on: string }[] }>("/api/v1/care/callbacks")
+      .then((result) => {
+        if (!ignore) {
+          setReminders(result.items);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  async function openTask(id: string, keepDraft = false) {
     setError(null);
     try {
       const result = await api<TaskDetail>(`/api/v1/tasks/${id}`);
       setDetail(result);
-      setReply("");
-      setCareNote("");
+      if (!keepDraft) {
+        setReply("");
+        setCareNote("");
+      }
     } catch (caught) {
       const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không mở được task", "");
       if (!failAuth(problem)) {
@@ -145,7 +234,7 @@ export function WorkBoard(props: {
     setError(null);
     try {
       await api(`/api/v1/tasks/${detail.id}`, { method: "PATCH", body: { version: detail.version, status: next } });
-      await load(status);
+      await load(status, assigneeId);
       await openTask(detail.id);
     } catch (caught) {
       const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không đổi được trạng thái", "");
@@ -163,13 +252,14 @@ export function WorkBoard(props: {
     }
     setBusy(true);
     setError(null);
-    const note = careNote.trim();
+    const text = reply.trim();
+    const note = (careNote.trim() || text).slice(0, 200);
     try {
       await api(`/api/v1/tasks/${detail.id}/messages`, {
         method: "POST",
-        body: note ? { version: detail.version, body: reply.trim(), care_label: "da_lien_he_lai", care_note: note } : { version: detail.version, body: reply.trim() },
+        body: { version: detail.version, body: text, care_label: "da_lien_he_lai", care_note: note },
       });
-      await load(status);
+      await load(status, assigneeId);
       await openTask(detail.id);
     } catch (caught) {
       const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không gửi được câu trả lời", "");
@@ -222,7 +312,7 @@ export function WorkBoard(props: {
       setWarning(notes.length > 0 ? notes.join(" ") : null);
       setTransferOpen(false);
       setDetail(null);
-      await load(status);
+      await load(status, assigneeId);
     } catch (caught) {
       const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không chuyển được task", "");
       if (!failAuth(problem)) {
@@ -234,6 +324,7 @@ export function WorkBoard(props: {
   }
 
   const columns: TableColumnsType<TaskRow> = [
+    ...(staffScope ? [{ title: "Nhân viên", dataIndex: "assignee_name", width: 160, ellipsis: true, render: (value: string | null) => value || "—" } satisfies TableColumnsType<TaskRow>[number]] : []),
     { title: "Khách", dataIndex: "customer_ref", ellipsis: true },
     { title: "Kênh", dataIndex: "channel", width: 110, render: (value: string) => (value === "telegram" ? "Telegram" : "Web") },
     { title: "Tin cuối", ellipsis: true, render: (_, row) => row.last_message?.body || "—" },
@@ -245,22 +336,64 @@ export function WorkBoard(props: {
   const nextStatuses = detail ? (NEXT_STATUS[detail.status] ?? []) : [];
   const open = detail ? nextStatuses.length > 0 : false;
 
+  useEffect(() => {
+    if (!chatLayout || detail || items.length === 0) {
+      return;
+    }
+    const newest = newestFirst(items)[0];
+    if (newest) {
+      void openTask(newest.id);
+    }
+  }, [chatLayout, detail, items]);
+
+  useEffect(() => {
+    if (!chatLayout || !detail) {
+      return;
+    }
+    const id = detail.id;
+    const timer = window.setInterval(() => {
+      void api<TaskDetail>(`/api/v1/tasks/${id}`)
+        .then((result) => setDetail((current) => (current?.id === id ? result : current)))
+        .catch(() => undefined);
+      void load(status, assigneeId).catch(() => undefined);
+    }, 4000);
+    return () => window.clearInterval(timer);
+  }, [assigneeId, chatLayout, detail?.id, load, status]);
+
+  const lastMessageId = detail?.messages.at(-1)?.id;
+  useEffect(() => {
+    const node = threadRef.current;
+    if (node) {
+      node.scrollTop = node.scrollHeight;
+    }
+  }, [lastMessageId]);
+
   return (
     <section>
       <div className="page-header">
         <div>
           <Typography.Title level={3} className="page-header__title">
-            Việc của tôi
+            {props.heading}
           </Typography.Title>
-          <Typography.Text type="secondary">Hội thoại đang giao cho bạn. Bấm một dòng để trả lời.</Typography.Text>
+          <Typography.Text type="secondary">{props.lead}</Typography.Text>
         </div>
         <Space>
+          {staffScope && props.canListStaff ? (
+            <Select
+              showSearch
+              optionFilterProp="label"
+              value={assigneeId || "all"}
+              style={{ width: 200 }}
+              options={[{ value: "all", label: "Mọi nhân viên" }, ...roster.map((person) => ({ value: person.id, label: person.display_name }))]}
+              onChange={(value: string) => setAssigneeId(value === "all" ? "" : value)}
+            />
+          ) : null}
           <Select
             value={status}
             style={{ width: 160 }}
             onChange={setStatus}
             options={[
-              { value: "open", label: "Đang mở" },
+              ...(staffScope ? [{ value: "all", label: "Mọi trạng thái" }] : [{ value: "open", label: "Đang mở" }]),
               { value: "ASSIGNED", label: "Đã giao" },
               { value: "IN_PROGRESS", label: "Đang xử lý" },
               { value: "WAITING_CUSTOMER", label: "Chờ khách" },
@@ -268,25 +401,141 @@ export function WorkBoard(props: {
               { value: "CANCELLED", label: "Đã hủy" },
             ]}
           />
-          <Button icon={<ReloadOutlined />} onClick={() => void load(status).catch((caught: unknown) => { const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không tải được task", ""); if (!failAuth(problem)) setError(problem); })}>
+          <Button icon={<ReloadOutlined />} onClick={() => void load(status, assigneeId).catch((caught: unknown) => { const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không tải được task", ""); if (!failAuth(problem)) setError(problem); })}>
             Tải lại
           </Button>
         </Space>
       </div>
-      {error ? <ErrorAlert error={error} /> : null}
-      {warning ? <Alert type="warning" showIcon style={{ marginBottom: 16 }} message={warning} /> : null}
-      <Table rowKey="id" size="middle" loading={loading} columns={columns} dataSource={items} pagination={false} locale={{ emptyText: "Không có task." }} onRow={(row) => ({ onClick: () => void openTask(row.id) })} />
+      {chatLayout || !error ? null : <ErrorAlert error={error} />}
+      {chatLayout || !warning ? null : <Alert type="warning" showIcon style={{ marginBottom: 16 }} message={warning} />}
+      {!chatLayout && reminders.length > 0 ? (
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message="Việc hẹn"
+          description={reminders.map((item) => `${item.customer_ref}${item.site ? ` · ${item.site}` : ""} · ${item.due_on.split("-").reverse().join("/")}`).join("\n")}
+        />
+      ) : null}
+      {chatLayout ? (
+        <div className="chat-shell">
+          <aside className="chat-list">
+            {loading && items.length === 0 ? <p className="chat-empty">Đang tải hội thoại…</p> : null}
+            {!loading && items.length === 0 ? <p className="chat-empty">Chưa có hội thoại.</p> : null}
+            {newestFirst(items).map((row) => {
+              const when = row.last_message?.created_at || row.received_at;
+              return (
+                <button key={row.id} type="button" className={detail?.id === row.id ? "chat-list__item chat-list__item--active" : "chat-list__item"} onClick={() => void openTask(row.id)}>
+                  <span className="chat-avatar" aria-hidden="true">
+                    {chatInitial(row.customer_ref)}
+                  </span>
+                  <span className="chat-list__body">
+                    <span className="chat-list__top">
+                      <strong>{row.customer_ref}</strong>
+                      <time>{shortTime(when)}</time>
+                    </span>
+                    <span className="chat-list__preview">{row.last_message?.body || "Chưa có tin"}</span>
+                    <small>
+                      {row.channel === "telegram" ? "Telegram" : "Web"}
+                      {row.assignee_name ? ` · ${row.assignee_name}` : ""} · {STATUS_LABEL[row.status] ?? row.status}
+                    </small>
+                  </span>
+                </button>
+              );
+            })}
+          </aside>
+          <div className="chat-pane">
+            {detail ? (
+              <>
+                <header className="chat-pane__head">
+                  <div className="chat-pane__who">
+                    <span className="chat-avatar" aria-hidden="true">
+                      {chatInitial(detail.customer_ref)}
+                    </span>
+                    <div>
+                    <strong>{detail.customer_ref}</strong>
+                    <p>
+                      {detail.channel === "telegram" ? "Telegram" : "Web"}
+                      {detail.assignee_name ? ` · ${detail.assignee_name}` : ""} · {STATUS_LABEL[detail.status] ?? detail.status}
+                    </p>
+                    </div>
+                  </div>
+                  <Space wrap>
+                    {props.canUpdate && open
+                      ? nextStatuses.map((next) => (
+                          <Button key={next} size="small" loading={busy} onClick={() => void changeStatus(next)}>
+                            {STATUS_LABEL[next]}
+                          </Button>
+                        ))
+                      : null}
+                    {props.canUpdate && open && props.canCancel ? (
+                      <Button size="small" danger loading={busy} onClick={() => void changeStatus("CANCELLED")}>
+                        Hủy
+                      </Button>
+                    ) : null}
+                    {props.canUpdate && open && props.canTransfer && props.canListStaff ? (
+                      <Button size="small" loading={busy} onClick={() => void openTransfer()}>
+                        Chuyển
+                      </Button>
+                    ) : null}
+                  </Space>
+                </header>
+                <div className="chat-thread" ref={threadRef}>
+                  {detail.messages.map((message) => {
+                    const mine = message.sender_type !== "customer";
+                    return (
+                      <article key={message.id} className={mine ? "chat-bubble chat-bubble--agent" : "chat-bubble chat-bubble--customer"}>
+                        <p>{message.body}</p>
+                        <time>{message.created_at ? formatStamp(message.created_at) : ""}</time>
+                      </article>
+                    );
+                  })}
+                </div>
+                {error ? <p className="chat-compose__error">{error.message}</p> : null}
+                {warning ? <p className="chat-note">{warning}</p> : null}
+                {props.canUpdate && open ? (
+                  <Form className="chat-compose" onFinish={() => void sendReply()}>
+                    <Input.TextArea
+                      value={reply}
+                      autoSize={{ minRows: 1, maxRows: 4 }}
+                      placeholder={detail.channel === "telegram" ? "Nhắn khách trên Telegram" : "Nhắn khách"}
+                      onChange={(event) => setReply(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" && !event.shiftKey) {
+                          event.preventDefault();
+                          void sendReply();
+                        }
+                      }}
+                    />
+                    <Button type="primary" htmlType="submit" loading={busy} disabled={reply.trim().length === 0}>
+                      Gửi
+                    </Button>
+                  </Form>
+                ) : (
+                  <p className="chat-closed">Hội thoại đã đóng.</p>
+                )}
+              </>
+            ) : (
+              <p className="chat-empty">Chọn một hội thoại để chat với khách.</p>
+            )}
+          </div>
+        </div>
+      ) : (
+        <Table rowKey="id" size="middle" loading={loading} columns={columns} dataSource={items} pagination={false} locale={{ emptyText: "Không có task." }} onRow={(row) => ({ onClick: () => void openTask(row.id) })} />
+      )}
+      {chatLayout ? null : (
       <Drawer title={detail ? detail.customer_ref : "Task"} open={detail !== null} width={480} onClose={() => setDetail(null)}>
         {detail ? (
           <>
             <p className="page-note">
               {detail.channel === "telegram" ? "Telegram" : "Web"}
-              {detail.campaign_name ? ` · ${detail.campaign_name}` : ""} · {STATUS_LABEL[detail.status] ?? detail.status}
+              {detail.campaign_name ? ` · ${detail.campaign_name}` : ""}
+              {detail.assignee_name ? ` · ${detail.assignee_name}` : ""} · {STATUS_LABEL[detail.status] ?? detail.status}
             </p>
             <div className="task-thread">
               {detail.messages.map((message) => (
                 <p key={message.id} className={message.sender_type === "agent" ? "task-line task-line--agent" : "task-line"}>
-                  <span>{message.sender_type === "agent" ? "Bạn" : "Khách"}</span>
+                  <span>{message.sender_type === "customer" ? "Khách" : staffScope ? detail.assignee_name || "Nhân viên" : "Bạn"}</span>
                   {message.body}
                 </p>
               ))}
@@ -326,6 +575,7 @@ export function WorkBoard(props: {
           </>
         ) : null}
       </Drawer>
+      )}
       <Modal
         title="Chuyển task"
         open={transferOpen}

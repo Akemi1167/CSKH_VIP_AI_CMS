@@ -4,6 +4,7 @@ export type UserProfile = {
   display_name: string;
   roles: string[];
   permissions: string[];
+  accepting_work: boolean;
 };
 
 export type Me = {
@@ -19,6 +20,7 @@ export type Staff = {
   timezone: string;
   roles: string[];
   mfa_enabled: boolean;
+  accepting_work: boolean;
 };
 
 export type Role = {
@@ -86,6 +88,9 @@ export type VipCustomer = {
   phone_mask: string;
   tier: string | null;
   status: "active" | "disabled";
+  care_pool: "active" | "kho_data" | "nuoi_sms";
+  owner_user_id: string | null;
+  owner_name: string | null;
   created_at: string;
 };
 

@@ -24,10 +24,17 @@ const CHANNELS = [
   { value: "ai_voice", label: "Giọng nói AI" },
 ] as const;
 
+const POOLS = [
+  { value: "active", label: "Đang chăm sóc" },
+  { value: "kho_data", label: "Kho data" },
+  { value: "nuoi_sms", label: "Nuôi SMS" },
+] as const;
+
 export function MemberDrawer(props: {
   customer: VipCustomer;
   canImport: boolean;
   canRevoke: boolean;
+  canAssignOwner: boolean;
   onClose: () => void;
   onUnauthorized: () => void;
   onMfaSetup: () => void;
@@ -41,6 +48,10 @@ export function MemberDrawer(props: {
   const [saving, setSaving] = useState(false);
   const [consent, setConsent] = useState<Record<string, string>>({});
   const [consentBusy, setConsentBusy] = useState<string | null>(null);
+  const [pool, setPool] = useState(props.customer.care_pool);
+  const [ownerId, setOwnerId] = useState<string | null>(props.customer.owner_user_id);
+  const [owners, setOwners] = useState<{ id: string; display_name: string }[]>([]);
+  const [savingCare, setSavingCare] = useState(false);
 
   const failAuth = useCallback(
     (caught: ApiError) => {
@@ -85,6 +96,66 @@ export function MemberDrawer(props: {
       ignore = true;
     };
   }, [failAuth, load]);
+
+  useEffect(() => {
+    if (!props.canAssignOwner || !props.customer.site) {
+      return;
+    }
+    let ignore = false;
+    api<{ items: { code: string; staff: { id: string; display_name: string }[] }[] }>("/api/v1/admin/stations")
+      .then((result) => {
+        if (ignore) {
+          return;
+        }
+        const station = result.items.find((item) => item.code === props.customer.site);
+        setOwners(station?.staff ?? []);
+      })
+      .catch(() => undefined);
+    return () => {
+      ignore = true;
+    };
+  }, [props.canAssignOwner, props.customer.site]);
+
+  async function savePool(next: "active" | "kho_data" | "nuoi_sms") {
+    setSavingCare(true);
+    setError(null);
+    try {
+      const saved = await api<{ care_pool: "active" | "kho_data" | "nuoi_sms" }>(`/api/v1/vip-customers/${props.customer.id}/care-pool`, {
+        method: "PUT",
+        body: { pool: next },
+      });
+      setPool(saved.care_pool);
+      if (saved.care_pool === "kho_data") {
+        setOwnerId(null);
+      }
+    } catch (caught) {
+      const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không chuyển được kho chăm sóc", "");
+      if (!failAuth(problem)) {
+        setError(problem);
+      }
+    } finally {
+      setSavingCare(false);
+    }
+  }
+
+  async function saveOwner(next: string | null) {
+    setSavingCare(true);
+    setError(null);
+    try {
+      const saved = await api<{ owner_user_id: string | null }>(`/api/v1/vip-customers/${props.customer.id}/owner`, {
+        method: "PUT",
+        body: { user_id: next },
+      });
+      setOwnerId(saved.owner_user_id);
+    } catch (caught) {
+      const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không gán được người giữ", "");
+      if (!failAuth(problem)) {
+        setError(problem);
+      }
+    } finally {
+      setSavingCare(false);
+    }
+  }
 
   async function saveLabel() {
     const text = note.trim();
@@ -139,6 +210,30 @@ export function MemberDrawer(props: {
   return (
     <Drawer title={props.customer.site ? `${title} · ${props.customer.site}` : title} open width={480} onClose={props.onClose}>
       {error ? <ErrorAlert error={error} /> : null}
+      {props.canImport ? (
+        <Form layout="vertical" requiredMark={false}>
+          <Form.Item label="Kho chăm sóc" help={pool === "kho_data" ? "Kho data không giữ người phụ trách." : pool === "nuoi_sms" ? "Nuôi SMS không vào chiến dịch giọng nói AI." : undefined}>
+            <Select value={pool} loading={savingCare} options={POOLS.map((item) => ({ value: item.value, label: item.label }))} onChange={(value: "active" | "kho_data" | "nuoi_sms") => void savePool(value)} />
+          </Form.Item>
+          {props.canAssignOwner ? (
+            <Form.Item label="Người giữ" help="Chỉ nhân viên chăm sóc của đúng hậu đài.">
+              <Select
+                allowClear
+                showSearch
+                optionFilterProp="label"
+                placeholder="Chưa gán"
+                disabled={pool === "kho_data"}
+                value={ownerId ?? undefined}
+                options={[
+                  ...owners.map((person) => ({ value: person.id, label: person.display_name })),
+                  ...(ownerId && props.customer.owner_name && !owners.some((person) => person.id === ownerId) ? [{ value: ownerId, label: props.customer.owner_name }] : []),
+                ]}
+                onChange={(value: string | undefined) => void saveOwner(value ?? null)}
+              />
+            </Form.Item>
+          ) : null}
+        </Form>
+      ) : null}
       <Typography.Text type="secondary">{loading && !care ? "Đang tải nhãn…" : `Nhãn hiện tại: ${care?.current_label ? careLabelName(care.current_label) : "Chưa có"}`}</Typography.Text>
       <div className="task-thread">
         {(care?.items ?? []).map((item) => (

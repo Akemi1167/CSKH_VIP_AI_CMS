@@ -16,6 +16,7 @@ type Station = {
   code: string;
   status: "active" | "disabled";
   staff: StationMember[];
+  lead: StationMember | null;
 };
 
 const CODE_PATTERN = /^[A-Za-z0-9]{2,16}$/;
@@ -26,8 +27,10 @@ export function StationBoard(props: { canWrite: boolean; onUnauthorized: () => v
   const [error, setError] = useState<ApiError | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [agents, setAgents] = useState<Staff[]>([]);
+  const [leads, setLeads] = useState<Staff[]>([]);
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<Station | null>(null);
+  const [leading, setLeading] = useState<Station | null>(null);
   const [pendingOff, setPendingOff] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -48,10 +51,11 @@ export function StationBoard(props: { canWrite: boolean; onUnauthorized: () => v
 
   const load = useCallback(async () => {
     const result = await api<{ items: Station[] }>("/api/v1/admin/stations");
-    setItems(result.items.map((item) => ({ ...item, staff: item.staff ?? [] })));
+    setItems(result.items.map((item) => ({ ...item, staff: item.staff ?? [], lead: item.lead ?? null })));
     if (props.canWrite) {
       const people = await api<{ items: Staff[] }>("/api/v1/admin/staff");
       setAgents(people.items.filter((person) => person.status === "active" && person.roles.includes("agent")));
+      setLeads(people.items.filter((person) => person.status === "active" && person.roles.includes("team_lead")));
     }
     setError(null);
   }, [props.canWrite]);
@@ -87,7 +91,7 @@ export function StationBoard(props: { canWrite: boolean; onUnauthorized: () => v
         method: "PATCH",
         body: { status },
       });
-      setItems((current) => current.map((item) => (item.code === saved.code ? { ...item, ...saved, staff: saved.staff ?? item.staff } : item)));
+      setItems((current) => current.map((item) => (item.code === saved.code ? { ...item, ...saved, staff: saved.staff ?? item.staff, lead: saved.lead ?? item.lead } : item)));
       setError(null);
       setNotice(saved.status === "active" ? `Đã mở ${saved.code}.` : `Đã tắt ${saved.code}.`);
     } catch (caught) {
@@ -143,6 +147,20 @@ export function StationBoard(props: { canWrite: boolean; onUnauthorized: () => v
         </Space>
       ),
     },
+    {
+      title: "Tổ trưởng",
+      width: 220,
+      render: (_, row) => (
+        <Space size={4}>
+          {row.lead ? <Tag>{row.lead.display_name}</Tag> : <Typography.Text type="secondary">Chưa gắn</Typography.Text>}
+          {props.canWrite ? (
+            <Button size="small" onClick={() => setLeading(row)}>
+              Gắn
+            </Button>
+          ) : null}
+        </Space>
+      ),
+    },
   ];
 
   return (
@@ -152,7 +170,7 @@ export function StationBoard(props: { canWrite: boolean; onUnauthorized: () => v
           <Typography.Title level={3} className="page-header__title">
             Hậu đài
           </Typography.Title>
-          <Typography.Text type="secondary">Trang game khi nhập hội viên. Gắn nhân viên chăm sóc của từng trang để chia việc sau này.</Typography.Text>
+          <Typography.Text type="secondary">Trang game khi nhập hội viên. Gắn nhân viên chăm sóc và tổ trưởng của từng trang.</Typography.Text>
         </div>
         {props.canWrite ? (
           <div className="page-header__actions">
@@ -180,6 +198,20 @@ export function StationBoard(props: { canWrite: boolean; onUnauthorized: () => v
       >
         <p>Hội viên mới sẽ không chọn được {pendingOff}. Hội viên đã nhập vẫn giữ trang này.</p>
       </Modal>
+      {leading ? (
+        <AssignLead
+          station={leading}
+          leads={leads}
+          onClose={() => setLeading(null)}
+          onSaved={(station) => {
+            setItems((current) => current.map((item) => (item.code === station.code ? station : item)));
+            setLeading(null);
+            setNotice(`Đã gắn tổ trưởng cho ${station.code}.`);
+          }}
+          onUnauthorized={props.onUnauthorized}
+          onMfaSetup={props.onMfaSetup}
+        />
+      ) : null}
       {editing ? (
         <AssignStaff
           station={editing}
@@ -235,7 +267,7 @@ function AssignStaff(props: {
         method: "PUT",
         body: { user_ids: ids },
       });
-      props.onSaved({ ...saved, staff: saved.staff ?? [] });
+      props.onSaved({ ...saved, staff: saved.staff ?? [], lead: saved.lead ?? props.station.lead });
     } catch (caught) {
       const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không gắn được nhân viên", "");
       if (problem.status === 401) {
@@ -265,6 +297,67 @@ function AssignStaff(props: {
             options={options}
             onChange={setIds}
           />
+        </Form.Item>
+      </Form>
+    </Modal>
+  );
+}
+
+function AssignLead(props: {
+  station: Station;
+  leads: Staff[];
+  onClose: () => void;
+  onSaved: (station: Station) => void;
+  onUnauthorized: () => void;
+  onMfaSetup: () => void;
+}) {
+  const [userId, setUserId] = useState<string | undefined>(props.station.lead?.id);
+  const [error, setError] = useState<ApiError | null>(null);
+  const [saving, setSaving] = useState(false);
+  const known = props.leads.some((person) => person.id === props.station.lead?.id);
+  const options = [
+    ...props.leads.map((person) => ({ value: person.id, label: `${person.display_name} (${person.username})` })),
+    ...(!known && props.station.lead ? [{ value: props.station.lead.id, label: props.station.lead.display_name }] : []),
+  ];
+
+  async function submit() {
+    if (!userId) {
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      const saved = await api<{ station: string; user_id: string }>(`/api/v1/admin/stations/${encodeURIComponent(props.station.code)}/lead`, {
+        method: "PUT",
+        body: { user_id: userId },
+      });
+      const person = props.leads.find((item) => item.id === saved.user_id) ?? (props.station.lead?.id === saved.user_id ? props.station.lead : undefined);
+      props.onSaved({
+        ...props.station,
+        lead: person ? { id: person.id, display_name: person.display_name, username: person.username } : props.station.lead,
+      });
+    } catch (caught) {
+      const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không gắn được tổ trưởng", "");
+      if (problem.status === 401) {
+        props.onUnauthorized();
+        return;
+      }
+      if (problem.code === "mfa_setup_required") {
+        props.onMfaSetup();
+        return;
+      }
+      setError(problem);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal title={`Tổ trưởng ${props.station.code}`} open centered width={480} confirmLoading={saving} okText="Lưu" cancelText="Đóng" okButtonProps={{ disabled: !userId }} onCancel={props.onClose} onOk={() => void submit()}>
+      <ErrorAlert error={error} />
+      <Form layout="vertical" requiredMark={false}>
+        <Form.Item label="Tổ trưởng" help={options.length === 0 ? "Cần một tài khoản vai trò tổ trưởng đang làm." : undefined}>
+          <Select showSearch optionFilterProp="label" placeholder="Chọn tổ trưởng" value={userId} options={options} onChange={setUserId} />
         </Form.Item>
       </Form>
     </Modal>

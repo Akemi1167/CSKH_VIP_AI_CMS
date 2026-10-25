@@ -1,15 +1,19 @@
-import { AuditOutlined, ClockCircleOutlined, CommentOutlined, GlobalOutlined, IdcardOutlined, InboxOutlined, KeyOutlined, LeftOutlined, LogoutOutlined, MailOutlined, MessageOutlined, SearchOutlined, SendOutlined, SettingOutlined, ShopOutlined, TeamOutlined } from "@ant-design/icons";
-import { Button, Input, Modal, Space } from "antd";
+import { AppstoreOutlined, AuditOutlined, BarChartOutlined, BookOutlined, CheckSquareOutlined, ClockCircleOutlined, CommentOutlined, FundOutlined, GiftOutlined, GlobalOutlined, HistoryOutlined, KeyOutlined, LeftOutlined, LogoutOutlined, MailOutlined, PhoneOutlined, SearchOutlined, SendOutlined, SettingOutlined, ShareAltOutlined, ShopOutlined, TeamOutlined, UnorderedListOutlined, UserOutlined } from "@ant-design/icons";
+import { Button, Input, Modal, Space, Switch } from "antd";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { ApiError, api, probe, setCsrfToken } from "../api.ts";
 import { roleName } from "../copy.ts";
 import type { UserProfile } from "../types.ts";
 import { ErrorAlert } from "../ui.tsx";
 import { CampaignBoard } from "./CampaignBoard.tsx";
+import { CareHistoryBoard, CareHome, ContactBoard, PersonalReportBoard } from "./CareDesk.tsx";
 import { CustomerBoard } from "./CustomerBoard.tsx";
+import { DataBoard } from "./DataBoard.tsx";
 import { JournalBoard } from "./JournalBoard.tsx";
 import { QueueBoard } from "./QueueBoard.tsx";
 import { RateLimitBoard } from "./RateLimitBoard.tsx";
+import { RewardBoard } from "./RewardBoard.tsx";
+import { ShiftBoard } from "./ShiftBoard.tsx";
 import { StationBoard } from "./StationBoard.tsx";
 import { StationSmsBoard } from "./StationSmsBoard.tsx";
 import { TelegramBoard } from "./TelegramBoard.tsx";
@@ -18,7 +22,7 @@ import { PasswordDialog } from "./PasswordDialog.tsx";
 import { ScheduleBoard } from "./ScheduleBoard.tsx";
 import { StaffBoard } from "./StaffBoard.tsx";
 
-type DeskPage = "tasks" | "queue" | "schedule" | "staff" | "customers" | "campaigns" | "journal" | "stations" | "stationSms" | "rateLimit" | "telegram";
+type DeskPage = "overview" | "inbox" | "contacts" | "tasks" | "history" | "personal" | "queue" | "schedule" | "staff" | "customers" | "warehouse" | "distribute" | "campaigns" | "shift" | "rewards" | "journal" | "stations" | "stationSms" | "rateLimit" | "telegram";
 
 type NavLeaf = { kind: "leaf"; id: DeskPage; label: string; icon: ReactNode };
 type NavGroup = { label?: string; items: NavLeaf[] };
@@ -52,6 +56,7 @@ export function Desk(props: {
   const canWriteSettings = profile.permissions.includes("settings:write");
   const canManageTelegram = profile.permissions.includes("telegram:manage");
   const canReadTasks = profile.permissions.includes("tasks:read_own");
+  const canReadAllTasks = profile.permissions.includes("tasks:read");
   const canUpdateTasks = profile.permissions.includes("tasks:update_own");
   const canReadQueue = profile.permissions.includes("queues:read");
   const canAssign = profile.permissions.includes("tasks:assign");
@@ -63,26 +68,25 @@ export function Desk(props: {
   const canLaunchCampaigns = profile.permissions.includes("campaigns:launch");
   const canManageCampaigns = profile.permissions.includes("campaigns:manage");
   const canReportCampaigns = profile.permissions.includes("campaigns:report");
-  const [page, setPage] = useState<DeskPage>(canReadStaff ? "staff" : canReadTasks ? "tasks" : canReadCampaigns ? "campaigns" : "schedule");
+  const canApproveRewards = profile.permissions.includes("rewards:approve");
+  const [accepting, setAccepting] = useState(profile.accepting_work);
+  const [acceptingBusy, setAcceptingBusy] = useState(false);
+  const [page, setPage] = useState<DeskPage>("overview");
   const [panelBranchId, setPanelBranchId] = useState<string | null>(null);
   const onScheduleDirty = useCallback((dirty: boolean) => setScheduleDirty(dirty), []);
   const menus = useMemo(() => {
-    const operate: NavNode[] = [];
-    if (canReadTasks) {
-      operate.push({ kind: "leaf", id: "tasks", label: "Việc của tôi", icon: <MessageOutlined /> });
-    }
-    if (canReadQueue) {
-      operate.push({ kind: "leaf", id: "queue", label: "Hàng chờ", icon: <InboxOutlined /> });
-    }
-    operate.push({ kind: "leaf", id: "schedule", label: "Ca làm", icon: <ClockCircleOutlined /> });
-    if (canReadStaff) {
-      operate.push({ kind: "leaf", id: "staff", label: "Nhân sự", icon: <TeamOutlined /> });
-    }
+    const care: NavLeaf[] = [{ kind: "leaf", id: "overview", label: "Tổng quan", icon: <AppstoreOutlined /> }];
     if (canReadCustomers) {
-      operate.push({ kind: "leaf", id: "customers", label: "Hội viên", icon: <IdcardOutlined /> });
+      care.push({ kind: "leaf", id: "customers", label: "Hội viên VIP", icon: <UserOutlined /> });
     }
-    if (canReadCampaigns) {
-      operate.push({ kind: "leaf", id: "campaigns", label: "Chiến dịch", icon: <MailOutlined /> });
+    if (canReadTasks) {
+      care.push({ kind: "leaf", id: "inbox", label: "Hộp thư hỗ trợ", icon: <MailOutlined /> });
+      care.push({ kind: "leaf", id: "contacts", label: "Cuộc gọi & liên hệ", icon: <PhoneOutlined /> });
+      care.push({ kind: "leaf", id: "tasks", label: "Nhiệm vụ", icon: <CheckSquareOutlined /> });
+    }
+    if (canReadCustomers || canReadTasks) {
+      care.push({ kind: "leaf", id: "history", label: "Lịch sử chăm sóc", icon: <HistoryOutlined /> });
+      care.push({ kind: "leaf", id: "personal", label: "Báo cáo cá nhân", icon: <BarChartOutlined /> });
     }
     const settings: NavLeaf[] = [];
     if (canReadSettings) {
@@ -97,20 +101,49 @@ export function Desk(props: {
     if (canManageTelegram) {
       settings.push({ kind: "leaf", id: "telegram", label: "Telegram", icon: <SendOutlined /> });
     }
-    const sections: MenuSection[] = [{ id: "operate", label: "Vận hành", items: operate }];
+    const extras: NavLeaf[] = [{ kind: "leaf", id: "schedule", label: "Ca làm", icon: <ClockCircleOutlined /> }];
+    if (canReadCampaigns) {
+      extras.push({ kind: "leaf", id: "campaigns", label: "Chiến dịch", icon: <MailOutlined /> });
+    }
+    if (canReportCampaigns) {
+      extras.push({ kind: "leaf", id: "shift", label: "Báo cáo ca", icon: <FundOutlined /> });
+    }
+    if (canApproveRewards) {
+      extras.push({ kind: "leaf", id: "rewards", label: "Thưởng", icon: <GiftOutlined /> });
+    }
+    const settingsGroups: NavGroup[] = [];
     if (settings.length > 0) {
-      sections.push({
+      settingsGroups.push({ label: "Hệ thống", items: settings });
+    }
+    settingsGroups.push({ label: "Khác", items: extras });
+    const sections: MenuSection[] = [
+      { id: "operate", label: "Chăm sóc hội viên", items: care },
+      {
         id: "settings",
         label: "Cài đặt",
-        items: [{ kind: "branch", id: "settings", label: "Cài đặt", panelTitle: "Cài đặt hệ thống", icon: <SettingOutlined />, groups: [{ label: "Hệ thống", items: settings }] }],
-      });
+        items: [{ kind: "branch", id: "settings", label: "Cài đặt", panelTitle: "Cài đặt hệ thống", icon: <SettingOutlined />, groups: settingsGroups }],
+      },
+    ];
+    const central: NavLeaf[] = [];
+    if (canReadCustomers) {
+      central.push({ kind: "leaf", id: "warehouse", label: "Kho Data tập trung", icon: <BookOutlined /> });
+      central.push({ kind: "leaf", id: "distribute", label: "Phân bổ Data", icon: <ShareAltOutlined /> });
+    }
+    if (canReadStaff) {
+      central.push({ kind: "leaf", id: "staff", label: "Quản lý nhân viên", icon: <TeamOutlined /> });
+    }
+    if (canReadQueue) {
+      central.push({ kind: "leaf", id: "queue", label: "Điều phối Ticket", icon: <UnorderedListOutlined /> });
+    }
+    if (central.length > 0) {
+      sections.push({ id: "central", label: "Quản lý tập trung", items: central });
     }
     if (canReadAudit) {
       sections.push({ id: "other", label: "Khác", items: [{ kind: "leaf", id: "journal", label: "Nhật ký", icon: <AuditOutlined /> }] });
     }
     const query = keyword.trim().toLocaleLowerCase("vi");
     return { sections: filterSections(sections, query), query };
-  }, [canManageTelegram, canReadAudit, canReadCampaigns, canReadCustomers, canReadQueue, canReadSettings, canReadStaff, canReadTasks, keyword]);
+  }, [canApproveRewards, canManageTelegram, canReadAudit, canReadCampaigns, canReadCustomers, canReadQueue, canReadSettings, canReadStaff, canReadTasks, canReportCampaigns, keyword]);
 
   function openPage(next: DeskPage) {
     if (next === page) {
@@ -176,6 +209,29 @@ export function Desk(props: {
     };
   }, []);
 
+  async function setAvailability(next: boolean) {
+    setAcceptingBusy(true);
+    setError(null);
+    try {
+      const saved = await api<{ accepting_work: boolean }>("/api/v1/staff/availability", { method: "PUT", body: { accepting_work: next } });
+      setAccepting(saved.accepting_work);
+      setProfile((current) => ({ ...current, accepting_work: saved.accepting_work }));
+    } catch (caught) {
+      const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không đổi được trạng thái nhận việc", "");
+      if (problem.status === 401) {
+        props.onLoggedOut("Phiên đã hết. Đăng nhập lại.");
+        return;
+      }
+      if (problem.code === "mfa_setup_required") {
+        props.onMfaSetup();
+        return;
+      }
+      setError(problem);
+    } finally {
+      setAcceptingBusy(false);
+    }
+  }
+
   async function logout() {
     setLeaving(true);
     setError(null);
@@ -219,6 +275,9 @@ export function Desk(props: {
             <div className="sidebar-user__meta">
               <p className="sidebar-user__name">{profile.display_name}</p>
               <p className="sidebar-user__role">{roleLine || profile.username}</p>
+              <p className="sidebar-user__role">
+                <Switch size="small" checked={accepting} loading={acceptingBusy} onChange={(checked) => void setAvailability(checked)} /> Nhận việc
+              </p>
             </div>
             <button type="button" className="sidebar-user__logout" title="Đổi mật khẩu" onClick={() => setPasswordOpen(true)}>
               <KeyOutlined />
@@ -234,8 +293,15 @@ export function Desk(props: {
       <main className="app-main bg-grid">
         <div className="app-main__inner">
           <ErrorAlert error={error} />
-          {page === "tasks" && canReadTasks ? (
+          {page === "overview" ? (
+            <CareHome canReadTasks={canReadTasks} canReport={canReadCustomers || canReadTasks} onUnauthorized={() => props.onLoggedOut("Phiên đã hết. Đăng nhập lại.")} onMfaSetup={props.onMfaSetup} />
+          ) : null}
+          {page === "inbox" && canReadTasks ? (
             <WorkBoard
+              heading="Hộp thư hỗ trợ"
+              lead={canReadAllTasks ? "Chọn hội thoại bên trái và gửi tin. Tin Telegram sẽ tới máy khách." : "Hội thoại đang giao cho bạn. Gửi tin ngay trong khung chat."}
+              layout="chat"
+              scope={canReadAllTasks ? "staff" : "own"}
               canUpdate={canUpdateTasks}
               canCancel={canAssign}
               canTransfer={canTransfer}
@@ -244,6 +310,28 @@ export function Desk(props: {
               onUnauthorized={() => props.onLoggedOut("Phiên đã hết. Đăng nhập lại.")}
               onMfaSetup={props.onMfaSetup}
             />
+          ) : null}
+          {page === "contacts" && canReadTasks ? (
+            <ContactBoard onUnauthorized={() => props.onLoggedOut("Phiên đã hết. Đăng nhập lại.")} onMfaSetup={props.onMfaSetup} />
+          ) : null}
+          {page === "tasks" && canReadTasks ? (
+            <WorkBoard
+              heading="Nhiệm vụ"
+              lead="Việc đang giao. Bấm một dòng để cập nhật trạng thái hoặc chuyển người."
+              canUpdate={canUpdateTasks}
+              canCancel={canAssign}
+              canTransfer={canTransfer}
+              canListStaff={canReadStaff}
+              selfId={profile.id}
+              onUnauthorized={() => props.onLoggedOut("Phiên đã hết. Đăng nhập lại.")}
+              onMfaSetup={props.onMfaSetup}
+            />
+          ) : null}
+          {page === "history" && (canReadCustomers || canReadTasks) ? (
+            <CareHistoryBoard onUnauthorized={() => props.onLoggedOut("Phiên đã hết. Đăng nhập lại.")} onMfaSetup={props.onMfaSetup} />
+          ) : null}
+          {page === "personal" && (canReadCustomers || canReadTasks) ? (
+            <PersonalReportBoard onUnauthorized={() => props.onLoggedOut("Phiên đã hết. Đăng nhập lại.")} onMfaSetup={props.onMfaSetup} />
           ) : null}
           {page === "queue" && canReadQueue ? (
             <QueueBoard canAssign={canAssign} canListStaff={canReadStaff} onUnauthorized={() => props.onLoggedOut("Phiên đã hết. Đăng nhập lại.")} onMfaSetup={props.onMfaSetup} />
@@ -268,8 +356,14 @@ export function Desk(props: {
               onDirtyChange={onScheduleDirty}
             />
           ) : null}
+          {page === "warehouse" && canReadCustomers ? (
+            <DataBoard mode="warehouse" canWrite={false} onUnauthorized={() => props.onLoggedOut("Phiên đã hết. Đăng nhập lại.")} onMfaSetup={props.onMfaSetup} />
+          ) : null}
+          {page === "distribute" && canReadCustomers ? (
+            <DataBoard mode="assign" canWrite={canImportCustomers && canReadSettings} onUnauthorized={() => props.onLoggedOut("Phiên đã hết. Đăng nhập lại.")} onMfaSetup={props.onMfaSetup} />
+          ) : null}
           {page === "customers" && canReadCustomers ? (
-            <CustomerBoard canImport={canImportCustomers} canRevoke={canRevokeCare} onUnauthorized={() => props.onLoggedOut("Phiên đã hết. Đăng nhập lại.")} onMfaSetup={props.onMfaSetup} />
+            <CustomerBoard canImport={canImportCustomers} canRevoke={canRevokeCare} canAssignOwner={canImportCustomers && canReadSettings} onUnauthorized={() => props.onLoggedOut("Phiên đã hết. Đăng nhập lại.")} onMfaSetup={props.onMfaSetup} />
           ) : null}
           {page === "campaigns" && canReadCampaigns ? (
             <CampaignBoard
@@ -281,6 +375,10 @@ export function Desk(props: {
               onUnauthorized={() => props.onLoggedOut("Phiên đã hết. Đăng nhập lại.")}
               onMfaSetup={props.onMfaSetup}
             />
+          ) : null}
+          {page === "shift" && canReportCampaigns ? <ShiftBoard onUnauthorized={() => props.onLoggedOut("Phiên đã hết. Đăng nhập lại.")} onMfaSetup={props.onMfaSetup} /> : null}
+          {page === "rewards" && canApproveRewards ? (
+            <RewardBoard canReadCustomers={canReadCustomers} onUnauthorized={() => props.onLoggedOut("Phiên đã hết. Đăng nhập lại.")} onMfaSetup={props.onMfaSetup} />
           ) : null}
           {page === "journal" && canReadAudit ? (
             <JournalBoard canListStaff={canReadStaff} onUnauthorized={() => props.onLoggedOut("Phiên đã hết. Đăng nhập lại.")} onMfaSetup={props.onMfaSetup} />

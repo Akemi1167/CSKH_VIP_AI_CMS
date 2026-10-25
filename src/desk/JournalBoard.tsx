@@ -327,6 +327,12 @@ const AUDIT_FILTERS = [
   { value: "stations.create", label: "Thêm hậu đài" },
   { value: "stations.update", label: "Bật hoặc tắt hậu đài" },
   { value: "stations.assign", label: "Gắn nhân viên hậu đài" },
+  { value: "stations.lead", label: "Gắn tổ trưởng hậu đài" },
+  { value: "staff.availability", label: "Bật hoặc tắt nhận việc" },
+  { value: "customers.owner", label: "Gán người giữ hội viên" },
+  { value: "customers.pool", label: "Chuyển kho chăm sóc" },
+  { value: "rewards.approve", label: "Duyệt thưởng" },
+  { value: "rewards.revoke", label: "Gỡ duyệt thưởng" },
   { value: "stations.sms", label: "Sửa mẫu tin theo đài" },
   { value: "settings.rate_limit", label: "Cập nhật IP không bị chặn" },
   { value: "telegram.configure", label: "Cấu hình bot Telegram" },
@@ -427,6 +433,29 @@ function describeAudit(row: AuditEvent, names: Map<string, string>): string {
   }
   if (row.action === "campaign.resume") {
     return "Chạy tiếp một chiến dịch.";
+  }
+  if (row.action === "staff.availability") {
+    return summary.status === "paused" ? "Tắt nhận việc mới." : "Bật nhận việc mới.";
+  }
+  if (row.action === "customers.owner") {
+    return summary.status === "cleared" ? "Bỏ người giữ hội viên." : "Gán người giữ hội viên.";
+  }
+  if (row.action === "customers.pool") {
+    const pool = text(summary.status);
+    const name = pool === "kho_data" ? "kho data" : pool === "nuoi_sms" ? "nuôi SMS" : pool === "active" ? "đang chăm sóc" : "";
+    return name ? `Chuyển hội viên sang ${name}.` : "Chuyển kho chăm sóc của hội viên.";
+  }
+  if (row.action === "rewards.approve") {
+    const period = text(summary.period);
+    return period ? `Duyệt thưởng kỳ ${period}.` : "Duyệt thưởng.";
+  }
+  if (row.action === "rewards.revoke") {
+    const period = text(summary.period);
+    return period ? `Gỡ duyệt thưởng kỳ ${period}.` : "Gỡ duyệt thưởng.";
+  }
+  if (row.action === "stations.lead") {
+    const code = row.entity_id || text(summary.station);
+    return code ? `Gắn tổ trưởng cho ${code}.` : "Gắn tổ trưởng hậu đài.";
   }
   if (row.action === "stations.create") {
     const code = row.entity_id || text(summary.station);

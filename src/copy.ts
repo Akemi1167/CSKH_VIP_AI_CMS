@@ -20,6 +20,7 @@ const PERMISSION_LABELS: Record<string, string> = {
   "customers:read": "Xem khách VIP",
   "customers:import": "Nhập khách",
   "care:revoke": "Gỡ nhãn thành công hoặc không liên hệ",
+  "rewards:approve": "Duyệt thưởng",
   "audit:read": "Xem nhật ký",
   "settings:read": "Xem cấu hình giới hạn IP",
   "settings:write": "Sửa cấu hình giới hạn IP",

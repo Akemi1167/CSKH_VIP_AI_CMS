@@ -1,5 +1,5 @@
 import { PlusOutlined, ReloadOutlined, UploadOutlined } from "@ant-design/icons";
-import { Alert, Button, Form, Input, Modal, Select, Table, Tag, Typography } from "antd";
+import { Alert, Button, Form, Input, Modal, Segmented, Select, Table, Tag, Typography } from "antd";
 import type { TableColumnsType } from "antd";
 import { useCallback, useEffect, useState } from "react";
 import { ApiError, api } from "../api.ts";
@@ -31,7 +31,14 @@ const IMPORT_ERRORS: Record<string, string> = {
   duplicate_ref: "Trùng mã",
 };
 
-export function CustomerBoard(props: { canImport: boolean; canRevoke: boolean; onUnauthorized: () => void; onMfaSetup: () => void }) {
+type StaleCustomer = {
+  id: string;
+  customer_ref: string;
+  site: string | null;
+  created_at: string;
+};
+
+export function CustomerBoard(props: { canImport: boolean; canRevoke: boolean; canAssignOwner: boolean; onUnauthorized: () => void; onMfaSetup: () => void }) {
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [draft, setDraft] = useState<Filters>(EMPTY_FILTERS);
   const [items, setItems] = useState<VipCustomer[]>([]);
@@ -45,6 +52,8 @@ export function CustomerBoard(props: { canImport: boolean; canRevoke: boolean; o
   const [refreshingJob, setRefreshingJob] = useState(false);
   const [stations, setStations] = useState<string[]>([]);
   const [member, setMember] = useState<VipCustomer | null>(null);
+  const [view, setView] = useState<"list" | "stale">("list");
+  const [stale, setStale] = useState<StaleCustomer[]>([]);
 
   const failAuth = useCallback(
     (caught: ApiError) => {
@@ -104,15 +113,26 @@ export function CustomerBoard(props: { canImport: boolean; canRevoke: boolean; o
     };
   }, []);
 
+  const loadStale = useCallback(async (site: string) => {
+    const params = new URLSearchParams();
+    if (site) {
+      params.set("site", site);
+    }
+    const result = await api<{ items: StaleCustomer[] }>(`/api/v1/admin/care/stale${params.size > 0 ? `?${params.toString()}` : ""}`);
+    setStale(result.items);
+    setError(null);
+  }, []);
+
   useEffect(() => {
     let ignore = false;
     setLoading(true);
-    load(filters)
+    const request = view === "stale" ? loadStale(filters.site) : load(filters);
+    request
       .catch((caught: unknown) => {
         if (ignore) {
           return;
         }
-        const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không tải được hội viên", "");
+        const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", view === "stale" ? "Không tải được hội viên lâu chưa liên hệ" : "Không tải được hội viên", "");
         if (!failAuth(problem)) {
           setError(problem);
         }
@@ -125,7 +145,7 @@ export function CustomerBoard(props: { canImport: boolean; canRevoke: boolean; o
     return () => {
       ignore = true;
     };
-  }, [failAuth, filters, load]);
+  }, [failAuth, filters, load, loadStale, view]);
 
   async function more() {
     if (!cursor) {
@@ -204,7 +224,7 @@ export function CustomerBoard(props: { canImport: boolean; canRevoke: boolean; o
       <div className="page-header">
         <div>
           <Typography.Title level={3} className="page-header__title">
-            Hội viên
+            Hội viên VIP
           </Typography.Title>
           <Typography.Text type="secondary">Danh sách khách VIP. Bấm một dòng để xem nhãn chăm sóc và đồng ý nhận tin.</Typography.Text>
         </div>
@@ -267,6 +287,14 @@ export function CustomerBoard(props: { canImport: boolean; canRevoke: boolean; o
           onPressEnter={() => setFilters(draft)}
           style={{ width: 140 }}
         />
+        <Segmented
+          value={view}
+          options={[
+            { value: "list", label: "Tất cả" },
+            { value: "stale", label: "15 ngày chưa liên hệ" },
+          ]}
+          onChange={(value) => setView(value as "list" | "stale")}
+        />
         <Button type="primary" onClick={() => setFilters(draft)}>
           Lọc
         </Button>
@@ -311,6 +339,39 @@ export function CustomerBoard(props: { canImport: boolean; canRevoke: boolean; o
         />
       ) : null}
 
+      {view === "stale" ? (
+        <Table<StaleCustomer>
+          className="staff-table"
+          rowKey="id"
+          size="middle"
+          loading={loading}
+          columns={[
+            { title: "Mã khách", dataIndex: "customer_ref", ellipsis: true },
+            { title: "Trang", dataIndex: "site", width: 110, render: (site: string | null) => site || "—" },
+            { title: "Tạo lúc", dataIndex: "created_at", width: 160, render: (value: string) => formatStamp(value) },
+          ]}
+          dataSource={stale}
+          pagination={false}
+          locale={{ emptyText: loading ? " " : "Không có hội viên quá 15 ngày." }}
+          onRow={(row) => ({
+            onClick: () =>
+              setMember({
+                id: row.id,
+                customer_ref: row.customer_ref,
+                display_name: row.customer_ref,
+                game_account: null,
+                site: row.site,
+                phone_mask: "—",
+                tier: null,
+                status: "active",
+                care_pool: "active",
+                owner_user_id: null,
+                owner_name: null,
+                created_at: row.created_at,
+              }),
+          })}
+        />
+      ) : (
       <Table<VipCustomer>
         className="staff-table"
         rowKey="id"
@@ -322,7 +383,8 @@ export function CustomerBoard(props: { canImport: boolean; canRevoke: boolean; o
         locale={{ emptyText: loading ? " " : "Chưa có hội viên." }}
         onRow={(row) => ({ onClick: () => setMember(row) })}
       />
-      {cursor ? (
+      )}
+      {view === "list" && cursor ? (
         <Button style={{ marginTop: 12 }} loading={loadingMore} onClick={() => void more()}>
           Xem thêm
         </Button>
@@ -334,6 +396,7 @@ export function CustomerBoard(props: { canImport: boolean; canRevoke: boolean; o
           customer={member}
           canImport={props.canImport}
           canRevoke={props.canRevoke}
+          canAssignOwner={props.canAssignOwner}
           onClose={() => setMember(null)}
           onUnauthorized={props.onUnauthorized}
           onMfaSetup={props.onMfaSetup}
