@@ -1,0 +1,16 @@
+services:
+  cms:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cskh_vip_cms
+    restart: unless-stopped
+    ports:
+      - "${CMS_PORT:-3003}:80"
+    networks:
+      - cskh-net
+
+networks:
+  cskh-net:
+    name: cskh-vip-net
+    external: true

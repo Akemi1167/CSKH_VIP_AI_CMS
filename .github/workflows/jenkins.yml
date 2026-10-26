@@ -1,0 +1,19 @@
+name: Notify Jenkins
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  notify-jenkins:
+    if: contains(github.repository, 'Akemi1167')
+    runs-on: ubuntu-latest
+    env:
+      JENKINS_HOST: http://jenskin.abc33.work/generic-webhook-trigger/invoke
+
+    steps:
+      - name: Trigger Jenkins (main)
+        if: github.ref == 'refs/heads/main'
+        run: |
+          curl -fsSL "$JENKINS_HOST?token=CSKH_VIP_AI_CMS"
