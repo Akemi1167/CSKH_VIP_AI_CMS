@@ -188,22 +188,19 @@ export function ScheduleBoard(props: {
       </div>
 
       {loadError ? (
-        <Alert
-          type="error"
-          showIcon
-          style={{ marginBottom: 16 }}
-          message={loadError.message}
-          description={loadError.requestId ? `Mã yêu cầu ${loadError.requestId}` : undefined}
+        <ErrorAlert
+          error={loadError}
           action={
-            <Button
-              size="small"
+            <button
+              type="button"
+              className="notice__retry"
               onClick={() => {
                 setLoading(true);
                 refresh().finally(() => setLoading(false));
               }}
             >
               Thử lại
-            </Button>
+            </button>
           }
         />
       ) : null}

@@ -1,5 +1,5 @@
 import { PlusOutlined, ReloadOutlined } from "@ant-design/icons";
-import { Button, Drawer, Form, Input, Select, Space, Table, Typography } from "antd";
+import { Button, Drawer, Form, Input, Select, Space, Table, Typography, Alert } from "antd";
 import type { TableColumnsType } from "antd";
 import { useCallback, useEffect, useState } from "react";
 import { ApiError, api } from "../api.ts";
@@ -17,6 +17,7 @@ type Campaign = {
   status: CampaignStatus;
   body: string;
   agent_id: string | null;
+  dimension_id: string | null;
   destination_url: string | null;
   created_at: string;
 };
@@ -59,7 +60,7 @@ export function CampaignBoard(props: {
   const [busy, setBusy] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [stations, setStations] = useState<string[]>([]);
-  const [draft, setDraft] = useState({ name: "", channel: "sms" as Channel, site: "", body: "", destinationUrl: "", agentId: "" });
+  const [draft, setDraft] = useState({ name: "", channel: "sms" as Channel, site: "", body: "", destinationUrl: "", agentId: "", dimensionId: "" });
 
   const failAuth = useCallback(
     (caught: ApiError) => {
@@ -219,19 +220,26 @@ export function CampaignBoard(props: {
       setError(new ApiError(400, "validation_error", "Cần mã agent Laaffic", ""));
       return;
     }
+    if (draft.channel === "ai_voice" && draft.dimensionId.trim().length > 0 && !/^\d{1,12}$/.test(draft.dimensionId.trim())) {
+      setError(new ApiError(400, "validation_error", "Mã chiều chỉ gồm số", ""));
+      return;
+    }
     setBusy(true);
     setError(null);
-    const body: Record<string, string> = { name, channel: draft.channel, site: draft.site, body: draft.body };
-    if (draft.destinationUrl.trim()) {
+    const body: Record<string, string> = { name, channel: draft.channel, site: draft.site, body: draft.channel === "sms" ? draft.body : "" };
+    if (draft.channel === "sms" && draft.destinationUrl.trim()) {
       body.destination_url = draft.destinationUrl.trim();
     }
     if (draft.channel === "ai_voice") {
       body.agent_id = draft.agentId.trim();
+      if (draft.dimensionId.trim()) {
+        body.dimension_id = draft.dimensionId.trim();
+      }
     }
     try {
       await api<Campaign>("/api/v1/campaigns", { method: "POST", body });
       setCreateOpen(false);
-      setDraft({ name: "", channel: "sms", site: "", body: "", destinationUrl: "", agentId: "" });
+      setDraft({ name: "", channel: "sms", site: "", body: "", destinationUrl: "", agentId: "", dimensionId: "" });
       await load(status);
     } catch (caught) {
       catchProblem(caught, "Không tạo được chiến dịch");
@@ -281,6 +289,7 @@ export function CampaignBoard(props: {
         </Space>
       </div>
       {error ? <ErrorAlert error={error} /> : null}
+      {props.canLaunch ? <TestVoice onUnauthorized={props.onUnauthorized} onMfaSetup={props.onMfaSetup} /> : null}
       <Table
         rowKey="id"
         size="middle"
@@ -318,17 +327,24 @@ export function CampaignBoard(props: {
               />
             </Form.Item>
             {draft.channel === "sms" ? (
-              <Form.Item label="Nội dung" help="Để trống thì dùng mẫu tin của đài. Dùng {link} nếu cần gắn mã chiến dịch.">
-                <Input.TextArea rows={4} value={draft.body} maxLength={1024} onChange={(event) => setDraft({ ...draft, body: event.target.value })} />
-              </Form.Item>
+              <>
+                <Form.Item label="Nội dung" help="Để trống thì dùng mẫu tin của đài. Dùng {link} nếu cần gắn mã chiến dịch.">
+                  <Input.TextArea rows={4} value={draft.body} maxLength={1024} onChange={(event) => setDraft({ ...draft, body: event.target.value })} />
+                </Form.Item>
+                <Form.Item label="Link đích">
+                  <Input value={draft.destinationUrl} placeholder="https://" onChange={(event) => setDraft({ ...draft, destinationUrl: event.target.value })} />
+                </Form.Item>
+              </>
             ) : (
-              <Form.Item label="Mã agent Laaffic">
-                <Input value={draft.agentId} onChange={(event) => setDraft({ ...draft, agentId: event.target.value })} />
-              </Form.Item>
+              <>
+                <Form.Item label="Mã agent Laaffic" help="Lấy trên màn hình agent của Laaffic. Ghi âm cuộc gọi đang tắt.">
+                  <Input value={draft.agentId} inputMode="numeric" onChange={(event) => setDraft({ ...draft, agentId: event.target.value })} />
+                </Form.Item>
+                <Form.Item label="Mã chiều" help="Để trống nếu agent không dùng chiều.">
+                  <Input value={draft.dimensionId} inputMode="numeric" onChange={(event) => setDraft({ ...draft, dimensionId: event.target.value })} />
+                </Form.Item>
+              </>
             )}
-            <Form.Item label="Link đích">
-              <Input value={draft.destinationUrl} placeholder="https://" onChange={(event) => setDraft({ ...draft, destinationUrl: event.target.value })} />
-            </Form.Item>
             <Button type="primary" htmlType="submit" loading={busy}>
               Lưu nháp
             </Button>
@@ -339,10 +355,14 @@ export function CampaignBoard(props: {
               {selected.site ? `${selected.site} · ` : ""}
               {selected.channel === "sms" ? "SMS" : "Gọi AI"} · {STATUS_LABEL[selected.status] ?? selected.status}
             </p>
+            {selected.channel === "ai_voice" ? (
+              <p className="page-note">Agent {selected.agent_id || "—"}{selected.dimension_id ? ` · chiều ${selected.dimension_id}` : ""}. Ghi âm đang tắt. Chỉ gọi hội viên đã đồng ý, không gồm kho data và nuôi SMS.</p>
+            ) : null}
             {selected.body ? <p>{selected.body}</p> : null}
             {audience ? (
               <p className="page-note">
-                Đủ điều kiện {audience.eligible}. Thiếu đồng ý {audience.missing_consent}. Gửi SMS gần đây {audience.recent_send}.
+                Đủ điều kiện {audience.eligible}. Thiếu đồng ý {audience.missing_consent}.
+                {selected.channel === "sms" ? ` Gửi SMS gần đây ${audience.recent_send}.` : ""}
               </p>
             ) : null}
             {counts ? (
@@ -388,5 +408,85 @@ export function CampaignBoard(props: {
         ) : null}
       </Drawer>
     </section>
+  );
+}
+
+function TestVoice(props: { onUnauthorized: () => void; onMfaSetup: () => void }) {
+  const [phone, setPhone] = useState("");
+  const [agentId, setAgentId] = useState("");
+  const [dimensionId, setDimensionId] = useState("");
+  const [fieldError, setFieldError] = useState<string | null>(null);
+  const [error, setError] = useState<ApiError | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
+
+  async function submit() {
+    const number = phone.trim();
+    const agent = agentId.trim();
+    const dimension = dimensionId.trim();
+    if (number.length < 8) {
+      setFieldError("Cần số điện thoại Việt Nam.");
+      return;
+    }
+    if (!/^\d{1,12}$/.test(agent)) {
+      setFieldError("Cần mã agent Laaffic.");
+      return;
+    }
+    if (dimension.length > 0 && !/^\d{1,12}$/.test(dimension)) {
+      setFieldError("Mã chiều chỉ gồm số.");
+      return;
+    }
+    setFieldError(null);
+    setError(null);
+    setNotice(null);
+    setSending(true);
+    try {
+      const result = await api<{ provider_ref: string }>("/api/v1/admin/voice/test", {
+        method: "POST",
+        body: { phone: number, agent_id: agent, ...(dimension ? { dimension_id: dimension } : {}) },
+      });
+      setPhone("");
+      setNotice(`Đã giao cuộc gọi thử. Mã Laaffic: ${result.provider_ref}.`);
+    } catch (caught) {
+      const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không gọi được", "");
+      if (problem.status === 401) {
+        props.onUnauthorized();
+        return;
+      }
+      if (problem.code === "mfa_setup_required") {
+        props.onMfaSetup();
+        return;
+      }
+      setError(problem);
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <div className="shift-form" style={{ marginBottom: 16, maxWidth: 520 }}>
+      <Typography.Title level={5} style={{ marginTop: 0 }}>
+        Gọi thử một số
+      </Typography.Title>
+      <p className="page-note" style={{ marginTop: 0 }}>
+        Một cuộc gọi AI tới số bạn nhập, từ 8 giờ đến 21 giờ giờ Việt Nam. Ghi âm tắt. Mỗi lần cách nhau 30 giây.
+      </p>
+      <ErrorAlert error={error} />
+      {notice ? <Alert type="success" showIcon style={{ marginBottom: 16 }} message={notice} /> : null}
+      <Form layout="vertical" requiredMark={false} onFinish={() => void submit()}>
+        <Form.Item label="Số điện thoại" validateStatus={fieldError ? "error" : ""} help={fieldError || "Nhập số di động, ví dụ 0901234567."}>
+          <Input value={phone} maxLength={20} inputMode="tel" autoComplete="off" onChange={(event) => setPhone(event.target.value)} />
+        </Form.Item>
+        <Form.Item label="Mã agent Laaffic">
+          <Input value={agentId} inputMode="numeric" onChange={(event) => setAgentId(event.target.value)} />
+        </Form.Item>
+        <Form.Item label="Mã chiều">
+          <Input value={dimensionId} inputMode="numeric" onChange={(event) => setDimensionId(event.target.value)} />
+        </Form.Item>
+        <Button type="primary" htmlType="submit" loading={sending} disabled={phone.trim().length === 0 || agentId.trim().length === 0}>
+          Gọi thử
+        </Button>
+      </Form>
+    </div>
   );
 }

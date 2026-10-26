@@ -335,6 +335,7 @@ const AUDIT_FILTERS = [
   { value: "rewards.revoke", label: "Gỡ duyệt thưởng" },
   { value: "stations.sms", label: "Sửa mẫu tin theo đài" },
   { value: "sms.test", label: "Gửi thử SMS" },
+  { value: "voice.test", label: "Gọi thử AI" },
   { value: "settings.rate_limit", label: "Cập nhật IP không bị chặn" },
   { value: "telegram.configure", label: "Cấu hình bot Telegram" },
 ];
@@ -474,6 +475,10 @@ function describeAudit(row: AuditEvent, names: Map<string, string>): string {
   if (row.action === "sms.test") {
     const who = text(summary.recipient);
     return who ? `Gửi thử SMS tới ${who}.` : "Gửi thử SMS.";
+  }
+  if (row.action === "voice.test") {
+    const who = text(summary.recipient);
+    return who ? `Gọi thử AI tới ${who}.` : "Gọi thử AI.";
   }
   if (row.action === "stations.assign") {
     const code = row.entity_id || text(summary.station);
