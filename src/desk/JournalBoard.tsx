@@ -334,6 +334,7 @@ const AUDIT_FILTERS = [
   { value: "rewards.approve", label: "Duyệt thưởng" },
   { value: "rewards.revoke", label: "Gỡ duyệt thưởng" },
   { value: "stations.sms", label: "Sửa mẫu tin theo đài" },
+  { value: "sms.test", label: "Gửi thử SMS" },
   { value: "settings.rate_limit", label: "Cập nhật IP không bị chặn" },
   { value: "telegram.configure", label: "Cấu hình bot Telegram" },
 ];
@@ -469,6 +470,10 @@ function describeAudit(row: AuditEvent, names: Map<string, string>): string {
   if (row.action === "stations.sms") {
     const code = row.entity_id || text(summary.station);
     return code ? `Cập nhật mẫu tin của ${code}.` : "Cập nhật mẫu tin của một đài.";
+  }
+  if (row.action === "sms.test") {
+    const who = text(summary.recipient);
+    return who ? `Gửi thử SMS tới ${who}.` : "Gửi thử SMS.";
   }
   if (row.action === "stations.assign") {
     const code = row.entity_id || text(summary.station);

@@ -1,4 +1,4 @@
-import { AppstoreOutlined, AuditOutlined, BarChartOutlined, BookOutlined, CheckSquareOutlined, ClockCircleOutlined, CommentOutlined, FundOutlined, GiftOutlined, GlobalOutlined, HistoryOutlined, KeyOutlined, LeftOutlined, LogoutOutlined, MailOutlined, PhoneOutlined, SearchOutlined, SendOutlined, SettingOutlined, ShareAltOutlined, ShopOutlined, TeamOutlined, UnorderedListOutlined, UserOutlined } from "@ant-design/icons";
+import { AppstoreOutlined, AuditOutlined, BarChartOutlined, BookOutlined, CheckSquareOutlined, ClockCircleOutlined, CommentOutlined, FundOutlined, GiftOutlined, GlobalOutlined, HistoryOutlined, KeyOutlined, LeftOutlined, LogoutOutlined, MailOutlined, MessageOutlined, PhoneOutlined, SearchOutlined, SendOutlined, SettingOutlined, ShareAltOutlined, ShopOutlined, TeamOutlined, UnorderedListOutlined, UserOutlined } from "@ant-design/icons";
 import { Button, Input, Modal, Space, Switch } from "antd";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { ApiError, api, probe, setCsrfToken } from "../api.ts";
@@ -8,6 +8,7 @@ import { ErrorAlert } from "../ui.tsx";
 import { CampaignBoard } from "./CampaignBoard.tsx";
 import { CareHistoryBoard, CareHome, ContactBoard, PersonalReportBoard } from "./CareDesk.tsx";
 import { CustomerBoard } from "./CustomerBoard.tsx";
+import { EmbedBoard } from "./EmbedBoard.tsx";
 import { DataBoard } from "./DataBoard.tsx";
 import { JournalBoard } from "./JournalBoard.tsx";
 import { QueueBoard } from "./QueueBoard.tsx";
@@ -21,8 +22,9 @@ import { WorkBoard } from "./WorkBoard.tsx";
 import { PasswordDialog } from "./PasswordDialog.tsx";
 import { ScheduleBoard } from "./ScheduleBoard.tsx";
 import { StaffBoard } from "./StaffBoard.tsx";
+import { armAlertSound, askChatNotification, startInboxWatch, stopInboxWatch, useInboxUnread } from "./inboxWatch.ts";
 
-type DeskPage = "overview" | "inbox" | "contacts" | "tasks" | "history" | "personal" | "queue" | "schedule" | "staff" | "customers" | "warehouse" | "distribute" | "campaigns" | "shift" | "rewards" | "journal" | "stations" | "stationSms" | "rateLimit" | "telegram";
+type DeskPage = "overview" | "inbox" | "contacts" | "tasks" | "history" | "personal" | "queue" | "schedule" | "staff" | "customers" | "warehouse" | "distribute" | "campaigns" | "shift" | "rewards" | "journal" | "stations" | "stationSms" | "rateLimit" | "embed" | "telegram";
 
 type NavLeaf = { kind: "leaf"; id: DeskPage; label: string; icon: ReactNode };
 type NavGroup = { label?: string; items: NavLeaf[] };
@@ -73,7 +75,23 @@ export function Desk(props: {
   const [acceptingBusy, setAcceptingBusy] = useState(false);
   const [page, setPage] = useState<DeskPage>("overview");
   const [panelBranchId, setPanelBranchId] = useState<string | null>(null);
+  const unread = useInboxUnread();
   const onScheduleDirty = useCallback((dirty: boolean) => setScheduleDirty(dirty), []);
+  useEffect(() => {
+    if (!canReadTasks) {
+      return;
+    }
+    startInboxWatch(canReadAllTasks ? "staff" : "own");
+    const arm = () => armAlertSound();
+    const openInbox = () => setPage("inbox");
+    window.addEventListener("pointerdown", arm);
+    window.addEventListener("cskh-open-inbox", openInbox);
+    return () => {
+      window.removeEventListener("pointerdown", arm);
+      window.removeEventListener("cskh-open-inbox", openInbox);
+      stopInboxWatch();
+    };
+  }, [canReadAllTasks, canReadTasks]);
   const menus = useMemo(() => {
     const care: NavLeaf[] = [{ kind: "leaf", id: "overview", label: "Tổng quan", icon: <AppstoreOutlined /> }];
     if (canReadCustomers) {
@@ -97,6 +115,7 @@ export function Desk(props: {
     }
     if (canReadSettings) {
       settings.push({ kind: "leaf", id: "rateLimit", label: "Không chặn IP", icon: <GlobalOutlined /> });
+      settings.push({ kind: "leaf", id: "embed", label: "Chat nhúng", icon: <MessageOutlined /> });
     }
     if (canManageTelegram) {
       settings.push({ kind: "leaf", id: "telegram", label: "Telegram", icon: <SendOutlined /> });
@@ -157,6 +176,10 @@ export function Desk(props: {
   }
 
   function openLeaf(next: DeskPage) {
+    if (next === "inbox") {
+      askChatNotification();
+      armAlertSound();
+    }
     setPanelBranchId(null);
     openPage(next);
   }
@@ -266,7 +289,7 @@ export function Desk(props: {
         </div>
         <nav className="app-sidebar__nav">
           {menus.sections.map((section) => (
-            <MenuGroup key={section.id} title={section.label} items={section.items} page={page} panelId={panel?.id ?? null} onLeaf={openLeaf} onBranch={openBranch} />
+            <MenuGroup key={section.id} title={section.label} items={section.items} page={page} panelId={panel?.id ?? null} unread={section.id === "operate" ? unread.count : 0} onLeaf={openLeaf} onBranch={openBranch} />
           ))}
         </nav>
         <div className="app-sidebar__footer">
@@ -299,7 +322,7 @@ export function Desk(props: {
           {page === "inbox" && canReadTasks ? (
             <WorkBoard
               heading="Hộp thư hỗ trợ"
-              lead={canReadAllTasks ? "Chọn hội thoại bên trái và gửi tin. Tin Telegram sẽ tới máy khách." : "Hội thoại đang giao cho bạn. Gửi tin ngay trong khung chat."}
+              lead={canReadAllTasks ? "Chọn hội thoại bên trái và gửi tin. Tin web đi qua socket, tin Telegram tới máy khách." : "Hội thoại đang giao cho bạn. Tin khách web tới ngay trên khung chat."}
               layout="chat"
               scope={canReadAllTasks ? "staff" : "own"}
               canUpdate={canUpdateTasks}
@@ -387,10 +410,13 @@ export function Desk(props: {
             <StationBoard canWrite={canWriteSettings} onUnauthorized={() => props.onLoggedOut("Phiên đã hết. Đăng nhập lại.")} onMfaSetup={props.onMfaSetup} />
           ) : null}
           {page === "stationSms" && canReadCampaigns ? (
-            <StationSmsBoard canWrite={canCreateCampaigns} onUnauthorized={() => props.onLoggedOut("Phiên đã hết. Đăng nhập lại.")} onMfaSetup={props.onMfaSetup} />
+            <StationSmsBoard canWrite={canCreateCampaigns} canTest={canLaunchCampaigns} onUnauthorized={() => props.onLoggedOut("Phiên đã hết. Đăng nhập lại.")} onMfaSetup={props.onMfaSetup} />
           ) : null}
           {page === "rateLimit" && canReadSettings ? (
             <RateLimitBoard canWrite={canWriteSettings} onUnauthorized={() => props.onLoggedOut("Phiên đã hết. Đăng nhập lại.")} onMfaSetup={props.onMfaSetup} />
+          ) : null}
+          {page === "embed" && canReadSettings ? (
+            <EmbedBoard onUnauthorized={() => props.onLoggedOut("Phiên đã hết. Đăng nhập lại.")} onMfaSetup={props.onMfaSetup} />
           ) : null}
           {page === "telegram" && canManageTelegram ? (
             <TelegramBoard onUnauthorized={() => props.onLoggedOut("Phiên đã hết. Đăng nhập lại.")} onMfaSetup={props.onMfaSetup} />
@@ -426,7 +452,7 @@ export function Desk(props: {
   );
 }
 
-function MenuGroup(props: { title: string; items: NavNode[]; page: DeskPage; panelId: string | null; onLeaf: (page: DeskPage) => void; onBranch: (branch: NavBranch) => void }) {
+function MenuGroup(props: { title: string; items: NavNode[]; page: DeskPage; panelId: string | null; unread: number; onLeaf: (page: DeskPage) => void; onBranch: (branch: NavBranch) => void }) {
   if (props.items.length === 0) {
     return null;
   }
@@ -437,7 +463,7 @@ function MenuGroup(props: { title: string; items: NavNode[]; page: DeskPage; pan
         {props.items.map((item) =>
           item.kind === "leaf" ? (
             <li key={item.id}>
-              <NavButton active={props.page === item.id} icon={item.icon} label={item.label} onClick={() => props.onLeaf(item.id)} />
+              <NavButton active={props.page === item.id} icon={item.icon} label={item.label} badge={item.id === "inbox" ? props.unread : 0} onClick={() => props.onLeaf(item.id)} />
             </li>
           ) : (
             <li key={item.id}>
@@ -477,11 +503,12 @@ function SubPanel(props: { branch: NavBranch; page: DeskPage; onOpen: (page: Des
   );
 }
 
-function NavButton(props: { active: boolean; icon: ReactNode; label: string; onClick: () => void }) {
+function NavButton(props: { active: boolean; icon: ReactNode; label: string; badge?: number; onClick: () => void }) {
   return (
     <button className={props.active ? "nav-link nav-link--active" : "nav-link"} type="button" onClick={props.onClick}>
       <span className="nav-link__icon">{props.icon}</span>
       <span className="nav-link__text">{props.label}</span>
+      {props.badge ? <span className="nav-link__badge">{props.badge > 9 ? "9+" : props.badge}</span> : null}
     </button>
   );
 }

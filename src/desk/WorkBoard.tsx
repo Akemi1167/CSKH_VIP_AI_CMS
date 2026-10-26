@@ -6,6 +6,8 @@ import { ApiError, api } from "../api.ts";
 import { formatStamp } from "../copy.ts";
 import type { Staff } from "../types.ts";
 import { ErrorAlert } from "../ui.tsx";
+import { bindInboxBoard, markInboxRead, noteInboxRows, sendStaffReply, setInboxFocus, staffChatLive, useInboxUnread } from "./inboxWatch.ts";
+import type { LiveChatMessage } from "./staffChat.ts";
 
 type TaskStatus = "ASSIGNED" | "IN_PROGRESS" | "WAITING_CUSTOMER" | "COMPLETED" | "CANCELLED";
 
@@ -84,6 +86,23 @@ function shortTime(value: string | null | undefined): string {
   return new Intl.DateTimeFormat("vi-VN", sameDay ? { hour: "2-digit", minute: "2-digit" } : { day: "2-digit", month: "2-digit" }).format(date);
 }
 
+function asStatus(value: string, fallback: TaskStatus): TaskStatus {
+  if (value === "ASSIGNED" || value === "IN_PROGRESS" || value === "WAITING_CUSTOMER" || value === "COMPLETED" || value === "CANCELLED") {
+    return value;
+  }
+  return fallback;
+}
+
+function liveLabel(status: "connecting" | "live" | "down"): string {
+  if (status === "live") {
+    return "Chat trực tiếp đang mở. Tin của khách giao cho bạn tới ngay.";
+  }
+  if (status === "connecting") {
+    return "Đang nối chat trực tiếp…";
+  }
+  return "Chưa nối socket. Vẫn gửi được bằng API.";
+}
+
 function chatInitial(name: string): string {
   const clean = name.replace(/^tg:/i, "").trim();
   return (clean.slice(0, 1) || "?").toUpperCase();
@@ -112,6 +131,9 @@ export function WorkBoard(props: {
   const [error, setError] = useState<ApiError | null>(null);
   const [detail, setDetail] = useState<TaskDetail | null>(null);
   const [reply, setReply] = useState("");
+  const replyRef = useRef("");
+  const composingRef = useRef(false);
+  const lastSentRef = useRef({ body: "", at: 0 });
   const [careNote, setCareNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
@@ -122,6 +144,10 @@ export function WorkBoard(props: {
   const [reason, setReason] = useState("Chuyển việc");
   const [warning, setWarning] = useState<string | null>(null);
   const [reminders, setReminders] = useState<{ id: string; customer_ref: string; site: string | null; due_on: string }[]>([]);
+  const [live, setLive] = useState<"connecting" | "live" | "down">("down");
+  const listRef = useRef({ status, assigneeId, ids: new Set<string>() });
+  listRef.current = { status, assigneeId, ids: new Set(items.map((row) => row.id)) };
+  const unread = useInboxUnread();
 
   const failAuth = useCallback(
     (caught: ApiError) => {
@@ -214,8 +240,9 @@ export function WorkBoard(props: {
     try {
       const result = await api<TaskDetail>(`/api/v1/tasks/${id}`);
       setDetail(result);
+      markInboxRead(id);
       if (!keepDraft) {
-        setReply("");
+        writeReply("");
         setCareNote("");
       }
     } catch (caught) {
@@ -246,23 +273,94 @@ export function WorkBoard(props: {
     }
   }
 
+  function applyLiveMessage(event: LiveChatMessage) {
+    const known = listRef.current.ids.has(event.task_id);
+    setItems((current) => {
+      if (!current.some((row) => row.id === event.task_id)) {
+        return current;
+      }
+      return current.map((row) =>
+        row.id === event.task_id
+          ? {
+              ...row,
+              version: event.version || row.version,
+              status: asStatus(event.task_status, row.status),
+              last_message: { body: event.body, sender_type: event.sender_type, created_at: event.created_at },
+            }
+          : row,
+      );
+    });
+    setDetail((current) => {
+      if (!current || current.id !== event.task_id) {
+        return current;
+      }
+      const statusNext = asStatus(event.task_status, current.status);
+      if (current.messages.some((message) => message.id === event.message_id)) {
+        return { ...current, version: event.version || current.version, status: statusNext };
+      }
+      return {
+        ...current,
+        version: event.version || current.version,
+        status: statusNext,
+        messages: [...current.messages, { id: event.message_id, sender_type: event.sender_type, body: event.body, created_at: event.created_at }],
+      };
+    });
+    if (!known) {
+      const view = listRef.current;
+      void load(view.status, view.assigneeId).catch(() => undefined);
+    }
+  }
+
+  function writeReply(value: string) {
+    replyRef.current = value;
+    setReply(value);
+  }
+
   async function sendReply() {
-    if (!detail || reply.trim().length === 0) {
+    if (!detail) {
       return;
     }
+    const text = replyRef.current.trim();
+    if (text.length === 0) {
+      return;
+    }
+    const now = Date.now();
+    const previous = lastSentRef.current;
+    if (now - previous.at < 500 && (text === previous.body || previous.body.endsWith(` ${text}`))) {
+      writeReply("");
+      return;
+    }
+    lastSentRef.current = { body: text, at: now };
     setBusy(true);
     setError(null);
-    const text = reply.trim();
     const note = (careNote.trim() || text).slice(0, 200);
+    const taskId = detail.id;
+    const version = detail.version;
     try {
-      await api(`/api/v1/tasks/${detail.id}/messages`, {
+      const chatLive = staffChatLive();
+      if (chatLayout && chatLive) {
+        const ack = await sendStaffReply({ task_id: taskId, version, body: text, care_note: note });
+        writeReply("");
+        setDetail((current) => {
+          if (!current || current.id !== taskId) {
+            return current;
+          }
+          const message = { id: ack.message_id, sender_type: "agent", body: text, created_at: new Date().toISOString() };
+          const messages = current.messages.some((item) => item.id === ack.message_id) ? current.messages : [...current.messages, message];
+          return { ...current, version: ack.version || current.version, status: asStatus(ack.task_status, current.status), messages };
+        });
+        await load(status, assigneeId);
+        return;
+      }
+      await api(`/api/v1/tasks/${taskId}/messages`, {
         method: "POST",
-        body: { version: detail.version, body: text, care_label: "da_lien_he_lai", care_note: note },
+        body: { version, body: text, care_label: "da_lien_he_lai", care_note: note },
       });
+      writeReply("");
       await load(status, assigneeId);
-      await openTask(detail.id);
+      await openTask(taskId, true);
     } catch (caught) {
-      const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không gửi được câu trả lời", "");
+      const problem = caught instanceof ApiError ? caught : new ApiError(0, "chat", caught instanceof Error ? caught.message : "Không gửi được câu trả lời", "");
       if (!failAuth(problem)) {
         setError(problem);
       }
@@ -337,6 +435,13 @@ export function WorkBoard(props: {
   const open = detail ? nextStatuses.length > 0 : false;
 
   useEffect(() => {
+    if (!chatLayout) {
+      return;
+    }
+    noteInboxRows(items);
+  }, [chatLayout, items]);
+
+  useEffect(() => {
     if (!chatLayout || detail || items.length === 0) {
       return;
     }
@@ -345,6 +450,32 @@ export function WorkBoard(props: {
       void openTask(newest.id);
     }
   }, [chatLayout, detail, items]);
+
+  useEffect(() => {
+    if (!chatLayout) {
+      return;
+    }
+    setInboxFocus(true, detail?.id ?? null);
+    return () => setInboxFocus(false, null);
+  }, [chatLayout, detail?.id]);
+
+  useEffect(() => {
+    if (!chatLayout) {
+      return;
+    }
+    return bindInboxBoard({
+      onStatus: setLive,
+      onMessage: (event) => applyLiveMessage(event),
+      onTask: () => {
+        const view = listRef.current;
+        void load(view.status, view.assigneeId).catch(() => undefined);
+      },
+      onRefresh: () => {
+        const view = listRef.current;
+        void load(view.status, view.assigneeId).catch(() => undefined);
+      },
+    });
+  }, [chatLayout, load]);
 
   useEffect(() => {
     if (!chatLayout || !detail) {
@@ -356,7 +487,7 @@ export function WorkBoard(props: {
         .then((result) => setDetail((current) => (current?.id === id ? result : current)))
         .catch(() => undefined);
       void load(status, assigneeId).catch(() => undefined);
-    }, 4000);
+    }, 8000);
     return () => window.clearInterval(timer);
   }, [assigneeId, chatLayout, detail?.id, load, status]);
 
@@ -376,6 +507,7 @@ export function WorkBoard(props: {
             {props.heading}
           </Typography.Title>
           <Typography.Text type="secondary">{props.lead}</Typography.Text>
+          {chatLayout ? <p className="page-note">{liveLabel(live)}</p> : null}
         </div>
         <Space>
           {staffScope && props.canListStaff ? (
@@ -424,17 +556,20 @@ export function WorkBoard(props: {
             {!loading && items.length === 0 ? <p className="chat-empty">Chưa có hội thoại.</p> : null}
             {newestFirst(items).map((row) => {
               const when = row.last_message?.created_at || row.received_at;
+              const pending = unread.byId.get(row.id);
+              const active = detail?.id === row.id;
+              const className = ["chat-list__item", active ? "chat-list__item--active" : "", pending ? "chat-list__item--unread" : ""].filter(Boolean).join(" ");
               return (
-                <button key={row.id} type="button" className={detail?.id === row.id ? "chat-list__item chat-list__item--active" : "chat-list__item"} onClick={() => void openTask(row.id)}>
+                <button key={row.id} type="button" className={className} onClick={() => void openTask(row.id)}>
                   <span className="chat-avatar" aria-hidden="true">
                     {chatInitial(row.customer_ref)}
                   </span>
                   <span className="chat-list__body">
                     <span className="chat-list__top">
                       <strong>{row.customer_ref}</strong>
-                      <time>{shortTime(when)}</time>
+                      {pending ? <span className="chat-unread">{pending.count}</span> : <time>{shortTime(when)}</time>}
                     </span>
-                    <span className="chat-list__preview">{row.last_message?.body || "Chưa có tin"}</span>
+                    <span className="chat-list__preview">{pending?.body || row.last_message?.body || "Chưa có tin"}</span>
                     <small>
                       {row.channel === "telegram" ? "Telegram" : "Web"}
                       {row.assignee_name ? ` · ${row.assignee_name}` : ""} · {STATUS_LABEL[row.status] ?? row.status}
@@ -499,12 +634,23 @@ export function WorkBoard(props: {
                       value={reply}
                       autoSize={{ minRows: 1, maxRows: 4 }}
                       placeholder={detail.channel === "telegram" ? "Nhắn khách trên Telegram" : "Nhắn khách"}
-                      onChange={(event) => setReply(event.target.value)}
+                      onChange={(event) => writeReply(event.target.value)}
+                      onCompositionStart={() => {
+                        composingRef.current = true;
+                      }}
+                      onCompositionEnd={(event) => {
+                        composingRef.current = false;
+                        writeReply(event.currentTarget.value);
+                      }}
                       onKeyDown={(event) => {
-                        if (event.key === "Enter" && !event.shiftKey) {
-                          event.preventDefault();
-                          void sendReply();
+                        if (event.key !== "Enter" || event.shiftKey) {
+                          return;
                         }
+                        if (event.nativeEvent.isComposing || event.keyCode === 229 || composingRef.current) {
+                          return;
+                        }
+                        event.preventDefault();
+                        void sendReply();
                       }}
                     />
                     <Button type="primary" htmlType="submit" loading={busy} disabled={reply.trim().length === 0}>
@@ -543,7 +689,7 @@ export function WorkBoard(props: {
             {props.canUpdate && open ? (
               <Form layout="vertical" requiredMark={false} onFinish={() => void sendReply()}>
                 <Form.Item label="Câu trả lời">
-                  <Input.TextArea rows={3} value={reply} onChange={(event) => setReply(event.target.value)} />
+                  <Input.TextArea rows={3} value={reply} onChange={(event) => writeReply(event.target.value)} />
                 </Form.Item>
                 <Form.Item label="Ghi chú liên hệ" help="Bắt buộc khi hội thoại đã gắn hội viên.">
                   <Input value={careNote} maxLength={200} onChange={(event) => setCareNote(event.target.value)} />
