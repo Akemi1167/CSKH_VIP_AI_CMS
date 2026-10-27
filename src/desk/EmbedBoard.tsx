@@ -1,6 +1,6 @@
 import { Button, Form, Input, Typography } from "antd";
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
-import { ApiError, api } from "../api.ts";
+import { ApiError, api, toWsUrl } from "../api.ts";
 import { formatStamp } from "../copy.ts";
 
 type Draft = {
@@ -119,8 +119,7 @@ export function EmbedBoard(props: { onUnauthorized: () => void; onMfaSetup: () =
   }
 
   function openCustomer(ticket: string) {
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const socket = new WebSocket(`${protocol}//${window.location.host}/api/v1/chat/socket?ticket=${encodeURIComponent(ticket)}`);
+    const socket = new WebSocket(toWsUrl(`/api/v1/chat/socket?ticket=${encodeURIComponent(ticket)}`));
     socketRef.current = socket;
     socket.addEventListener("message", (event) => {
       if (socketRef.current !== socket || typeof event.data !== "string") {

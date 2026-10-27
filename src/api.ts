@@ -22,6 +22,20 @@ export class ApiError extends Error {
   }
 }
 
+export const API_BASE = ((import.meta as unknown as { env?: Record<string, string> }).env?.VITE_API_BASE_URL) || "https://cskh-vip-api.memberappj.com";
+
+export function toApiUrl(path: string): string {
+  if (path.startsWith("http://") || path.startsWith("https://")) {
+    return path;
+  }
+  return `${API_BASE}${path.startsWith("/") ? "" : "/"}${path}`;
+}
+
+export function toWsUrl(path: string): string {
+  const wsBase = API_BASE.replace(/^http:/, "ws:").replace(/^https:/, "wss:");
+  return `${wsBase}${path.startsWith("/") ? "" : "/"}${path}`;
+}
+
 type Options = {
   method?: string;
   body?: unknown;
@@ -52,7 +66,7 @@ export async function api<T>(path: string, options: Options = {}): Promise<T> {
 
   let response: Response;
   try {
-    response = await fetch(path, init);
+    response = await fetch(toApiUrl(path), init);
   } catch {
     throw new ApiError(0, "network", "Không kết nối được máy chủ", "");
   }
@@ -94,7 +108,7 @@ function rememberCsrf(payload: unknown): void {
 
 export async function probe(path: string): Promise<"ok" | "unavailable" | "offline"> {
   try {
-    const response = await fetch(path, { credentials: "include" });
+    const response = await fetch(toApiUrl(path), { credentials: "include" });
     const payload = (await response.json().catch(() => null)) as { status?: string } | null;
     if (payload?.status === "ok") {
       return "ok";

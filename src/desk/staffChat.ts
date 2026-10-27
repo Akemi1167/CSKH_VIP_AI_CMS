@@ -1,3 +1,5 @@
+import { toWsUrl } from "../api.ts";
+
 export type ReplyAck = {
   message_id: string;
   task_id: string;
@@ -93,8 +95,7 @@ export class StaffChat {
       return;
     }
     this.handlers.onStatus("connecting");
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const socket = new WebSocket(`${protocol}//${window.location.host}/api/v1/chat/socket`);
+    const socket = new WebSocket(toWsUrl("/api/v1/chat/socket"));
     this.socket = socket;
     socket.addEventListener("message", (event) => {
       if (typeof event.data !== "string") {
