@@ -22,18 +22,32 @@ export class ApiError extends Error {
   }
 }
 
-export const API_BASE = ((import.meta as unknown as { env?: Record<string, string> }).env?.VITE_API_BASE_URL) || "https://cskh-vip-api.memberappj.com";
+const PRODUCTION_API = "https://cskh-vip-api.memberappj.com";
+const configuredBase = import.meta.env.VITE_API_BASE_URL?.trim().replace(/\/$/, "") ?? "";
+
+// Dev gọi cùng origin để Vite chuyển tiếp tới API local. Bản build mới gọi API công khai.
+export const API_BASE = configuredBase || (import.meta.env.DEV ? "" : PRODUCTION_API);
+
+function withBase(path: string): string {
+  const suffix = path.startsWith("/") ? path : `/${path}`;
+  return API_BASE ? `${API_BASE}${suffix}` : suffix;
+}
 
 export function toApiUrl(path: string): string {
   if (path.startsWith("http://") || path.startsWith("https://")) {
     return path;
   }
-  return `${API_BASE}${path.startsWith("/") ? "" : "/"}${path}`;
+  return withBase(path);
 }
 
 export function toWsUrl(path: string): string {
-  const wsBase = API_BASE.replace(/^http:/, "ws:").replace(/^https:/, "wss:");
-  return `${wsBase}${path.startsWith("/") ? "" : "/"}${path}`;
+  const suffix = path.startsWith("/") ? path : `/${path}`;
+  if (!API_BASE && typeof window !== "undefined") {
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    return `${protocol}//${window.location.host}${suffix}`;
+  }
+  const wsBase = (API_BASE || PRODUCTION_API).replace(/^http:/, "ws:").replace(/^https:/, "wss:");
+  return `${wsBase}${suffix}`;
 }
 
 type Options = {

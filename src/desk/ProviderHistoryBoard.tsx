@@ -187,7 +187,7 @@ export function ProviderHistoryBoard(props: {
       <p className="page-note" style={{ marginTop: 0 }}>
         {props.channel === "sms"
           ? "Lấy 7 ngày gần nhất. Số được che. Không lưu nội dung tin."
-          : "Cuộc gọi tạo khi tắt ghi âm không có file nghe. Hội thoại hiện khi Laaffic gửi báo cáo cuộc gọi. Cuộc gọi mới được yêu cầu ghi âm."}
+          : "Danh sách task không có file nghe. Mã file nằm trong báo cáo Laaffic đẩy về webhook Gọi AI. Khi báo cáo tới, dòng cuộc gọi có nút Nghe."}
       </p>
       {props.channel === "ai_voice" ? <LaafficWebhooks onUnauthorized={props.onUnauthorized} onMfaSetup={props.onMfaSetup} /> : null}
       {error ? <ErrorAlert error={error} /> : null}
