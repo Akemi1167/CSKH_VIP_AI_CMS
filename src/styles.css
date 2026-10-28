@@ -827,6 +827,38 @@ a {
   font-size: 13px;
 }
 
+.webhook-card {
+  margin-bottom: 16px;
+}
+
+.webhook-list {
+  display: grid;
+  gap: 8px;
+}
+
+.webhook-row {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.webhook-row span {
+  color: #b8bfd0;
+  font-size: 13px;
+}
+
+.webhook-row code {
+  margin: 0;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: #12151c;
+  color: #eef0f6;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
 .notice {
   display: flex;
   align-items: center;

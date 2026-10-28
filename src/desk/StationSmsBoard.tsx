@@ -2,6 +2,7 @@ import { Alert, Button, Form, Input, Modal, Table, Typography } from "antd";
 import type { TableColumnsType } from "antd";
 import { useCallback, useEffect, useState } from "react";
 import { ApiError, api } from "../api.ts";
+import { LaafficWebhooks } from "./LaafficWebhooks.tsx";
 import { ErrorAlert } from "../ui.tsx";
 
 type StationSms = {
@@ -99,6 +100,7 @@ export function StationSmsBoard(props: { canWrite: boolean; canTest: boolean; on
           <Typography.Text type="secondary">Mẫu SMS của từng hậu đài. Chiến dịch để trống nội dung sẽ dùng mẫu của đài đó.</Typography.Text>
         </div>
       </div>
+      <LaafficWebhooks onUnauthorized={props.onUnauthorized} onMfaSetup={props.onMfaSetup} />
       {props.canTest ? <TestSms onUnauthorized={props.onUnauthorized} onMfaSetup={props.onMfaSetup} /> : null}
       {error ? <ErrorAlert error={error} /> : null}
       {notice ? <Alert type="success" showIcon style={{ marginBottom: 16 }} message={notice} /> : null}

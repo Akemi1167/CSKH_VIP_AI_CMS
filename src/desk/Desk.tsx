@@ -17,6 +17,8 @@ import { RewardBoard } from "./RewardBoard.tsx";
 import { ShiftBoard } from "./ShiftBoard.tsx";
 import { StationBoard } from "./StationBoard.tsx";
 import { StationSmsBoard } from "./StationSmsBoard.tsx";
+import { ProviderHistoryBoard } from "./ProviderHistoryBoard.tsx";
+import { VoiceBoard } from "./VoiceBoard.tsx";
 import { TelegramBoard } from "./TelegramBoard.tsx";
 import { WorkBoard } from "./WorkBoard.tsx";
 import { PasswordDialog } from "./PasswordDialog.tsx";
@@ -24,7 +26,7 @@ import { ScheduleBoard } from "./ScheduleBoard.tsx";
 import { StaffBoard } from "./StaffBoard.tsx";
 import { armAlertSound, askChatNotification, startInboxWatch, stopInboxWatch, useInboxUnread } from "./inboxWatch.ts";
 
-type DeskPage = "overview" | "inbox" | "contacts" | "tasks" | "history" | "personal" | "queue" | "schedule" | "staff" | "customers" | "warehouse" | "distribute" | "campaigns" | "shift" | "rewards" | "journal" | "stations" | "stationSms" | "rateLimit" | "embed" | "telegram";
+type DeskPage = "overview" | "inbox" | "contacts" | "tasks" | "history" | "personal" | "queue" | "schedule" | "staff" | "customers" | "warehouse" | "distribute" | "campaigns" | "shift" | "rewards" | "journal" | "stations" | "stationSms" | "voice" | "smsHistory" | "voiceHistory" | "rateLimit" | "embed" | "telegram";
 
 type NavLeaf = { kind: "leaf"; id: DeskPage; label: string; icon: ReactNode };
 type NavGroup = { label?: string; items: NavLeaf[] };
@@ -107,11 +109,16 @@ export function Desk(props: {
       care.push({ kind: "leaf", id: "personal", label: "Báo cáo cá nhân", icon: <BarChartOutlined /> });
     }
     const settings: NavLeaf[] = [];
+    const sms: NavLeaf[] = [];
+    const voice: NavLeaf[] = [];
     if (canReadSettings) {
       settings.push({ kind: "leaf", id: "stations", label: "Hậu đài", icon: <ShopOutlined /> });
     }
     if (canReadCampaigns) {
-      settings.push({ kind: "leaf", id: "stationSms", label: "Tin nhắn", icon: <CommentOutlined /> });
+      sms.push({ kind: "leaf", id: "stationSms", label: "Tin nhắn", icon: <CommentOutlined /> });
+      sms.push({ kind: "leaf", id: "smsHistory", label: "Lịch sử tin nhắn", icon: <HistoryOutlined /> });
+      voice.push({ kind: "leaf", id: "voice", label: "Gọi AI", icon: <PhoneOutlined /> });
+      voice.push({ kind: "leaf", id: "voiceHistory", label: "Lịch sử cuộc gọi", icon: <PhoneOutlined /> });
     }
     if (canReadSettings) {
       settings.push({ kind: "leaf", id: "rateLimit", label: "Không chặn IP", icon: <GlobalOutlined /> });
@@ -135,14 +142,18 @@ export function Desk(props: {
       settingsGroups.push({ label: "Hệ thống", items: settings });
     }
     settingsGroups.push({ label: "Khác", items: extras });
-    const sections: MenuSection[] = [
-      { id: "operate", label: "Chăm sóc hội viên", items: care },
-      {
-        id: "settings",
-        label: "Cài đặt",
-        items: [{ kind: "branch", id: "settings", label: "Cài đặt", panelTitle: "Cài đặt hệ thống", icon: <SettingOutlined />, groups: settingsGroups }],
-      },
-    ];
+    const sections: MenuSection[] = [{ id: "operate", label: "Chăm sóc hội viên", items: care }];
+    if (sms.length > 0) {
+      sections.push({ id: "sms", label: "Tin nhắn", items: sms });
+    }
+    if (voice.length > 0) {
+      sections.push({ id: "voice", label: "Gọi AI", items: voice });
+    }
+    sections.push({
+      id: "settings",
+      label: "Cài đặt",
+      items: [{ kind: "branch", id: "settings", label: "Cài đặt", panelTitle: "Cài đặt hệ thống", icon: <SettingOutlined />, groups: settingsGroups }],
+    });
     const central: NavLeaf[] = [];
     if (canReadCustomers) {
       central.push({ kind: "leaf", id: "warehouse", label: "Kho Data tập trung", icon: <BookOutlined /> });
@@ -411,6 +422,29 @@ export function Desk(props: {
           ) : null}
           {page === "stationSms" && canReadCampaigns ? (
             <StationSmsBoard canWrite={canCreateCampaigns} canTest={canLaunchCampaigns} onUnauthorized={() => props.onLoggedOut("Phiên đã hết. Đăng nhập lại.")} onMfaSetup={props.onMfaSetup} />
+          ) : null}
+          {page === "voice" && canReadCampaigns ? (
+            <VoiceBoard canTest={canLaunchCampaigns} onUnauthorized={() => props.onLoggedOut("Phiên đã hết. Đăng nhập lại.")} onMfaSetup={props.onMfaSetup} />
+          ) : null}
+          {page === "smsHistory" && canReadCampaigns ? (
+            <ProviderHistoryBoard
+              channel="sms"
+              title="Lịch sử tin nhắn"
+              lead="Tin đã gửi qua Laaffic trong 7 ngày gần nhất."
+              canSync={canLaunchCampaigns || canManageCampaigns}
+              onUnauthorized={() => props.onLoggedOut("Phiên đã hết. Đăng nhập lại.")}
+              onMfaSetup={props.onMfaSetup}
+            />
+          ) : null}
+          {page === "voiceHistory" && canReadCampaigns ? (
+            <ProviderHistoryBoard
+              channel="ai_voice"
+              title="Lịch sử cuộc gọi"
+              lead="Từng cuộc gọi AI trên Laaffic trong 7 ngày gần nhất."
+              canSync={canLaunchCampaigns || canManageCampaigns}
+              onUnauthorized={() => props.onLoggedOut("Phiên đã hết. Đăng nhập lại.")}
+              onMfaSetup={props.onMfaSetup}
+            />
           ) : null}
           {page === "rateLimit" && canReadSettings ? (
             <RateLimitBoard canWrite={canWriteSettings} onUnauthorized={() => props.onLoggedOut("Phiên đã hết. Đăng nhập lại.")} onMfaSetup={props.onMfaSetup} />
