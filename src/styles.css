@@ -731,6 +731,16 @@ a {
   background: transparent;
 }
 
+.log-json {
+  margin: 0;
+  max-height: 280px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .ant-modal {
   max-width: calc(100vw - 32px);
 }

@@ -17,6 +17,7 @@ const PERMISSION_LABELS: Record<string, string> = {
   "campaigns:launch": "Chạy campaign",
   "campaigns:manage": "Tạm dừng hoặc điều khiển campaign",
   "campaigns:report": "Xem báo cáo campaign",
+  "recordings:review": "Chấm điểm ghi âm cuộc gọi",
   "customers:read": "Xem khách VIP",
   "customers:import": "Nhập khách",
   "care:revoke": "Gỡ nhãn thành công hoặc không liên hệ",

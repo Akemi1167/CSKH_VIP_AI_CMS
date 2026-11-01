@@ -124,6 +124,9 @@ export type SystemLog = {
   event: string;
   message: string;
   request_id: string | null;
+  actor_id: string | null;
+  actor_username: string | null;
+  ip: string | null;
   context: Record<string, unknown>;
   created_at: string;
 };

@@ -179,7 +179,20 @@ export function JournalBoard(props: { canListStaff: boolean; onUnauthorized: () 
       width: 110,
       render: (value: string) => <Tag color={value === "error" ? "red" : "blue"}>{value === "error" ? "Lỗi" : "Thông tin"}</Tag>,
     },
+    {
+      title: "Người",
+      width: 160,
+      ellipsis: true,
+      render: (_, row) => (row.actor_username ? (namesByUsername.get(row.actor_username) ?? row.actor_username) : "Hệ thống"),
+    },
+    { title: "IP", dataIndex: "ip", width: 150, render: (value: string | null) => value || "—" },
     { title: "Việc đã xảy ra", render: (_, row) => describeLog(row) },
+    {
+      title: "Mã",
+      dataIndex: "request_id",
+      width: 110,
+      render: (value: string | null) => (value ? value.replaceAll("-", "").slice(0, 8) : "—"),
+    },
   ];
 
   return (
@@ -254,7 +267,7 @@ export function JournalBoard(props: { canListStaff: boolean; onUnauthorized: () 
             <Select
               allowClear
               placeholder="Mọi việc"
-              style={{ width: 220 }}
+              style={{ width: 260 }}
               value={eventName || undefined}
               options={LOG_FILTERS}
               onChange={(value) => setEventName(value ?? "")}
@@ -289,6 +302,9 @@ export function JournalBoard(props: { canListStaff: boolean; onUnauthorized: () 
           dataSource={logs}
           pagination={false}
           locale={{ emptyText: loading ? " " : "Chưa có log." }}
+          expandable={{
+            expandedRowRender: (row) => <pre className="log-json">{logJson(row)}</pre>,
+          }}
         />
       )}
       {cursor ? (
@@ -321,6 +337,8 @@ const AUDIT_FILTERS = [
   { value: "customers.care", label: "Gắn nhãn chăm sóc" },
   { value: "customers.consent", label: "Ghi đồng ý nhận tin" },
   { value: "campaign.create", label: "Tạo chiến dịch" },
+  { value: "campaign.call_list", label: "Gắn danh sách gọi" },
+  { value: "voice.review", label: "Chấm điểm cuộc gọi" },
   { value: "campaign.launch", label: "Chạy chiến dịch" },
   { value: "campaign.pause", label: "Tạm dừng chiến dịch" },
   { value: "campaign.resume", label: "Chạy tiếp chiến dịch" },
@@ -342,8 +360,18 @@ const AUDIT_FILTERS = [
 ];
 
 const LOG_FILTERS = [
+  { value: "campaign.webhook", label: "Báo cáo Laaffic" },
+  { value: "campaign.sent", label: "Gửi chiến dịch" },
+  { value: "campaign.send_failed", label: "Lỗi gửi chiến dịch" },
+  { value: "provider.test", label: "Gửi hoặc gọi thử" },
   { value: "dispatch.completed", label: "Giao task" },
+  { value: "dispatch.failed", label: "Lỗi giao task" },
+  { value: "telegram.delivered", label: "Gửi Telegram" },
+  { value: "telegram.deliver_failed", label: "Lỗi Telegram" },
+  { value: "care.stale", label: "Hội viên lâu chưa liên hệ" },
+  { value: "care.worker_failed", label: "Lỗi nhắc hẹn" },
   { value: "http.server_error", label: "Lỗi máy chủ" },
+  { value: "outbox.publish_failed", label: "Lỗi outbox" },
 ];
 
 const ACTION_LABELS: Record<string, string> = Object.fromEntries(AUDIT_FILTERS.map((item) => [item.value, item.label]));
@@ -428,6 +456,14 @@ function describeAudit(row: AuditEvent, names: Map<string, string>): string {
     const site = text(summary.site);
     return site ? `Tạo chiến dịch nháp cho ${site}.` : "Tạo chiến dịch nháp.";
   }
+  if (row.action === "voice.review") {
+    return `Chấm ${numberOf(summary.score)} điểm cho một cuộc gọi.`;
+  }
+  if (row.action === "campaign.call_list") {
+    const listed = numberOf(summary.listed);
+    const missing = numberOf(summary.missing);
+    return missing > 0 ? `Gắn ${listed} hội viên vào danh sách gọi. Không thấy ${missing}.` : `Gắn ${listed} hội viên vào danh sách gọi.`;
+  }
   if (row.action === "campaign.launch") {
     return "Chạy một chiến dịch.";
   }
@@ -510,9 +546,10 @@ function describeAudit(row: AuditEvent, names: Map<string, string>): string {
 }
 
 function describeLog(row: SystemLog): string {
+  const context = row.context;
   if (row.event === "dispatch.completed") {
-    const assigned = numberOf(row.context.assigned);
-    const released = numberOf(row.context.released);
+    const assigned = numberOf(context.assigned);
+    const released = numberOf(context.released);
     const parts: string[] = [];
     if (assigned > 0) {
       parts.push(`giao ${assigned} task`);
@@ -522,10 +559,57 @@ function describeLog(row: SystemLog): string {
     }
     return parts.length > 0 ? `Đã ${parts.join(" và ")}.` : "Đã chạy vòng giao task.";
   }
+  if (row.event === "campaign.webhook") {
+    const channel = text(context.channel) === "ai_voice" ? "gọi AI" : text(context.channel) === "sms" ? "SMS" : "nhà cung cấp";
+    if (text(context.outcome) === "rejected") {
+      const reason = text(context.reason);
+      const why = reason === "bad_signature" ? "chữ ký sai" : reason === "missing_signature" ? "thiếu chữ ký" : reason === "invalid_json" ? "nội dung không đọc được" : "không hợp lệ";
+      return `Từ chối báo cáo ${channel} vì ${why}.`;
+    }
+    return `Nhận báo cáo ${channel}: ${numberOf(context.received)} tin, cập nhật ${numberOf(context.updated)}.`;
+  }
+  if (row.event === "campaign.sent") {
+    const failed = numberOf(context.failed);
+    const accepted = numberOf(context.accepted);
+    return failed > 0 ? `Gửi chiến dịch: ${accepted} thành công, ${failed} lỗi.` : `Đã gửi ${accepted} tin chiến dịch.`;
+  }
+  if (row.event === "provider.test") {
+    const voice = text(context.channel) === "ai_voice";
+    return text(context.outcome) === "rejected" ? (voice ? "Laaffic từ chối cuộc gọi thử." : "Laaffic từ chối tin thử.") : voice ? "Đã giao cuộc gọi thử." : "Đã gửi tin thử.";
+  }
+  if (row.event === "care.stale") {
+    return `Có ${numberOf(context.count)} hội viên quá 15 ngày chưa liên hệ.`;
+  }
+  if (row.event === "telegram.delivered") {
+    const failed = numberOf(context.failed);
+    const sent = numberOf(context.sent);
+    return failed > 0 ? `Telegram: gửi được ${sent}, lỗi ${failed}.` : `Đã gửi ${sent} tin Telegram.`;
+  }
   if (row.event === "http.server_error") {
-    return row.message ? `Lỗi máy chủ: ${row.message}` : "Lỗi máy chủ.";
+    const method = text(context.method);
+    const path = text(context.path);
+    const status = numberOf(context.status);
+    const where = method && path ? ` ${method} ${path}` : "";
+    const reason = text(context.detail);
+    const head = status > 0 ? `Lỗi ${status}${where}` : row.message || "Lỗi máy chủ";
+    return reason ? `${head}. ${reason}` : `${head}.`;
   }
   return row.message || row.event;
+}
+
+function logJson(row: SystemLog): string {
+  return JSON.stringify(
+    {
+      event: row.event,
+      message: row.message,
+      actor: row.actor_username,
+      ip: row.ip,
+      request_id: row.request_id,
+      context: row.context,
+    },
+    null,
+    2,
+  );
 }
 
 function text(value: unknown): string {

@@ -14,7 +14,9 @@ import { JournalBoard } from "./JournalBoard.tsx";
 import { QueueBoard } from "./QueueBoard.tsx";
 import { RateLimitBoard } from "./RateLimitBoard.tsx";
 import { RewardBoard } from "./RewardBoard.tsx";
+import { EffectBoard } from "./EffectBoard.tsx";
 import { ShiftBoard } from "./ShiftBoard.tsx";
+import { VoiceReviewBoard } from "./VoiceReviewBoard.tsx";
 import { StationBoard } from "./StationBoard.tsx";
 import { StationSmsBoard } from "./StationSmsBoard.tsx";
 import { ProviderHistoryBoard } from "./ProviderHistoryBoard.tsx";
@@ -26,7 +28,7 @@ import { ScheduleBoard } from "./ScheduleBoard.tsx";
 import { StaffBoard } from "./StaffBoard.tsx";
 import { armAlertSound, askChatNotification, startInboxWatch, stopInboxWatch, useInboxUnread } from "./inboxWatch.ts";
 
-type DeskPage = "overview" | "inbox" | "contacts" | "tasks" | "history" | "personal" | "queue" | "schedule" | "staff" | "customers" | "warehouse" | "distribute" | "campaigns" | "shift" | "rewards" | "journal" | "stations" | "stationSms" | "voice" | "smsHistory" | "voiceHistory" | "rateLimit" | "embed" | "telegram";
+type DeskPage = "overview" | "inbox" | "contacts" | "tasks" | "history" | "personal" | "queue" | "schedule" | "staff" | "customers" | "warehouse" | "distribute" | "campaigns" | "shift" | "effect" | "rewards" | "journal" | "stations" | "stationSms" | "callTasks" | "voice" | "voiceReview" | "smsHistory" | "voiceHistory" | "rateLimit" | "embed" | "telegram";
 
 type NavLeaf = { kind: "leaf"; id: DeskPage; label: string; icon: ReactNode };
 type NavGroup = { label?: string; items: NavLeaf[] };
@@ -72,6 +74,7 @@ export function Desk(props: {
   const canLaunchCampaigns = profile.permissions.includes("campaigns:launch");
   const canManageCampaigns = profile.permissions.includes("campaigns:manage");
   const canReportCampaigns = profile.permissions.includes("campaigns:report");
+  const canReviewRecordings = profile.permissions.includes("recordings:review");
   const canApproveRewards = profile.permissions.includes("rewards:approve");
   const [accepting, setAccepting] = useState(profile.accepting_work);
   const [acceptingBusy, setAcceptingBusy] = useState(false);
@@ -117,8 +120,12 @@ export function Desk(props: {
     if (canReadCampaigns) {
       sms.push({ kind: "leaf", id: "stationSms", label: "Tin nhắn", icon: <CommentOutlined /> });
       sms.push({ kind: "leaf", id: "smsHistory", label: "Lịch sử tin nhắn", icon: <HistoryOutlined /> });
-      voice.push({ kind: "leaf", id: "voice", label: "Gọi AI", icon: <PhoneOutlined /> });
-      voice.push({ kind: "leaf", id: "voiceHistory", label: "Lịch sử cuộc gọi", icon: <PhoneOutlined /> });
+      voice.push({ kind: "leaf", id: "callTasks", label: "Task gọi nhóm", icon: <PhoneOutlined /> });
+      voice.push({ kind: "leaf", id: "voice", label: "Gọi thử", icon: <PhoneOutlined /> });
+      voice.push({ kind: "leaf", id: "voiceHistory", label: "Lịch sử cuộc gọi", icon: <HistoryOutlined /> });
+    }
+    if (canReviewRecordings) {
+      voice.push({ kind: "leaf", id: "voiceReview", label: "Chấm điểm cuộc gọi", icon: <AuditOutlined /> });
     }
     if (canReadSettings) {
       settings.push({ kind: "leaf", id: "rateLimit", label: "Không chặn IP", icon: <GlobalOutlined /> });
@@ -133,6 +140,7 @@ export function Desk(props: {
     }
     if (canReportCampaigns) {
       extras.push({ kind: "leaf", id: "shift", label: "Báo cáo ca", icon: <FundOutlined /> });
+      extras.push({ kind: "leaf", id: "effect", label: "Thống kê hiệu quả", icon: <FundOutlined /> });
     }
     if (canApproveRewards) {
       extras.push({ kind: "leaf", id: "rewards", label: "Thưởng", icon: <GiftOutlined /> });
@@ -173,7 +181,7 @@ export function Desk(props: {
     }
     const query = keyword.trim().toLocaleLowerCase("vi");
     return { sections: filterSections(sections, query), query };
-  }, [canApproveRewards, canManageTelegram, canReadAudit, canReadCampaigns, canReadCustomers, canReadQueue, canReadSettings, canReadStaff, canReadTasks, canReportCampaigns, keyword]);
+  }, [canApproveRewards, canManageTelegram, canReadAudit, canReadCampaigns, canReadCustomers, canReadQueue, canReadSettings, canReadStaff, canReadTasks, canReportCampaigns, canReviewRecordings, keyword]);
 
   function openPage(next: DeskPage) {
     if (next === page) {
@@ -411,6 +419,7 @@ export function Desk(props: {
             />
           ) : null}
           {page === "shift" && canReportCampaigns ? <ShiftBoard onUnauthorized={() => props.onLoggedOut("Phiên đã hết. Đăng nhập lại.")} onMfaSetup={props.onMfaSetup} /> : null}
+          {page === "effect" && canReportCampaigns ? <EffectBoard onUnauthorized={() => props.onLoggedOut("Phiên đã hết. Đăng nhập lại.")} onMfaSetup={props.onMfaSetup} /> : null}
           {page === "rewards" && canApproveRewards ? (
             <RewardBoard canReadCustomers={canReadCustomers} onUnauthorized={() => props.onLoggedOut("Phiên đã hết. Đăng nhập lại.")} onMfaSetup={props.onMfaSetup} />
           ) : null}
@@ -422,6 +431,22 @@ export function Desk(props: {
           ) : null}
           {page === "stationSms" && canReadCampaigns ? (
             <StationSmsBoard canWrite={canCreateCampaigns} canTest={canLaunchCampaigns} onUnauthorized={() => props.onLoggedOut("Phiên đã hết. Đăng nhập lại.")} onMfaSetup={props.onMfaSetup} />
+          ) : null}
+          {page === "callTasks" && canReadCampaigns ? (
+            <CampaignBoard
+              voiceTasks
+              canCreate={canCreateCampaigns}
+              canImport={canImportCustomers}
+              canValidate={canValidateCampaigns}
+              canLaunch={canLaunchCampaigns}
+              canManage={canManageCampaigns}
+              canReport={canReportCampaigns}
+              onUnauthorized={() => props.onLoggedOut("Phiên đã hết. Đăng nhập lại.")}
+              onMfaSetup={props.onMfaSetup}
+            />
+          ) : null}
+          {page === "voiceReview" && canReviewRecordings ? (
+            <VoiceReviewBoard onUnauthorized={() => props.onLoggedOut("Phiên đã hết. Đăng nhập lại.")} onMfaSetup={props.onMfaSetup} />
           ) : null}
           {page === "voice" && canReadCampaigns ? (
             <VoiceBoard canTest={canLaunchCampaigns} onUnauthorized={() => props.onLoggedOut("Phiên đã hết. Đăng nhập lại.")} onMfaSetup={props.onMfaSetup} />

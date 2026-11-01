@@ -10,9 +10,9 @@ export function VoiceBoard(props: { canTest: boolean; onUnauthorized: () => void
       <div className="page-header">
         <div>
           <Typography.Title level={3} className="page-header__title">
-            Gọi AI
+            Gọi thử
           </Typography.Title>
-          <Typography.Text type="secondary">Gọi thử một số điện thoại bằng agent Laaffic. Không ghi âm.</Typography.Text>
+          <Typography.Text type="secondary">Gọi thử một số điện thoại bằng agent Laaffic. Cuộc gọi được ghi âm.</Typography.Text>
         </div>
       </div>
       <LaafficWebhooks onUnauthorized={props.onUnauthorized} onMfaSetup={props.onMfaSetup} />
@@ -83,7 +83,7 @@ export function TestVoice(props: { onUnauthorized: () => void; onMfaSetup: () =>
         Gọi thử một số
       </Typography.Title>
       <p className="page-note" style={{ marginTop: 0 }}>
-        Một cuộc gọi AI tới số bạn nhập, từ 8 giờ đến 21 giờ giờ Việt Nam. Ghi âm tắt. Mỗi lần cách nhau 30 giây.
+        Một cuộc gọi AI tới số bạn nhập, từ 8 giờ đến 21 giờ giờ Việt Nam. Ghi âm bật. Mỗi lần cách nhau 30 giây.
       </p>
       <ErrorAlert error={error} />
       {notice ? <Alert type="success" showIcon style={{ marginBottom: 16 }} message={notice} /> : null}
