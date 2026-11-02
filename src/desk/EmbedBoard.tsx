@@ -229,7 +229,7 @@ export function EmbedBoard(props: { onUnauthorized: () => void; onMfaSetup: () =
           <Typography.Title level={3} className="page-header__title">
             Chat nhúng
           </Typography.Title>
-          <Typography.Text type="secondary">Cấu hình thử hộp thoại khách. Mở Hộp thư hỗ trợ ở tab khác để trả lời.</Typography.Text>
+          <Typography.Text type="secondary">Khách mở /ho-tro để chat. Trang này chỉ để thử. Trả lời ở Hộp thư hỗ trợ.</Typography.Text>
         </div>
       </div>
       <div className="embed-layout">

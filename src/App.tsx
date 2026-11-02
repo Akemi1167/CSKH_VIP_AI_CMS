@@ -3,7 +3,13 @@ import { useCallback, useEffect, useState } from "react";
 import { ApiError, api } from "./api.ts";
 import { AuthScreen } from "./auth/AuthScreen.tsx";
 import { Desk } from "./desk/Desk.tsx";
+import { GuestChat } from "./public/GuestChat.tsx";
 import type { Me, UserProfile } from "./types.ts";
+
+function isGuestPath(): boolean {
+  const path = window.location.pathname.replace(/\/+$/, "") || "/";
+  return path === "/ho-tro";
+}
 
 type Phase = "loading" | "login" | "mfa_setup" | "desk";
 
@@ -12,6 +18,8 @@ export function App() {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [bootError, setBootError] = useState<string | null>(null);
+
+  const guestPage = isGuestPath();
 
   const refresh = useCallback(async () => {
     try {
@@ -28,12 +36,22 @@ export function App() {
   }, []);
 
   useEffect(() => {
+    if (guestPage) {
+      return;
+    }
     void refresh();
-  }, [refresh]);
+  }, [guestPage, refresh]);
 
   useEffect(() => {
+    if (guestPage) {
+      return;
+    }
     document.title = phase === "desk" ? "Bàn làm việc · CSKH VIP" : "Đăng nhập · CSKH VIP";
-  }, [phase]);
+  }, [guestPage, phase]);
+
+  if (guestPage) {
+    return <GuestChat />;
+  }
 
   if (phase === "loading") {
     return (
