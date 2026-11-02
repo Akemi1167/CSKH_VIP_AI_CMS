@@ -126,48 +126,47 @@ export function ProviderHistoryBoard(props: {
     }
   }
 
-  const columns: TableColumnsType<HistoryItem> =
-    props.channel === "sms"
-      ? [
-          { title: "Lúc", dataIndex: "happened_at", width: 160, render: (value: string | null) => stamp(value) },
-          { title: "Số", dataIndex: "phone_mask", width: 140 },
-          { title: "Trạng thái", dataIndex: "status_label", width: 140 },
-          { title: "Mã Laaffic", dataIndex: "provider_ref", ellipsis: true },
-        ]
-      : [
-          { title: "Lúc gọi", dataIndex: "happened_at", width: 160, render: (value: string | null) => stamp(value) },
-          { title: "Task", width: 180, ellipsis: true, render: (_value, row) => row.facts?.task_name || row.detail || row.facts?.task_id || "—" },
-          { title: "Trạng thái", width: 140, render: (_value, row) => callStatus(row) },
-          { title: "Tiến độ", width: 90, render: (_value, row) => (row.facts?.progress ? `${row.facts.progress}%` : "—") },
-          { title: "Số lượng", width: 100, render: (_value, row) => countCell(row.facts?.number_count) },
-          { title: "Đã gọi", width: 90, render: (_value, row) => countCell(row.facts?.called_count) },
-          { title: "Đã nghe", width: 90, render: (_value, row) => countCell(row.facts?.answered_count) },
-          { title: "Lỗi", width: 80, render: (_value, row) => countCell(row.facts?.failed_count) },
-          { title: "Tỷ lệ nghe", width: 110, render: (_value, row) => (row.facts?.answer_rate ? `${row.facts.answer_rate}%` : "—") },
-          { title: "Agent", width: 90, render: (_value, row) => row.facts?.script_id || "—" },
-          { title: "Số", dataIndex: "phone_mask", width: 130 },
-          { title: "Thời lượng", width: 110, render: (_value, row) => (row.facts?.duration_seconds ? `${row.facts.duration_seconds} giây` : "—") },
-          { title: "Mô tả", width: 140, render: (_value, row) => callDescription(row.facts?.call_description) },
-          { title: "Lý do", width: 160, ellipsis: true, render: (_value, row) => row.facts?.termination_reason || "—" },
-          { title: "Lượt thoại", width: 110, render: (_value, row) => row.facts?.dialogue_count ?? "—" },
-          { title: "Ý định", width: 100, render: (_value, row) => row.facts?.intent || "—" },
-          { title: "Hội thoại", width: 120, render: (_value, row) => <DialogueCell turns={row.facts?.dialogue ?? null} /> },
-          {
-            title: "Nghe lại",
-            width: 280,
-            render: (_value, row) => (
-              <RecordingCell
-                providerRef={row.provider_ref}
-                canTry={Boolean(row.facts?.recording_id) || (row.phone_mask !== "—" && /^\d{10,}$/.test(row.provider_ref))}
-                onFail={(problem) => {
-                  if (!failAuth(problem)) {
-                    setError(problem);
-                  }
-                }}
-              />
-            ),
-          },
-        ];
+  const smsColumns: TableColumnsType<HistoryItem> = [
+    { title: "Lúc", dataIndex: "happened_at", width: 160, render: (value: string | null) => stamp(value) },
+    { title: "Số", dataIndex: "phone_mask", width: 140 },
+    { title: "Trạng thái", dataIndex: "status_label", width: 140 },
+    { title: "Mã Laaffic", dataIndex: "provider_ref", ellipsis: true },
+  ];
+  const callColumns: TableColumnsType<HistoryItem> = [
+    { title: "Lúc gọi", dataIndex: "happened_at", width: 168, render: (value: string | null) => stamp(value) },
+    { title: "Số", dataIndex: "phone_mask", width: 140 },
+    { title: "Trạng thái", width: 150, render: (_value, row) => callStatus(row) },
+    { title: "Thời lượng", width: 120, render: (_value, row) => durationLabel(row.facts?.duration_seconds) },
+    { title: "Kết quả", render: (_value, row) => <CallOutcome row={row} /> },
+    { title: "Hội thoại", width: 120, render: (_value, row) => <DialogueCell turns={row.facts?.dialogue ?? null} /> },
+    {
+      title: "Nghe lại",
+      width: 220,
+      render: (_value, row) => (
+        <RecordingCell
+          providerRef={row.provider_ref}
+          canTry={Boolean(row.facts?.recording_id)}
+          onFail={(problem) => {
+            if (!failAuth(problem)) {
+              setError(problem);
+            }
+          }}
+        />
+      ),
+    },
+  ];
+  const calls = items.filter((row) => !isTaskRow(row));
+  const tasks = items.filter(isTaskRow);
+  const taskColumns: TableColumnsType<HistoryItem> = [
+    { title: "Task", ellipsis: true, render: (_value, row) => row.facts?.task_name || row.facts?.task_id || row.detail || "—" },
+    { title: "Trạng thái", width: 140, dataIndex: "status_label" },
+    { title: "Tiến độ", width: 100, render: (_value, row) => percent(row.facts?.progress) },
+    { title: "Kết quả", width: 280, render: (_value, row) => taskSummary(row) },
+    { title: "Số đã gọi", render: (_value, row) => reportedNumbers(callsFor(row, calls)) },
+    { title: "Tỷ lệ nghe", width: 120, render: (_value, row) => percent(row.facts?.answer_rate) },
+  ];
+  const attached = new Set(tasks.flatMap((task) => callsFor(task, calls).map((call) => call.provider_ref)));
+  const looseCalls = calls.filter((call) => !attached.has(call.provider_ref));
 
   return (
     <section>
@@ -187,20 +186,37 @@ export function ProviderHistoryBoard(props: {
       <p className="page-note" style={{ marginTop: 0 }}>
         {props.channel === "sms"
           ? "Lấy 7 ngày gần nhất. Số được che. Không lưu nội dung tin."
-          : "Danh sách task không có file nghe. Mã file nằm trong báo cáo Laaffic đẩy về webhook Gọi AI. Khi báo cáo tới, dòng cuộc gọi có nút Nghe."}
+          : "Bấm một task để xem từng số đã gọi. Số và file nghe chỉ có khi Laaffic gửi báo cáo cuộc gọi về."}
       </p>
       {props.channel === "ai_voice" ? <LaafficWebhooks onUnauthorized={props.onUnauthorized} onMfaSetup={props.onMfaSetup} /> : null}
       {error ? <ErrorAlert error={error} /> : null}
       {notice ? <p className="page-note">{notice}</p> : null}
-      <Table
-        rowKey="provider_ref"
-        columns={columns}
-        dataSource={items}
-        loading={loading}
-        pagination={false}
-        scroll={props.channel === "ai_voice" ? { x: 1800 } : undefined}
-        locale={{ emptyText: "Chưa có lịch sử. Bấm đồng bộ để lấy từ Laaffic." }}
-      />
+      {props.channel === "sms" ? (
+        <Table rowKey="provider_ref" size="middle" columns={smsColumns} dataSource={items} loading={loading} pagination={false} locale={{ emptyText: "Chưa có lịch sử. Bấm đồng bộ để lấy từ Laaffic." }} />
+      ) : (
+        <>
+          <Typography.Title level={5}>Task gọi nhóm</Typography.Title>
+          <Table
+            rowKey="provider_ref"
+            size="middle"
+            columns={taskColumns}
+            dataSource={tasks}
+            loading={loading}
+            pagination={false}
+            locale={{ emptyText: "Chưa có task." }}
+            expandable={{
+              expandedRowRender: (task) => <TaskCalls task={task} calls={callsFor(task, calls)} columns={callColumns} />,
+              rowExpandable: () => true,
+            }}
+          />
+          {looseCalls.length > 0 ? (
+            <div className="history-block">
+              <Typography.Title level={5}>Cuộc gọi chưa gắn task</Typography.Title>
+              <Table rowKey="provider_ref" size="middle" columns={callColumns} dataSource={looseCalls} pagination={false} />
+            </div>
+          ) : null}
+        </>
+      )}
     </section>
   );
 }
@@ -209,8 +225,78 @@ function stamp(value: string | null): string {
   return value ? formatStamp(value) : "—";
 }
 
-function countCell(value: number | null | undefined): string {
-  return value === null || value === undefined ? "—" : String(value);
+function isTaskRow(row: HistoryItem): boolean {
+  const facts = row.facts;
+  return row.phone_mask === "—" && (facts?.number_count != null || facts?.called_count != null || Boolean(facts?.progress));
+}
+
+function percent(value: string | null | undefined): string {
+  if (!value) {
+    return "—";
+  }
+  return value.endsWith("%") ? value : `${value}%`;
+}
+
+function durationLabel(seconds: number | null | undefined): string {
+  if (!seconds) {
+    return "—";
+  }
+  if (seconds < 60) {
+    return `${seconds} giây`;
+  }
+  const minutes = Math.floor(seconds / 60);
+  const rest = seconds % 60;
+  return rest === 0 ? `${minutes} phút` : `${minutes} phút ${rest} giây`;
+}
+
+function callsFor(task: HistoryItem, calls: HistoryItem[]): HistoryItem[] {
+  const keys = [task.provider_ref, task.facts?.task_id ?? ""].filter((value) => value.length > 0);
+  return calls.filter((call) => {
+    const id = call.facts?.task_id ?? "";
+    return id.length > 0 && keys.some((key) => key === id || (id.length >= 6 && key.startsWith(id)));
+  });
+}
+
+function reportedNumbers(calls: HistoryItem[]): string {
+  const phones = calls.map((call) => call.phone_mask).filter((phone) => phone && phone !== "—");
+  if (phones.length === 0) {
+    return "Chưa báo về";
+  }
+  if (phones.length <= 2) {
+    return phones.join(", ");
+  }
+  return `${phones.slice(0, 2).join(", ")} +${phones.length - 2}`;
+}
+
+function TaskCalls(props: { task: HistoryItem; calls: HistoryItem[]; columns: TableColumnsType<HistoryItem> }) {
+  if (props.calls.length === 0) {
+    const expected = props.task.facts?.number_count;
+    return <p className="page-note">{expected ? `Task có ${expected} số, nhưng Laaffic chưa gửi báo cáo từng cuộc gọi.` : "Laaffic chưa gửi báo cáo từng cuộc gọi."}</p>;
+  }
+  return <Table rowKey="provider_ref" size="small" columns={props.columns} dataSource={props.calls} pagination={false} />;
+}
+
+function taskSummary(row: HistoryItem): string {
+  const facts = row.facts;
+  const parts = [
+    facts?.number_count != null ? `${facts.number_count} số` : "",
+    facts?.called_count != null ? `${facts.called_count} đã gọi` : "",
+    facts?.answered_count != null ? `${facts.answered_count} nghe` : "",
+    facts?.failed_count != null ? `${facts.failed_count} lỗi` : "",
+  ].filter(Boolean);
+  return parts.length > 0 ? parts.join(" · ") : "—";
+}
+
+function CallOutcome(props: { row: HistoryItem }) {
+  const description = callDescription(props.row.facts?.call_description);
+  const reason = props.row.facts?.termination_reason?.trim() ?? "";
+  const headline = description === "—" ? reason || "—" : description;
+  return (
+    <div>
+      <div>{headline}</div>
+      {reason && reason !== headline ? <Typography.Text type="secondary">{reason}</Typography.Text> : null}
+    </div>
+  );
 }
 
 function callStatus(row: HistoryItem): string {

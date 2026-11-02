@@ -694,6 +694,10 @@ a {
   gap: 8px;
 }
 
+.history-block {
+  margin-top: 28px;
+}
+
 .page-header__title {
   margin: 0 0 4px !important;
   color: #eef0f6 !important;
