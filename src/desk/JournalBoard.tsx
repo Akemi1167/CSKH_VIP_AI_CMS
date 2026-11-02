@@ -574,8 +574,7 @@ function describeLog(row: SystemLog): string {
     return failed > 0 ? `Gửi chiến dịch: ${accepted} thành công, ${failed} lỗi.` : `Đã gửi ${accepted} tin chiến dịch.`;
   }
   if (row.event === "provider.test") {
-    const voice = text(context.channel) === "ai_voice";
-    return text(context.outcome) === "rejected" ? (voice ? "Laaffic từ chối cuộc gọi thử." : "Laaffic từ chối tin thử.") : voice ? "Đã giao cuộc gọi thử." : "Đã gửi tin thử.";
+    return row.message;
   }
   if (row.event === "care.stale") {
     return `Có ${numberOf(context.count)} hội viên quá 15 ngày chưa liên hệ.`;
