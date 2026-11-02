@@ -160,21 +160,7 @@ export function ProviderHistoryBoard(props: {
     { title: "Thời lượng", width: 120, render: (_value, row) => durationLabel(row.facts?.duration_seconds) },
     { title: "Kết quả", render: (_value, row) => <CallOutcome row={row} /> },
     { title: "Hội thoại", width: 120, render: (_value, row) => <DialogueCell turns={row.facts?.dialogue ?? null} /> },
-    {
-      title: "Nghe lại",
-      width: 220,
-      render: (_value, row) => (
-        <RecordingCell
-          providerRef={row.provider_ref}
-          canTry={Boolean(row.facts?.recording_id)}
-          onFail={(problem) => {
-            if (!failAuth(problem)) {
-              setError(problem);
-            }
-          }}
-        />
-      ),
-    },
+    { title: "Nghe lại", width: 110 },
   ];
   const calls = items.filter((row) => !isTaskRow(row)).sort((a, b) => timeValue(b.happened_at) - timeValue(a.happened_at));
   const tasks = items.filter(isTaskRow).sort((a, b) => timeValue(taskMoment(b, calls)) - timeValue(taskMoment(a, calls)));
@@ -260,6 +246,7 @@ export function ProviderHistoryBoard(props: {
         <>
           <Typography.Title level={5}>Task gọi nhóm</Typography.Title>
           <Table
+            className="history-table"
             rowKey="provider_ref"
             size="middle"
             columns={taskColumns}
@@ -268,14 +255,33 @@ export function ProviderHistoryBoard(props: {
             pagination={false}
             locale={{ emptyText: filters.task || filters.phone || filters.account ? "Không có task khớp bộ lọc." : "Chưa có task." }}
             expandable={{
-              expandedRowRender: (task) => <TaskCalls task={task} calls={callsFor(task, calls)} columns={callColumns} />,
+              expandedRowRender: (task) => (
+                <TaskCalls
+                  task={task}
+                  calls={callsFor(task, calls)}
+                  columns={callColumns}
+                  onFail={(problem) => {
+                    if (!failAuth(problem)) {
+                      setError(problem);
+                    }
+                  }}
+                />
+              ),
               rowExpandable: () => true,
             }}
           />
           {looseCalls.length > 0 ? (
             <div className="history-block">
               <Typography.Title level={5}>Cuộc gọi chưa gắn task</Typography.Title>
-              <Table rowKey="provider_ref" size="middle" columns={callColumns} dataSource={looseCalls} pagination={false} />
+              <CallTable
+                calls={looseCalls}
+                columns={callColumns}
+                onFail={(problem) => {
+                  if (!failAuth(problem)) {
+                    setError(problem);
+                  }
+                }}
+              />
             </div>
           ) : null}
         </>
@@ -362,12 +368,42 @@ function reportedNumbers(calls: HistoryItem[]): string {
   return `${phones.slice(0, 2).join(", ")} +${phones.length - 2}`;
 }
 
-function TaskCalls(props: { task: HistoryItem; calls: HistoryItem[]; columns: TableColumnsType<HistoryItem> }) {
+function TaskCalls(props: { task: HistoryItem; calls: HistoryItem[]; columns: TableColumnsType<HistoryItem>; onFail: (error: ApiError) => void }) {
   if (props.calls.length === 0) {
     const expected = props.task.facts?.number_count;
     return <p className="page-note">{expected ? `Task có ${expected} số, nhưng Laaffic chưa gửi báo cáo từng cuộc gọi.` : "Laaffic chưa gửi báo cáo từng cuộc gọi."}</p>;
   }
-  return <Table rowKey="provider_ref" size="small" columns={props.columns} dataSource={props.calls} pagination={false} />;
+  return <CallTable calls={props.calls} columns={props.columns} onFail={props.onFail} />;
+}
+
+function CallTable(props: { calls: HistoryItem[]; columns: TableColumnsType<HistoryItem>; onFail: (error: ApiError) => void }) {
+  const [clip, setClip] = useState<{ ref: string; url: string } | null>(null);
+  const columns = props.columns.map((column) =>
+    column.title === "Nghe lại"
+      ? {
+          ...column,
+          render: (_value: unknown, row: HistoryItem) => (
+            <RecordingCell
+              providerRef={row.provider_ref}
+              canTry={Boolean(row.facts?.recording_id)}
+              active={clip?.ref === row.provider_ref}
+              onPlay={(url) => setClip({ ref: row.provider_ref, url })}
+              onFail={props.onFail}
+            />
+          ),
+        }
+      : column,
+  );
+  return (
+    <div className="history-calls">
+      <Table rowKey="provider_ref" size="small" columns={columns} dataSource={props.calls} pagination={false} />
+      {clip ? (
+        <div className="history-player">
+          <audio className="history-audio" controls autoPlay preload="none" src={clip.url} />
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 function taskSummary(row: HistoryItem): string {
@@ -456,23 +492,20 @@ function DialogueCell(props: { turns: DialogueTurn[] | null }) {
   );
 }
 
-function RecordingCell(props: { providerRef: string; canTry: boolean; onFail: (error: ApiError) => void }) {
-  const [url, setUrl] = useState<string | null>(null);
+function RecordingCell(props: { providerRef: string; canTry: boolean; active: boolean; onPlay: (url: string) => void; onFail: (error: ApiError) => void }) {
   const [busy, setBusy] = useState(false);
   if (!props.canTry) {
     return <span>Chưa có file</span>;
   }
-  if (url) {
-    return <audio controls autoPlay preload="none" src={url} />;
-  }
   return (
     <Button
       size="small"
+      type={props.active ? "primary" : "default"}
       loading={busy}
       onClick={() => {
         setBusy(true);
         api<{ url: string }>(`/api/v1/admin/laaffic/history/${encodeURIComponent(props.providerRef)}/recording`)
-          .then((result) => setUrl(result.url))
+          .then((result) => props.onPlay(result.url))
           .catch((caught: unknown) => {
             props.onFail(caught instanceof ApiError ? caught : new ApiError(0, "network", "Không mở được file nghe", ""));
           })
