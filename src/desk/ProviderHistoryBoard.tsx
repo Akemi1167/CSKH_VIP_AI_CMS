@@ -1,4 +1,4 @@
-import { Button, Modal, Table, Typography } from "antd";
+import { Button, Input, Modal, Table, Typography } from "antd";
 import type { TableColumnsType } from "antd";
 import { useCallback, useEffect, useState } from "react";
 import { ApiError, api } from "../api.ts";
@@ -41,7 +41,13 @@ type HistoryItem = {
   happened_at: string | null;
   detail: string | null;
   facts: VoiceFacts | null;
+  game_account?: string | null;
+  campaign_name?: string | null;
 };
+
+type VoiceFilter = { task: string; phone: string; account: string };
+
+const EMPTY_FILTER: VoiceFilter = { task: "", phone: "", account: "" };
 
 export function ProviderHistoryBoard(props: {
   channel: Channel;
@@ -52,6 +58,8 @@ export function ProviderHistoryBoard(props: {
   onMfaSetup: () => void;
 }) {
   const [items, setItems] = useState<HistoryItem[]>([]);
+  const [draft, setDraft] = useState<VoiceFilter>(EMPTY_FILTER);
+  const [filters, setFilters] = useState<VoiceFilter>(EMPTY_FILTER);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
@@ -73,10 +81,22 @@ export function ProviderHistoryBoard(props: {
   );
 
   const load = useCallback(async () => {
-    const result = await api<{ items: HistoryItem[] }>(`/api/v1/admin/laaffic/history?channel=${props.channel}`);
+    const params = new URLSearchParams({ channel: props.channel });
+    if (props.channel === "ai_voice") {
+      if (filters.task.trim()) {
+        params.set("task", filters.task.trim());
+      }
+      if (filters.phone.trim()) {
+        params.set("phone", filters.phone.trim());
+      }
+      if (filters.account.trim()) {
+        params.set("account", filters.account.trim());
+      }
+    }
+    const result = await api<{ items: HistoryItem[] }>(`/api/v1/admin/laaffic/history?${params.toString()}`);
     setItems(result.items);
     setError(null);
-  }, [props.channel]);
+  }, [filters, props.channel]);
 
   useEffect(() => {
     let ignore = false;
@@ -135,6 +155,7 @@ export function ProviderHistoryBoard(props: {
   const callColumns: TableColumnsType<HistoryItem> = [
     { title: "Lúc gọi", dataIndex: "happened_at", width: 168, render: (value: string | null) => stamp(value) },
     { title: "Số", dataIndex: "phone_mask", width: 140 },
+    { title: "Tài khoản", width: 150, ellipsis: true, render: (_value, row) => row.game_account || "—" },
     { title: "Trạng thái", width: 150, render: (_value, row) => callStatus(row) },
     { title: "Thời lượng", width: 120, render: (_value, row) => durationLabel(row.facts?.duration_seconds) },
     { title: "Kết quả", render: (_value, row) => <CallOutcome row={row} /> },
@@ -155,10 +176,11 @@ export function ProviderHistoryBoard(props: {
       ),
     },
   ];
-  const calls = items.filter((row) => !isTaskRow(row));
-  const tasks = items.filter(isTaskRow);
+  const calls = items.filter((row) => !isTaskRow(row)).sort((a, b) => timeValue(b.happened_at) - timeValue(a.happened_at));
+  const tasks = items.filter(isTaskRow).sort((a, b) => timeValue(taskMoment(b, calls)) - timeValue(taskMoment(a, calls)));
   const taskColumns: TableColumnsType<HistoryItem> = [
-    { title: "Task", ellipsis: true, render: (_value, row) => row.facts?.task_name || row.facts?.task_id || row.detail || "—" },
+    { title: "Lúc gọi", width: 168, render: (_value, row) => stamp(taskMoment(row, calls)) },
+    { title: "Task", ellipsis: true, render: (_value, row) => <TaskTitle row={row} /> },
     { title: "Trạng thái", width: 140, dataIndex: "status_label" },
     { title: "Tiến độ", width: 100, render: (_value, row) => percent(row.facts?.progress) },
     { title: "Kết quả", width: 280, render: (_value, row) => taskSummary(row) },
@@ -190,6 +212,47 @@ export function ProviderHistoryBoard(props: {
       </p>
       {props.channel === "ai_voice" ? <LaafficWebhooks onUnauthorized={props.onUnauthorized} onMfaSetup={props.onMfaSetup} /> : null}
       {error ? <ErrorAlert error={error} /> : null}
+      {props.channel === "ai_voice" ? (
+        <div className="filter-bar">
+          <div className="filter-bar__fields">
+            <Input
+              allowClear
+              placeholder="Task hoặc tên chiến dịch"
+              value={draft.task}
+              onChange={(event) => setDraft({ ...draft, task: event.target.value })}
+              onPressEnter={() => setFilters(draft)}
+              style={{ width: 220 }}
+            />
+            <Input
+              allowClear
+              placeholder="Số điện thoại"
+              value={draft.phone}
+              onChange={(event) => setDraft({ ...draft, phone: event.target.value })}
+              onPressEnter={() => setFilters(draft)}
+              style={{ width: 180 }}
+            />
+            <Input
+              allowClear
+              placeholder="Tên tài khoản"
+              value={draft.account}
+              onChange={(event) => setDraft({ ...draft, account: event.target.value })}
+              onPressEnter={() => setFilters(draft)}
+              style={{ width: 180 }}
+            />
+            <Button type="primary" onClick={() => setFilters(draft)}>
+              Tìm
+            </Button>
+            <Button
+              onClick={() => {
+                setDraft(EMPTY_FILTER);
+                setFilters(EMPTY_FILTER);
+              }}
+            >
+              Xóa lọc
+            </Button>
+          </div>
+        </div>
+      ) : null}
       {notice ? <p className="page-note">{notice}</p> : null}
       {props.channel === "sms" ? (
         <Table rowKey="provider_ref" size="middle" columns={smsColumns} dataSource={items} loading={loading} pagination={false} locale={{ emptyText: "Chưa có lịch sử. Bấm đồng bộ để lấy từ Laaffic." }} />
@@ -203,7 +266,7 @@ export function ProviderHistoryBoard(props: {
             dataSource={tasks}
             loading={loading}
             pagination={false}
-            locale={{ emptyText: "Chưa có task." }}
+            locale={{ emptyText: filters.task || filters.phone || filters.account ? "Không có task khớp bộ lọc." : "Chưa có task." }}
             expandable={{
               expandedRowRender: (task) => <TaskCalls task={task} calls={callsFor(task, calls)} columns={callColumns} />,
               rowExpandable: () => true,
@@ -223,6 +286,37 @@ export function ProviderHistoryBoard(props: {
 
 function stamp(value: string | null): string {
   return value ? formatStamp(value) : "—";
+}
+
+function timeValue(value: string | null | undefined): number {
+  if (!value) {
+    return 0;
+  }
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+function taskMoment(task: HistoryItem, calls: HistoryItem[]): string | null {
+  let best = task.happened_at;
+  let bestValue = timeValue(best);
+  for (const call of callsFor(task, calls)) {
+    const value = timeValue(call.happened_at);
+    if (value > bestValue) {
+      best = call.happened_at;
+      bestValue = value;
+    }
+  }
+  return best;
+}
+
+function TaskTitle(props: { row: HistoryItem }) {
+  const name = props.row.facts?.task_name || props.row.facts?.task_id || props.row.detail || "—";
+  return (
+    <div>
+      <div>{name}</div>
+      {props.row.campaign_name ? <Typography.Text type="secondary">{props.row.campaign_name}</Typography.Text> : null}
+    </div>
+  );
 }
 
 function isTaskRow(row: HistoryItem): boolean {
