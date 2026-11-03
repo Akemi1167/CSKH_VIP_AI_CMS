@@ -303,7 +303,7 @@ export function JournalBoard(props: { canListStaff: boolean; onUnauthorized: () 
           pagination={false}
           locale={{ emptyText: loading ? " " : "Chưa có log." }}
           expandable={{
-            expandedRowRender: (row) => <pre className="log-json">{logJson(row)}</pre>,
+            expandedRowRender: (row) => <LogDetail row={row} />,
           }}
         />
       )}
@@ -566,7 +566,7 @@ function describeLog(row: SystemLog): string {
       const why = reason === "bad_signature" ? "chữ ký sai" : reason === "missing_signature" ? "thiếu chữ ký" : reason === "invalid_json" ? "nội dung không đọc được" : "không hợp lệ";
       return `Từ chối báo cáo ${channel} vì ${why}.`;
     }
-    return `Nhận báo cáo ${channel}: ${numberOf(context.received)} tin, cập nhật ${numberOf(context.updated)}.`;
+    return `Nhận báo cáo ${channel}: ${numberOf(context.received)} tin, cập nhật ${numberOf(context.updated)}.${dialogueCount(context.dialogue) > 0 ? ` Có ${dialogueCount(context.dialogue)} câu hội thoại.` : ""}`;
   }
   if (row.event === "campaign.sent") {
     const failed = numberOf(context.failed);
@@ -594,6 +594,46 @@ function describeLog(row: SystemLog): string {
     return reason ? `${head}. ${reason}` : `${head}.`;
   }
   return row.message || row.event;
+}
+
+function dialogueCount(value: unknown): number {
+  return Array.isArray(value) ? value.length : 0;
+}
+
+function logTurns(value: unknown): Array<{ role: string; text: string; at?: string | null }> {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.flatMap((item) => {
+    if (!item || typeof item !== "object") {
+      return [];
+    }
+    const row = item as { role?: unknown; text?: unknown; at?: unknown };
+    const text = typeof row.text === "string" ? row.text : "";
+    if (!text) {
+      return [];
+    }
+    return [{ role: typeof row.role === "string" ? row.role : "Khác", text, at: typeof row.at === "string" ? row.at : null }];
+  });
+}
+
+function LogDetail(props: { row: SystemLog }) {
+  const turns = logTurns(props.row.context.dialogue);
+  return (
+    <div>
+      {turns.length > 0 ? (
+        <div className="log-dialogue">
+          {turns.map((turn, index) => (
+            <p key={`${turn.role}-${index}`}>
+              <strong>{turn.role}.</strong> {turn.text}
+              {turn.at ? <time>{formatStamp(turn.at)}</time> : null}
+            </p>
+          ))}
+        </div>
+      ) : null}
+      <pre className="log-json">{logJson(props.row)}</pre>
+    </div>
+  );
 }
 
 function logJson(row: SystemLog): string {

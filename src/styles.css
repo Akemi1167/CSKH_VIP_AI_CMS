@@ -807,6 +807,33 @@ a {
   line-height: 1.5;
 }
 
+.log-dialogue {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.log-dialogue p {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.log-dialogue time {
+  display: block;
+  margin-top: 2px;
+  color: #9aa3b5;
+  font-size: 12px;
+}
+
+.call-log-preview {
+  margin-bottom: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .ant-modal {
   max-width: calc(100vw - 32px);
 }

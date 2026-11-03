@@ -473,20 +473,26 @@ function callDescription(code: string | null | undefined): string {
 
 function DialogueCell(props: { turns: DialogueTurn[] | null }) {
   const [open, setOpen] = useState(false);
-  if (!props.turns?.length) {
-    return <span>—</span>;
+  const turns = props.turns ?? [];
+  if (turns.length === 0) {
+    return <span>Chưa có thoại</span>;
   }
+  const first = turns[0];
   return (
     <>
+      <div className="call-log-preview">{first ? `${first.role}: ${first.text}` : ""}</div>
       <Button size="small" onClick={() => setOpen(true)}>
-        Xem thoại
+        Xem {turns.length} lượt
       </Button>
-      <Modal open={open} title="Hội thoại" footer={null} onCancel={() => setOpen(false)}>
-        {props.turns.map((turn, index) => (
-          <p key={`${turn.role}-${index}`}>
-            <strong>{turn.role}.</strong> {turn.text}
-          </p>
-        ))}
+      <Modal open={open} title="Nội dung cuộc gọi" footer={null} onCancel={() => setOpen(false)}>
+        <div className="log-dialogue">
+          {turns.map((turn, index) => (
+            <p key={`${turn.role}-${index}`}>
+              <strong>{turn.role}.</strong> {turn.text}
+              {turn.at ? <time>{formatStamp(turn.at)}</time> : null}
+            </p>
+          ))}
+        </div>
       </Modal>
     </>
   );
