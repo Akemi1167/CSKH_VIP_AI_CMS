@@ -99,6 +99,21 @@ export function ProviderHistoryBoard(props: {
   }, [filters, props.channel]);
 
   useEffect(() => {
+    if (props.channel !== "ai_voice") {
+      return;
+    }
+    const timer = window.setInterval(() => {
+      load().catch((caught: unknown) => {
+        const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không tải được lịch sử", "");
+        if (!failAuth(problem)) {
+          setError(problem);
+        }
+      });
+    }, 60_000);
+    return () => window.clearInterval(timer);
+  }, [failAuth, load, props.channel]);
+
+  useEffect(() => {
     let ignore = false;
     setLoading(true);
     load()
@@ -194,7 +209,7 @@ export function ProviderHistoryBoard(props: {
       <p className="page-note" style={{ marginTop: 0 }}>
         {props.channel === "sms"
           ? "Lấy 7 ngày gần nhất. Số được che. Không lưu nội dung tin."
-          : "Bấm một task để xem từng số đã gọi. Số và file nghe chỉ có khi Laaffic gửi báo cáo cuộc gọi về."}
+          : "Tự lấy báo cáo Laaffic mỗi 2 phút. Bấm một task để xem từng số đã gọi. Số và file nghe chỉ có khi Laaffic gửi báo cáo cuộc gọi về."}
       </p>
       {props.channel === "ai_voice" ? <LaafficWebhooks onUnauthorized={props.onUnauthorized} onMfaSetup={props.onMfaSetup} /> : null}
       {error ? <ErrorAlert error={error} /> : null}

@@ -8,6 +8,7 @@ import { ErrorAlert } from "../ui.tsx";
 import { CampaignBoard } from "./CampaignBoard.tsx";
 import { CareHistoryBoard, CareHome, ContactBoard, PersonalReportBoard } from "./CareDesk.tsx";
 import { CustomerBoard } from "./CustomerBoard.tsx";
+import { ChatIdleBoard } from "./ChatIdleBoard.tsx";
 import { EmbedBoard } from "./EmbedBoard.tsx";
 import { DataBoard } from "./DataBoard.tsx";
 import { JournalBoard } from "./JournalBoard.tsx";
@@ -28,7 +29,7 @@ import { ScheduleBoard } from "./ScheduleBoard.tsx";
 import { StaffBoard } from "./StaffBoard.tsx";
 import { armAlertSound, askChatNotification, startInboxWatch, stopInboxWatch, useInboxUnread } from "./inboxWatch.ts";
 
-type DeskPage = "overview" | "inbox" | "contacts" | "tasks" | "history" | "personal" | "queue" | "schedule" | "staff" | "customers" | "warehouse" | "distribute" | "campaigns" | "shift" | "effect" | "rewards" | "journal" | "stations" | "stationSms" | "callTasks" | "voice" | "voiceReview" | "smsHistory" | "voiceHistory" | "rateLimit" | "embed" | "telegram";
+type DeskPage = "overview" | "inbox" | "contacts" | "tasks" | "history" | "personal" | "queue" | "schedule" | "staff" | "customers" | "warehouse" | "distribute" | "campaigns" | "shift" | "effect" | "rewards" | "journal" | "stations" | "stationSms" | "callTasks" | "voice" | "voiceReview" | "smsHistory" | "voiceHistory" | "rateLimit" | "chatIdle" | "embed" | "telegram";
 
 type NavLeaf = { kind: "leaf"; id: DeskPage; label: string; icon: ReactNode };
 type NavGroup = { label?: string; items: NavLeaf[] };
@@ -129,6 +130,7 @@ export function Desk(props: {
     }
     if (canReadSettings) {
       settings.push({ kind: "leaf", id: "rateLimit", label: "Không chặn IP", icon: <GlobalOutlined /> });
+      settings.push({ kind: "leaf", id: "chatIdle", label: "Thời gian chat", icon: <ClockCircleOutlined /> });
       settings.push({ kind: "leaf", id: "embed", label: "Chat nhúng", icon: <MessageOutlined /> });
     }
     if (canManageTelegram) {
@@ -465,7 +467,7 @@ export function Desk(props: {
             <ProviderHistoryBoard
               channel="ai_voice"
               title="Lịch sử cuộc gọi"
-              lead="Từng cuộc gọi AI trên Laaffic trong 7 ngày gần nhất."
+              lead="Từng cuộc gọi AI trên Laaffic trong 7 ngày gần nhất. Danh sách tự cập nhật, không cần bấm đồng bộ."
               canSync={canLaunchCampaigns || canManageCampaigns}
               onUnauthorized={() => props.onLoggedOut("Phiên đã hết. Đăng nhập lại.")}
               onMfaSetup={props.onMfaSetup}
@@ -473,6 +475,9 @@ export function Desk(props: {
           ) : null}
           {page === "rateLimit" && canReadSettings ? (
             <RateLimitBoard canWrite={canWriteSettings} onUnauthorized={() => props.onLoggedOut("Phiên đã hết. Đăng nhập lại.")} onMfaSetup={props.onMfaSetup} />
+          ) : null}
+          {page === "chatIdle" && canReadSettings ? (
+            <ChatIdleBoard canWrite={canWriteSettings} onUnauthorized={() => props.onLoggedOut("Phiên đã hết. Đăng nhập lại.")} onMfaSetup={props.onMfaSetup} />
           ) : null}
           {page === "embed" && canReadSettings ? (
             <EmbedBoard onUnauthorized={() => props.onLoggedOut("Phiên đã hết. Đăng nhập lại.")} onMfaSetup={props.onMfaSetup} />
