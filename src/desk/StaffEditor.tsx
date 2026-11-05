@@ -168,6 +168,38 @@ export function StaffEditor(props: {
         {needsAdminMfa ? <p className="page-note">Lần đăng nhập tới, người này phải bật MFA.</p> : null}
       </Form.Item>
 
+      <Form.Item label="Chức năng làm việc">
+        <div className="role-list">
+          {(
+            [
+              ["web_chat", "Nhận chat website"],
+              ["telegram", "Nhận Telegram"],
+            ] as const
+          ).map(([code, label]) => {
+            const checked = props.draft.work_functions.includes(code);
+            return (
+              <div
+                key={code}
+                className={checked ? "role-row role-row--on" : "role-row"}
+                onClick={() => {
+                  if (!props.canWrite) {
+                    return;
+                  }
+                  const work_functions = checked
+                    ? props.draft.work_functions.filter((item) => item !== code)
+                    : [...props.draft.work_functions, code];
+                  props.onChange({ ...props.draft, work_functions });
+                }}
+              >
+                <Checkbox checked={checked} disabled={!props.canWrite} style={{ pointerEvents: "none" }} />
+                <span className="role-row__name">{label}</span>
+              </div>
+            );
+          })}
+        </div>
+        <p className="page-note">Hàng chờ chỉ giao đúng loại hội thoại đã bật. Tắt cả hai thì người này không nhận hội thoại mới. Nút Nhận việc trên menu vẫn phải bật.</p>
+      </Form.Item>
+
       <Form.Item
         label={props.mode === "create" ? "Mật khẩu tạm" : "Mật khẩu mới"}
         validateStatus={props.fieldErrors.password ? "error" : ""}

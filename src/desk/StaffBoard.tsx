@@ -1,9 +1,10 @@
-import { EditOutlined, PlusOutlined, ReloadOutlined, SearchOutlined } from "@ant-design/icons";
-import { Button, Input, Modal, Select, Space, Table, Tag, Typography } from "antd";
+import { EditOutlined, KeyOutlined, MessageOutlined, PlusOutlined, ReloadOutlined, SafetyCertificateOutlined, SearchOutlined, SendOutlined } from "@ant-design/icons";
+import { Button, Input, Modal, Select, Space, Table, Tag, Tooltip, Typography } from "antd";
 import type { TableColumnsType } from "antd";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, api, fieldErrorsFrom } from "../api.ts";
 import { roleName, statusLabel } from "../copy.ts";
+import { copyText, generatePassword, passwordProblem } from "../password.ts";
 import {
   cloneDraft,
   draftFromStaff,
@@ -21,7 +22,7 @@ import { StaffEditor } from "./StaffEditor.tsx";
 type Selection = { kind: "idle" } | { kind: "create" } | { kind: "edit"; id: string };
 type StatusFilter = "all" | "active" | "disabled";
 
-const KNOWN_FIELDS = ["username", "display_name", "password", "role_codes", "timezone", "status"];
+const KNOWN_FIELDS = ["username", "display_name", "password", "role_codes", "work_functions", "timezone", "status"];
 
 export function StaffBoard(props: {
   me: UserProfile;
@@ -45,6 +46,12 @@ export function StaffBoard(props: {
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<ApiError | null>(null);
   const [saving, setSaving] = useState(false);
+  const [functionBusy, setFunctionBusy] = useState<string | null>(null);
+  const [passwordFor, setPasswordFor] = useState<Staff | null>(null);
+  const [passwordValue, setPasswordValue] = useState("");
+  const [passwordShown, setPasswordShown] = useState<string | null>(null);
+  const [passwordCopied, setPasswordCopied] = useState(false);
+  const [mfaFor, setMfaFor] = useState<Staff | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
   const [issued, setIssued] = useState<{ id: string; password: string } | null>(null);
 
@@ -196,6 +203,7 @@ export function StaffBoard(props: {
           display_name: draft.display_name.trim(),
           password: draft.password,
           role_codes: draft.role_codes,
+          work_functions: draft.work_functions,
           timezone: draft.timezone,
         };
         const created = await api<Staff>("/api/v1/admin/staff", { method: "POST", body });
@@ -276,6 +284,91 @@ export function StaffBoard(props: {
   );
   const editorOpen = selection.kind !== "idle" && Boolean(draft);
 
+  async function toggleFunction(person: Staff, code: "web_chat" | "telegram") {
+    if (!props.canWrite || functionBusy) {
+      return;
+    }
+    const current = Array.isArray(person.work_functions) ? person.work_functions : [];
+    const work_functions = current.includes(code) ? current.filter((item) => item !== code) : [...current, code];
+    setFunctionBusy(`${person.id}:${code}`);
+    setFormError(null);
+    try {
+      const updated = await api<Staff>(`/api/v1/admin/staff/${person.id}`, { method: "PATCH", body: { work_functions } });
+      setPeople((rows) => rows.map((row) => (row.id === updated.id ? updated : row)));
+      if (selection.kind === "edit" && selection.id === updated.id && draft && origin) {
+        setDraft({ ...draft, work_functions: [...updated.work_functions] });
+        setOrigin({ ...origin, work_functions: [...updated.work_functions] });
+      }
+    } catch (caught) {
+      const error = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không đổi được chức năng", "");
+      if (!failAuth(error)) {
+        setFormError(error);
+      }
+    } finally {
+      setFunctionBusy(null);
+    }
+  }
+
+  function openPassword(person: Staff) {
+    setPasswordFor(person);
+    setPasswordValue(generatePassword());
+    setPasswordShown(null);
+    setPasswordCopied(false);
+    setFormError(null);
+  }
+
+  async function savePassword() {
+    if (!passwordFor) {
+      return;
+    }
+    const problem = passwordProblem(passwordValue);
+    if (problem) {
+      setFormError(new ApiError(400, "validation_error", problem, ""));
+      return;
+    }
+    setSaving(true);
+    setFormError(null);
+    try {
+      await api<Staff>(`/api/v1/admin/staff/${passwordFor.id}`, { method: "PATCH", body: { password: passwordValue } });
+      if (passwordFor.id === props.me.id) {
+        props.onSessionEnded("Đã đổi mật khẩu. Phiên của bạn đã đóng, hãy đăng nhập lại.");
+        return;
+      }
+      setPasswordShown(passwordValue);
+    } catch (caught) {
+      const error = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không đổi được mật khẩu", "");
+      if (!failAuth(error)) {
+        setFormError(error);
+      }
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function clearMfa() {
+    if (!mfaFor) {
+      return;
+    }
+    setSaving(true);
+    setFormError(null);
+    try {
+      await api(`/api/v1/admin/staff/${mfaFor.id}/mfa`, { method: "DELETE" });
+      if (mfaFor.id === props.me.id) {
+        props.onSessionEnded("Đã gỡ MFA. Phiên của bạn đã đóng, hãy đăng nhập lại.");
+        return;
+      }
+      setPeople((rows) => rows.map((row) => (row.id === mfaFor.id ? { ...row, mfa_enabled: false } : row)));
+      setMfaFor(null);
+    } catch (caught) {
+      const error = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không gỡ được MFA", "");
+      if (!failAuth(error)) {
+        setFormError(error);
+      }
+    } finally {
+      setSaving(false);
+    }
+  }
+
   const columns: TableColumnsType<Staff> = [
     {
       title: "Nhân viên",
@@ -307,28 +400,65 @@ export function StaffBoard(props: {
       render: (status: string) => <Tag color={status === "active" ? "success" : "default"}>{statusLabel(status)}</Tag>,
     },
     {
-      title: "MFA",
-      dataIndex: "mfa_enabled",
-      width: 140,
-      render: (enabled: boolean, person) =>
-        enabled ? <Tag color="success">Đã bật</Tag> : person.roles.includes("admin") ? <Tag color="warning">Cần bật MFA</Tag> : <Tag>Chưa bật</Tag>,
-    },
-    {
       title: "",
-      key: "edit",
-      width: 88,
-      render: (_, person) => (
-        <Button
-          type="link"
-          icon={<EditOutlined />}
-          onClick={(event) => {
-            event.stopPropagation();
-            choose({ kind: "edit", id: person.id });
-          }}
-        >
-          Sửa
-        </Button>
-      ),
+      key: "actions",
+      width: 220,
+      align: "right",
+      render: (_, person) => {
+        const functions = Array.isArray(person.work_functions) ? person.work_functions : [];
+        const chatOn = functions.includes("web_chat");
+        const telegramOn = functions.includes("telegram");
+        return (
+          <span className="row-actions" onClick={(event) => event.stopPropagation()}>
+            <Tooltip title={chatOn ? "Đang nhận chat website" : "Không nhận chat website"}>
+              <button
+                type="button"
+                className={chatOn ? "is-on" : undefined}
+                disabled={!props.canWrite || functionBusy === `${person.id}:web_chat`}
+                onClick={() => void toggleFunction(person, "web_chat")}
+              >
+                <MessageOutlined />
+              </button>
+            </Tooltip>
+            <Tooltip title={telegramOn ? "Đang nhận Telegram" : "Không nhận Telegram"}>
+              <button
+                type="button"
+                className={telegramOn ? "is-on" : undefined}
+                disabled={!props.canWrite || functionBusy === `${person.id}:telegram`}
+                onClick={() => void toggleFunction(person, "telegram")}
+              >
+                <SendOutlined />
+              </button>
+            </Tooltip>
+            <Tooltip title="Đổi mật khẩu">
+              <button type="button" className="is-key" disabled={!props.canWrite} onClick={() => openPassword(person)}>
+                <KeyOutlined />
+              </button>
+            </Tooltip>
+            <Tooltip title={person.mfa_enabled ? "MFA đang bật. Bấm để gỡ" : "Chưa bật MFA"}>
+              <button
+                type="button"
+                className={person.mfa_enabled ? "is-mfa" : person.roles.includes("admin") ? "is-warn" : undefined}
+                disabled={!props.canWrite}
+                onClick={() => {
+                  if (!person.mfa_enabled) {
+                    return;
+                  }
+                  setFormError(null);
+                  setMfaFor(person);
+                }}
+              >
+                <SafetyCertificateOutlined />
+              </button>
+            </Tooltip>
+            <Tooltip title="Sửa hồ sơ">
+              <button type="button" onClick={() => choose({ kind: "edit", id: person.id })}>
+                <EditOutlined />
+              </button>
+            </Tooltip>
+          </span>
+        );
+      },
     },
   ];
 
@@ -339,7 +469,7 @@ export function StaffBoard(props: {
           <Typography.Title level={3} className="page-header__title">
             Nhân sự
           </Typography.Title>
-          <Typography.Text type="secondary">Sửa hồ sơ, vai trò và mật khẩu ngay trong bảng này.</Typography.Text>
+          <Typography.Text type="secondary">Icon trên mỗi dòng: chat website, Telegram, đổi mật khẩu, MFA, sửa hồ sơ.</Typography.Text>
         </div>
         {props.canWrite ? (
           <Button type="primary" icon={<PlusOutlined />} onClick={() => choose({ kind: "create" })}>
@@ -403,6 +533,7 @@ export function StaffBoard(props: {
           }
         />
       ) : null}
+      {formError && !editorOpen ? <ErrorAlert error={formError} /> : null}
 
       <div className="staff-table">
         <Table<Staff>
@@ -418,6 +549,59 @@ export function StaffBoard(props: {
           })}
         />
       </div>
+
+      <Modal
+        title={passwordFor ? `Đổi mật khẩu ${passwordFor.display_name}` : "Đổi mật khẩu"}
+        open={passwordFor !== null}
+        centered
+        confirmLoading={saving}
+        okText={passwordShown ? "Đóng" : "Lưu mật khẩu"}
+        cancelText="Hủy"
+        cancelButtonProps={{ style: passwordShown ? { display: "none" } : undefined }}
+        onCancel={() => setPasswordFor(null)}
+        onOk={() => {
+          if (passwordShown) {
+            setPasswordFor(null);
+            return;
+          }
+          void savePassword();
+        }}
+      >
+        {passwordShown ? (
+          <p className="page-note">
+            Mật khẩu mới chỉ hiện lúc này: <code className="secret-code">{passwordShown}</code>
+            <Button size="small" style={{ marginLeft: 8 }} onClick={() => void copyText(passwordShown).then(setPasswordCopied)}>
+              {passwordCopied ? "Đã chép" : "Chép"}
+            </Button>
+          </p>
+        ) : (
+          <>
+            <p className="page-note">Người này sẽ phải đăng nhập lại. Gửi mật khẩu cho họ, CMS không lưu lại.</p>
+            <Input.Password value={passwordValue} autoComplete="new-password" onChange={(event) => setPasswordValue(event.target.value)} />
+            <button type="button" className="text-button" style={{ marginTop: 8 }} onClick={() => setPasswordValue(generatePassword())}>
+              Tạo mật khẩu khác
+            </button>
+          </>
+        )}
+      </Modal>
+
+      <Modal
+        title={mfaFor ? `Gỡ MFA của ${mfaFor.display_name}` : "Gỡ MFA"}
+        open={mfaFor !== null}
+        centered
+        confirmLoading={saving}
+        okText="Gỡ MFA"
+        okButtonProps={{ danger: true }}
+        cancelText="Hủy"
+        onCancel={() => setMfaFor(null)}
+        onOk={() => void clearMfa()}
+      >
+        <p className="page-note">
+          {mfaFor?.id === props.me.id
+            ? "MFA của bạn sẽ bị gỡ và phiên này đóng."
+            : "Người này đăng nhập bằng mật khẩu cho đến khi tự bật lại MFA. Phiên đang mở của họ sẽ đóng."}
+        </p>
+      </Modal>
 
       <Modal
         title={selection.kind === "create" ? "Thêm nhân viên" : draft ? `Sửa ${draft.display_name || draft.username}` : "Sửa nhân viên"}

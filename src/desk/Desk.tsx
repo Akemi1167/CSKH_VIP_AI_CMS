@@ -64,10 +64,11 @@ export function Desk(props: {
   const canManageTelegram = profile.permissions.includes("telegram:manage");
   const canReadTasks = profile.permissions.includes("tasks:read_own");
   const canReadAllTasks = profile.permissions.includes("tasks:read");
+  const canReadTeamTasks = profile.permissions.includes("tasks:read_team") && !canReadAllTasks;
   const canUpdateTasks = profile.permissions.includes("tasks:update_own");
   const canReadQueue = profile.permissions.includes("queues:read");
   const canAssign = profile.permissions.includes("tasks:assign");
-  const canTransfer = profile.permissions.includes("tasks:transfer") && profile.permissions.includes("tasks:read");
+  const canTransfer = profile.permissions.includes("tasks:transfer") && (canReadAllTasks || canReadTeamTasks);
   const canRevokeCare = profile.permissions.includes("care:revoke");
   const canReadCampaigns = profile.permissions.includes("campaigns:read");
   const canCreateCampaigns = profile.permissions.includes("campaigns:create");
@@ -87,7 +88,7 @@ export function Desk(props: {
     if (!canReadTasks) {
       return;
     }
-    startInboxWatch(canReadAllTasks ? "staff" : "own");
+    startInboxWatch(canReadAllTasks ? "staff" : canReadTeamTasks ? "team" : "own");
     const arm = () => armAlertSound();
     const openInbox = () => setPage("inbox");
     window.addEventListener("pointerdown", arm);
@@ -97,7 +98,7 @@ export function Desk(props: {
       window.removeEventListener("cskh-open-inbox", openInbox);
       stopInboxWatch();
     };
-  }, [canReadAllTasks, canReadTasks]);
+  }, [canReadAllTasks, canReadTasks, canReadTeamTasks]);
   const menus = useMemo(() => {
     const care: NavLeaf[] = [{ kind: "leaf", id: "overview", label: "Tổng quan", icon: <AppstoreOutlined /> }];
     if (canReadCustomers) {
@@ -343,10 +344,17 @@ export function Desk(props: {
           {page === "inbox" && canReadTasks ? (
             <WorkBoard
               heading="Hộp thư hỗ trợ"
-              lead={canReadAllTasks ? "Chọn hội thoại bên trái và gửi tin. Tin web đi qua socket, tin Telegram tới máy khách." : "Hội thoại đang giao cho bạn. Tin khách web tới ngay trên khung chat."}
+              lead={
+                canReadAllTasks
+                  ? "Mọi hội thoại của tất cả đài. Chọn bên trái để xem và trả lời."
+                  : canReadTeamTasks
+                    ? "Hội thoại của nhân viên các đài bạn phụ trách. Có thể chuyển cho người khác hoặc thu về tự xử lý."
+                    : "Hội thoại đang giao cho bạn. Tin khách web tới ngay trên khung chat."
+              }
               layout="chat"
-              scope={canReadAllTasks ? "staff" : "own"}
+              scope={canReadAllTasks ? "staff" : canReadTeamTasks ? "team" : "own"}
               canUpdate={canUpdateTasks}
+              canManageAny={canReadAllTasks}
               canCancel={canAssign}
               canTransfer={canTransfer}
               canListStaff={canReadStaff}
@@ -361,8 +369,10 @@ export function Desk(props: {
           {page === "tasks" && canReadTasks ? (
             <WorkBoard
               heading="Nhiệm vụ"
-              lead="Việc đang giao. Bấm một dòng để cập nhật trạng thái hoặc chuyển người."
+              lead={canReadTeamTasks ? "Việc của nhân viên các đài bạn phụ trách." : "Việc đang giao. Bấm một dòng để cập nhật trạng thái hoặc chuyển người."}
+              scope={canReadAllTasks ? "staff" : canReadTeamTasks ? "team" : "own"}
               canUpdate={canUpdateTasks}
+              canManageAny={canReadAllTasks}
               canCancel={canAssign}
               canTransfer={canTransfer}
               canListStaff={canReadStaff}

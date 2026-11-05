@@ -24,6 +24,7 @@ type TaskRow = {
   assignee_name?: string | null;
   first_response: { state: string; due_at: string | null };
   last_message: { body: string; sender_type: string; created_at: string | null } | null;
+  member?: { site: string | null } | null;
 };
 
 type TaskDetail = TaskRow & {
@@ -112,8 +113,9 @@ export function WorkBoard(props: {
   heading: string;
   lead: string;
   layout?: "table" | "chat";
-  scope?: "own" | "staff";
+  scope?: "own" | "staff" | "team";
   canUpdate: boolean;
+  canManageAny?: boolean;
   canCancel: boolean;
   canTransfer: boolean;
   canListStaff: boolean;
@@ -121,10 +123,10 @@ export function WorkBoard(props: {
   onUnauthorized: () => void;
   onMfaSetup: () => void;
 }) {
-  const staffScope = props.scope === "staff";
+  const oversight = props.scope === "staff" || props.scope === "team";
   const chatLayout = props.layout === "chat";
   const threadRef = useRef<HTMLDivElement>(null);
-  const [status, setStatus] = useState<string>(staffScope ? "all" : "open");
+  const [status, setStatus] = useState<string>(oversight ? "all" : "open");
   const [assigneeId, setAssigneeId] = useState("");
   const [items, setItems] = useState<TaskRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -166,20 +168,20 @@ export function WorkBoard(props: {
 
   const load = useCallback(async (nextStatus: string, nextAssignee: string) => {
     const params = new URLSearchParams();
-    if (staffScope) {
-      params.set("scope", "staff");
+    if (props.scope === "staff" || props.scope === "team") {
+      params.set("scope", props.scope);
     }
     if (nextStatus !== "open" && nextStatus !== "all") {
       params.set("status", nextStatus);
     }
-    if (staffScope && nextAssignee) {
+    if ((props.scope === "staff" || props.scope === "team") && nextAssignee) {
       params.set("assignee_id", nextAssignee);
     }
     const query = params.toString();
     const result = await api<{ items: TaskRow[] }>(`/api/v1/tasks${query ? `?${query}` : ""}`);
     setItems(result.items);
     setError(null);
-  }, [staffScope]);
+  }, [props.scope]);
 
   useEffect(() => {
     let ignore = false;
@@ -205,21 +207,22 @@ export function WorkBoard(props: {
   }, [assigneeId, failAuth, load, status]);
 
   useEffect(() => {
-    if (!staffScope || !props.canListStaff) {
+    if (props.scope !== "team" && (!oversight || !props.canListStaff)) {
       return;
     }
     let ignore = false;
-    api<{ items: Staff[] }>("/api/v1/admin/staff")
+    const path = props.scope === "team" ? "/api/v1/team/staff" : "/api/v1/admin/staff";
+    api<{ items: Staff[] }>(path)
       .then((people) => {
         if (!ignore) {
-          setRoster(people.items.filter((person) => person.status === "active"));
+          setRoster(people.items.filter((person) => person.status === "active" || props.scope === "team"));
         }
       })
       .catch(() => undefined);
     return () => {
       ignore = true;
     };
-  }, [props.canListStaff, staffScope]);
+  }, [oversight, props.canListStaff, props.scope]);
 
   useEffect(() => {
     let ignore = false;
@@ -373,6 +376,22 @@ export function WorkBoard(props: {
     setTransferOpen(true);
     setUserId(undefined);
     setReason("Chuyển việc");
+    if (props.scope === "team") {
+      if (staff.length > 0) {
+        return;
+      }
+      try {
+        const people = await api<{ items: Staff[] }>("/api/v1/team/staff");
+        setStaff(people.items);
+        setStaffLoaded(true);
+      } catch (caught) {
+        const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không tải được nhân viên", "");
+        if (!failAuth(problem)) {
+          setError(problem);
+        }
+      }
+      return;
+    }
     if (!props.canListStaff || staff.length > 0) {
       return;
     }
@@ -385,6 +404,40 @@ export function WorkBoard(props: {
       if (!failAuth(problem)) {
         setError(problem);
       }
+    }
+  }
+
+  async function takeBack() {
+    if (!detail) {
+      return;
+    }
+    setUserId(props.selfId);
+    setReason("Thu về xử lý");
+    setBusy(true);
+    setError(null);
+    setWarning(null);
+    try {
+      const result = await api<AssignResult>(`/api/v1/tasks/${detail.id}/transfer`, {
+        method: "POST",
+        body: { version: detail.version, to_user_id: props.selfId, reason_code: "Thu về xử lý" },
+      });
+      const notes: string[] = [];
+      if (result.outside_shift) {
+        notes.push("Bạn đang ngoài ca.");
+      }
+      if (result.over_capacity) {
+        notes.push("Bạn đã đủ 8 hội thoại mở.");
+      }
+      setWarning(notes.length > 0 ? notes.join(" ") : null);
+      setDetail(null);
+      await load(status, assigneeId);
+    } catch (caught) {
+      const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không thu được task", "");
+      if (!failAuth(problem)) {
+        setError(problem);
+      }
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -422,8 +475,8 @@ export function WorkBoard(props: {
   }
 
   const columns: TableColumnsType<TaskRow> = [
-    ...(staffScope ? [{ title: "Nhân viên", dataIndex: "assignee_name", width: 160, ellipsis: true, render: (value: string | null) => value || "—" } satisfies TableColumnsType<TaskRow>[number]] : []),
-    { title: "Khách", dataIndex: "customer_ref", ellipsis: true },
+    ...(oversight ? [{ title: "Nhân viên", dataIndex: "assignee_name", width: 160, ellipsis: true, render: (value: string | null) => value || "—" } satisfies TableColumnsType<TaskRow>[number]] : []),
+    ...(oversight ? [{ title: "Đài", width: 90, render: (_, row) => row.member?.site || "—" } satisfies TableColumnsType<TaskRow>[number]] : []),
     { title: "Kênh", dataIndex: "channel", width: 110, render: (value: string) => (value === "telegram" ? "Telegram" : "Web") },
     { title: "Tin cuối", ellipsis: true, render: (_, row) => row.last_message?.body || "—" },
     { title: "Trạng thái", dataIndex: "status", width: 130, render: (value: string) => STATUS_LABEL[value] ?? value },
@@ -433,6 +486,9 @@ export function WorkBoard(props: {
 
   const nextStatuses = detail ? (NEXT_STATUS[detail.status] ?? []) : [];
   const open = detail ? nextStatuses.length > 0 : false;
+  const canHandle = Boolean(detail && props.canUpdate && (props.canManageAny || detail.assignee_user_id === props.selfId));
+  const canMove = Boolean(props.canTransfer && open && (props.scope === "team" || props.canListStaff));
+  const canPull = Boolean(canMove && props.scope === "team" && detail && detail.assignee_user_id !== props.selfId);
 
   useEffect(() => {
     if (!chatLayout) {
@@ -510,7 +566,7 @@ export function WorkBoard(props: {
           {chatLayout ? <p className="page-note">{liveLabel(live)}</p> : null}
         </div>
         <Space>
-          {staffScope && props.canListStaff ? (
+          {oversight && (props.scope === "team" || props.canListStaff) ? (
             <Select
               showSearch
               optionFilterProp="label"
@@ -525,7 +581,7 @@ export function WorkBoard(props: {
             style={{ width: 160 }}
             onChange={setStatus}
             options={[
-              ...(staffScope ? [{ value: "all", label: "Mọi trạng thái" }] : [{ value: "open", label: "Đang mở" }]),
+              ...(oversight ? [{ value: "all", label: "Mọi trạng thái" }] : [{ value: "open", label: "Đang mở" }]),
               { value: "ASSIGNED", label: "Đã giao" },
               { value: "IN_PROGRESS", label: "Đang xử lý" },
               { value: "WAITING_CUSTOMER", label: "Chờ khách" },
@@ -571,7 +627,8 @@ export function WorkBoard(props: {
                     </span>
                     <span className="chat-list__preview">{pending?.body || row.last_message?.body || "Chưa có tin"}</span>
                     <small>
-                      {row.channel === "telegram" ? "Telegram" : "Web"}
+                      {row.member?.site ? row.member.site : oversight ? "Chưa gắn đài" : row.channel === "telegram" ? "Telegram" : "Web"}
+                      {oversight && row.member?.site ? (row.channel === "telegram" ? " · Telegram" : " · Web") : ""}
                       {row.assignee_name ? ` · ${row.assignee_name}` : ""} · {STATUS_LABEL[row.status] ?? row.status}
                     </small>
                   </span>
@@ -590,25 +647,31 @@ export function WorkBoard(props: {
                     <div>
                     <strong>{detail.customer_ref}</strong>
                     <p>
+                      {detail.member?.site ? `${detail.member.site} · ` : ""}
                       {detail.channel === "telegram" ? "Telegram" : "Web"}
                       {detail.assignee_name ? ` · ${detail.assignee_name}` : ""} · {STATUS_LABEL[detail.status] ?? detail.status}
                     </p>
                     </div>
                   </div>
                   <Space wrap>
-                    {props.canUpdate && open
+                    {canHandle && open
                       ? nextStatuses.map((next) => (
                           <Button key={next} size="small" loading={busy} onClick={() => void changeStatus(next)}>
                             {STATUS_LABEL[next]}
                           </Button>
                         ))
                       : null}
-                    {props.canUpdate && open && props.canCancel ? (
+                    {canHandle && open && props.canCancel ? (
                       <Button size="small" danger loading={busy} onClick={() => void changeStatus("CANCELLED")}>
                         Hủy
                       </Button>
                     ) : null}
-                    {props.canUpdate && open && props.canTransfer && props.canListStaff ? (
+                    {canPull ? (
+                      <Button size="small" loading={busy} onClick={() => void takeBack()}>
+                        Thu về
+                      </Button>
+                    ) : null}
+                    {canMove ? (
                       <Button size="small" loading={busy} onClick={() => void openTransfer()}>
                         Chuyển
                       </Button>
@@ -628,7 +691,7 @@ export function WorkBoard(props: {
                 </div>
                 {error ? <p className="chat-compose__error">{error.message}</p> : null}
                 {warning ? <p className="chat-note">{warning}</p> : null}
-                {props.canUpdate && open ? (
+                {canHandle && open ? (
                   <Form className="chat-compose" onFinish={() => void sendReply()}>
                     <Input.TextArea
                       value={reply}
@@ -657,6 +720,8 @@ export function WorkBoard(props: {
                       Gửi
                     </Button>
                   </Form>
+                ) : canPull ? (
+                  <p className="chat-note">Hội thoại đang của nhân viên. Thu về nếu bạn muốn trả lời.</p>
                 ) : (
                   <p className="chat-closed">Hội thoại đã đóng.</p>
                 )}
@@ -681,12 +746,12 @@ export function WorkBoard(props: {
             <div className="task-thread">
               {detail.messages.map((message) => (
                 <p key={message.id} className={message.sender_type === "agent" ? "task-line task-line--agent" : "task-line"}>
-                  <span>{message.sender_type === "customer" ? "Khách" : staffScope ? detail.assignee_name || "Nhân viên" : "Bạn"}</span>
+                  <span>{message.sender_type === "customer" ? "Khách" : oversight ? detail.assignee_name || "Nhân viên" : "Bạn"}</span>
                   {message.body}
                 </p>
               ))}
             </div>
-            {props.canUpdate && open ? (
+            {canHandle && open ? (
               <Form layout="vertical" requiredMark={false} onFinish={() => void sendReply()}>
                 <Form.Item label="Câu trả lời">
                   <Input.TextArea rows={3} value={reply} onChange={(event) => writeReply(event.target.value)} />
@@ -708,16 +773,25 @@ export function WorkBoard(props: {
                       Hủy
                     </Button>
                   ) : null}
-                  {props.canTransfer && props.canListStaff ? (
-                    <Button loading={busy} onClick={() => void openTransfer()}>
-                      Chuyển
-                    </Button>
-                  ) : null}
                 </Space>
               </Form>
+            ) : open && !canHandle ? (
+              <p className="page-note">Hội thoại đang của nhân viên. Thu về nếu bạn muốn trả lời.</p>
             ) : (
               <Tag>{STATUS_LABEL[detail.status] ?? detail.status}</Tag>
             )}
+            {canMove ? (
+              <Space wrap style={{ marginTop: 12 }}>
+                {canPull ? (
+                  <Button loading={busy} onClick={() => void takeBack()}>
+                    Thu về
+                  </Button>
+                ) : null}
+                <Button loading={busy} onClick={() => void openTransfer()}>
+                  Chuyển
+                </Button>
+              </Space>
+            ) : null}
           </>
         ) : null}
       </Drawer>
@@ -739,7 +813,10 @@ export function WorkBoard(props: {
               placeholder="Chọn nhân viên"
               value={userId}
               onChange={setUserId}
-              options={staff.map((person) => ({ value: person.id, label: person.display_name }))}
+              options={staff.map((person) => ({
+                value: person.id,
+                label: person.id === props.selfId ? `${person.display_name} — thu về mình` : person.display_name,
+              }))}
             />
           </Form.Item>
           <Form.Item label="Lý do">

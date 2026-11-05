@@ -8,6 +8,7 @@ const PERMISSION_LABELS: Record<string, string> = {
   "tasks:read_own": "Xem task của mình",
   "tasks:update_own": "Cập nhật task của mình",
   "tasks:read": "Xem mọi task",
+  "tasks:read_team": "Xem việc của đài mình",
   "tasks:transfer": "Chuyển task",
   "tasks:assign": "Gán task trong hàng chờ",
   "queues:read": "Xem hàng chờ",

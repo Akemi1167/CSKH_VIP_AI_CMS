@@ -21,6 +21,7 @@ export type Staff = {
   roles: string[];
   mfa_enabled: boolean;
   accepting_work: boolean;
+  work_functions: string[];
 };
 
 export type Role = {
@@ -34,6 +35,7 @@ export type Draft = {
   display_name: string;
   timezone: string;
   role_codes: string[];
+  work_functions: string[];
   status: "active" | "disabled";
   password: string;
 };
@@ -43,6 +45,7 @@ export type UpdateStaffBody = {
   status?: "active" | "disabled";
   timezone?: string;
   role_codes?: string[];
+  work_functions?: string[];
   password?: string;
 };
 
@@ -51,6 +54,7 @@ export type CreateStaffBody = {
   display_name: string;
   password: string;
   role_codes: string[];
+  work_functions: string[];
   timezone: string;
 };
 

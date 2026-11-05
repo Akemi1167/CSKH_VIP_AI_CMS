@@ -39,7 +39,7 @@ const boards = new Set<BoardHandlers>();
 let snapshot: Snapshot = { count: 0, byId: unread };
 let chat: StaffChat | null = null;
 let status: "connecting" | "live" | "down" = "down";
-let watchScope: "own" | "staff" = "own";
+let watchScope: "own" | "staff" | "team" = "own";
 let catchUpTimer = 0;
 let flashTimer = 0;
 let flashOn = false;
@@ -112,7 +112,7 @@ export function armAlertSound(): void {
   void audio.resume();
 }
 
-export function startInboxWatch(scope: "own" | "staff" = "own"): void {
+export function startInboxWatch(scope: "own" | "staff" | "team" = "own"): void {
   watchScope = scope;
   if (chat) {
     return;
@@ -246,7 +246,7 @@ function absorb(items: TaskListItem[]): void {
 async function catchUp(): Promise<void> {
   let result: { items: TaskListItem[] };
   try {
-    const path = watchScope === "staff" ? "/api/v1/tasks?scope=staff" : "/api/v1/tasks";
+    const path = watchScope === "own" ? "/api/v1/tasks" : `/api/v1/tasks?scope=${watchScope}`;
     result = await api<{ items: TaskListItem[] }>(path);
   } catch {
     return;

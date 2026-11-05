@@ -1,5 +1,5 @@
-import { ReloadOutlined } from "@ant-design/icons";
-import { Button, Segmented, Select, Table, Tag, Typography } from "antd";
+import { EyeOutlined, ReloadOutlined } from "@ant-design/icons";
+import { Button, Modal, Segmented, Select, Table, Tag, Typography } from "antd";
 import type { TableColumnsType } from "antd";
 import { useCallback, useEffect, useState } from "react";
 import { ApiError, api } from "../api.ts";
@@ -24,6 +24,8 @@ export function JournalBoard(props: { canListStaff: boolean; onUnauthorized: () 
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
+  const [openAudit, setOpenAudit] = useState<AuditEvent | null>(null);
+  const [openLog, setOpenLog] = useState<SystemLog | null>(null);
 
   const failAuth = useCallback(
     (caught: ApiError) => {
@@ -153,7 +155,6 @@ export function JournalBoard(props: { canListStaff: boolean; onUnauthorized: () 
   const namesByUsername = new Map(staff.map((person) => [person.username, person.display_name || person.username]));
 
   const auditColumns: TableColumnsType<AuditEvent> = [
-    { title: "Thời điểm", dataIndex: "created_at", width: 170, render: (value: string) => formatStamp(value) },
     {
       title: "Người",
       width: 160,
@@ -161,37 +162,60 @@ export function JournalBoard(props: { canListStaff: boolean; onUnauthorized: () 
       render: (_, row) => (row.actor_username ? (namesByUsername.get(row.actor_username) ?? row.actor_username) : "Hệ thống"),
     },
     {
-      title: "Việc đã làm",
+      title: "Nội dung",
       render: (_, row) => (
-        <span>
-          {row.outcome === "failure" ? <Tag color="red">Không xong</Tag> : null}
-          {describeAudit(row, names)}
-        </span>
+        <LogReason
+          failed={row.outcome === "failure"}
+          title={describeAudit(row, names)}
+          code={ACTION_LABELS[row.action] ? row.action : null}
+        />
       ),
+    },
+    {
+      title: "Thời điểm",
+      width: 168,
+      render: (_, row) => <LogWhen at={row.created_at} scope="Hành động" />,
+    },
+    {
+      title: "Trạng thái",
+      width: 120,
+      render: (_, row) => <Tag color={row.outcome === "failure" ? "red" : "green"}>{row.outcome === "failure" ? "Thất bại" : "Thành công"}</Tag>,
+    },
+    {
+      title: "",
+      width: 56,
+      render: (_, row) => <Button type="text" aria-label="Xem chi tiết" icon={<EyeOutlined />} onClick={() => setOpenAudit(row)} />,
     },
   ];
 
   const logColumns: TableColumnsType<SystemLog> = [
-    { title: "Thời điểm", dataIndex: "created_at", width: 170, render: (value: string) => formatStamp(value) },
-    {
-      title: "Mức",
-      dataIndex: "level",
-      width: 110,
-      render: (value: string) => <Tag color={value === "error" ? "red" : "blue"}>{value === "error" ? "Lỗi" : "Thông tin"}</Tag>,
-    },
     {
       title: "Người",
-      width: 160,
+      width: 150,
       ellipsis: true,
       render: (_, row) => (row.actor_username ? (namesByUsername.get(row.actor_username) ?? row.actor_username) : "Hệ thống"),
     },
-    { title: "IP", dataIndex: "ip", width: 150, render: (value: string | null) => value || "—" },
-    { title: "Việc đã xảy ra", render: (_, row) => describeLog(row) },
     {
-      title: "Mã",
-      dataIndex: "request_id",
-      width: 110,
-      render: (value: string | null) => (value ? value.replaceAll("-", "").slice(0, 8) : "—"),
+      title: "Nội dung",
+      render: (_, row) => {
+        const view = presentLog(row);
+        return <LogReason failed={row.level === "error"} title={view.title} method={view.method} path={view.path} status={view.status} ip={row.ip} />;
+      },
+    },
+    {
+      title: "Thời điểm",
+      width: 168,
+      render: (_, row) => <LogWhen at={row.created_at} scope={logScope(row.event)} />,
+    },
+    {
+      title: "Trạng thái",
+      width: 120,
+      render: (_, row) => <Tag color={row.level === "error" ? "red" : "blue"}>{row.level === "error" ? "Lỗi" : "Thông tin"}</Tag>,
+    },
+    {
+      title: "",
+      width: 56,
+      render: (_, row) => <Button type="text" aria-label="Xem chi tiết" icon={<EyeOutlined />} onClick={() => setOpenLog(row)} />,
     },
   ];
 
@@ -302,11 +326,20 @@ export function JournalBoard(props: { canListStaff: boolean; onUnauthorized: () 
           dataSource={logs}
           pagination={false}
           locale={{ emptyText: loading ? " " : "Chưa có log." }}
-          expandable={{
-            expandedRowRender: (row) => <LogDetail row={row} />,
-          }}
         />
       )}
+      <Modal
+        open={openAudit !== null}
+        title="Chi tiết hành động"
+        footer={null}
+        width={720}
+        onCancel={() => setOpenAudit(null)}
+      >
+        {openAudit ? <AuditDetail row={openAudit} names={names} /> : null}
+      </Modal>
+      <Modal open={openLog !== null} title="Chi tiết log" footer={null} width={720} onCancel={() => setOpenLog(null)}>
+        {openLog ? <LogDetail row={openLog} /> : null}
+      </Modal>
       {cursor ? (
         <Button style={{ marginTop: 12 }} loading={loadingMore} onClick={() => void more()}>
           Xem thêm
@@ -325,6 +358,7 @@ const AUDIT_FILTERS = [
   { value: "auth.mfa_verify", label: "Nhập mã MFA" },
   { value: "staff.create", label: "Tạo nhân viên" },
   { value: "staff.update", label: "Sửa nhân viên" },
+  { value: "staff.mfa_reset", label: "Gỡ MFA" },
   { value: "schedule.save", label: "Đặt giờ ca" },
   { value: "schedule.leave", label: "Ghi nghỉ" },
   { value: "schedule.leave_delete", label: "Xóa nghỉ" },
@@ -407,6 +441,9 @@ function describeAudit(row: AuditEvent, names: Map<string, string>): string {
     if (Array.isArray(summary.roles)) {
       changes.push("đổi vai trò");
     }
+    if (Array.isArray(summary.work_functions)) {
+      changes.push("đổi chức năng làm việc");
+    }
     if (summary.password_reset === true) {
       changes.push("đổi mật khẩu");
     }
@@ -414,6 +451,10 @@ function describeAudit(row: AuditEvent, names: Map<string, string>): string {
     const who = name ? ` ${name}` : "";
     const detail = changes.length > 0 ? `: ${changes.join(", ")}` : "";
     return `Sửa hồ sơ${who}${detail}.`;
+  }
+  if (row.action === "staff.mfa_reset") {
+    const username = text(summary.username);
+    return username ? `Gỡ MFA của ${username}.` : "Gỡ MFA của một nhân viên.";
   }
   if (row.action === "customers.create") {
     const account = text(summary.game_account);
@@ -596,6 +637,108 @@ function describeLog(row: SystemLog): string {
   return row.message || row.event;
 }
 
+function LogReason(props: { failed: boolean; title: string; method?: string | null; path?: string | null; status?: number | null; ip?: string | null; code?: string | null }) {
+  const method = props.method?.toLowerCase() ?? "";
+  return (
+    <div className={props.failed ? "log-reason log-reason--fail" : "log-reason"}>
+      <p className="log-reason__title">{props.title}</p>
+      {props.path ? (
+        <p className="log-reason__path">
+          <LogPath path={props.path} />
+        </p>
+      ) : null}
+      {props.method || props.status || props.code ? (
+        <div className="log-reason__badges">
+          {props.method ? <span className={`log-method log-method--${method}`}>{props.method}</span> : null}
+          {props.code ? <span className="log-code">{props.code}</span> : null}
+          {props.status ? <Tag color={props.status >= 500 ? "red" : "default"}>{props.status}</Tag> : null}
+        </div>
+      ) : null}
+      {props.ip ? <p className="log-reason__ip">IP {props.ip}</p> : null}
+    </div>
+  );
+}
+
+function LogWhen(props: { at: string; scope: string }) {
+  return (
+    <div className="log-when">
+      <p>{formatStamp(props.at)}</p>
+      <p className="log-when__scope">{props.scope}</p>
+    </div>
+  );
+}
+
+function LogPath(props: { path: string }) {
+  const leading = props.path.startsWith("/");
+  const parts = props.path.replace(/^\/+/, "").split("/").filter(Boolean);
+  return (
+    <span title={props.path}>
+      {leading ? <span className="is-dim">/</span> : null}
+      {parts.map((part, index) => {
+        const dim = part === "api" || part === "v1" || part === "admin" || /^[0-9a-f-]{8,}$/i.test(part) || /^\d+$/.test(part);
+        return (
+          <span key={`${part}-${index}`}>
+            {index > 0 ? <span className="is-dim">/</span> : null}
+            <span className={dim ? "is-dim" : undefined}>{part}</span>
+          </span>
+        );
+      })}
+    </span>
+  );
+}
+
+function presentLog(row: SystemLog): { title: string; method: string | null; path: string | null; status: number | null } {
+  const route = readRoute(row);
+  return { title: stripRoute(describeLog(row), route), ...route };
+}
+
+function readRoute(row: SystemLog): { method: string | null; path: string | null; status: number | null } {
+  const contextMethod = text(row.context.method).toUpperCase();
+  const contextPath = text(row.context.path);
+  const contextStatus = numberOf(row.context.status);
+  const match = /\b(GET|POST|PUT|PATCH|DELETE)\s+(\/\S+)/.exec(`${row.message} ${text(row.context.detail)}`);
+  const statusMatch = /\b([45]\d{2})\b/.exec(row.message);
+  const method = /^(GET|POST|PUT|PATCH|DELETE)$/.test(contextMethod) ? contextMethod : (match?.[1] ?? null);
+  const rawPath = contextPath.startsWith("/") ? contextPath : (match?.[2] ?? "");
+  const path = rawPath.replace(/[.,;]+$/, "") || null;
+  const status = contextStatus >= 400 ? contextStatus : statusMatch ? Number(statusMatch[1]) : null;
+  return { method, path, status };
+}
+
+function stripRoute(sentence: string, route: { method: string | null; path: string | null; status: number | null }): string {
+  let next = sentence;
+  if (route.method && route.path) {
+    next = next.replace(`${route.method} ${route.path}`, " ");
+  }
+  if (route.status) {
+    next = next.replace(`Lỗi ${route.status}`, " ");
+  }
+  next = next.replace(/\s+/g, " ").replace(/^[\s.]+|[\s.]+$/g, "").replace(/\s+\./g, ".");
+  return next || sentence;
+}
+
+function logScope(event: string): string {
+  if (event.startsWith("http.")) {
+    return "API";
+  }
+  if (event.startsWith("campaign.") || event.startsWith("provider.") || event.startsWith("laaffic.")) {
+    return "Laaffic";
+  }
+  if (event.startsWith("dispatch.")) {
+    return "Giao việc";
+  }
+  if (event.startsWith("chat.")) {
+    return "Chat";
+  }
+  if (event.startsWith("telegram.")) {
+    return "Telegram";
+  }
+  if (event.startsWith("care.")) {
+    return "Chăm sóc";
+  }
+  return "Hệ thống";
+}
+
 function dialogueCount(value: unknown): number {
   return Array.isArray(value) ? value.length : 0;
 }
@@ -617,38 +760,182 @@ function logTurns(value: unknown): Array<{ role: string; text: string; at?: stri
   });
 }
 
-function LogDetail(props: { row: SystemLog }) {
-  const turns = logTurns(props.row.context.dialogue);
+function AuditDetail(props: { row: AuditEvent; names: Map<string, string> }) {
+  const failed = props.row.outcome === "failure";
+  const extra = plainRows(props.row.summary);
   return (
-    <div>
-      {turns.length > 0 ? (
-        <div className="log-dialogue">
-          {turns.map((turn, index) => (
-            <p key={`${turn.role}-${index}`}>
-              <strong>{turn.role}.</strong> {turn.text}
-              {turn.at ? <time>{formatStamp(turn.at)}</time> : null}
-            </p>
-          ))}
+    <div className="log-view">
+      <section className={failed ? "log-sheet log-sheet--fail" : "log-sheet"}>
+        <div className="log-reason__badges">
+          <Tag color={failed ? "red" : "green"}>{failed ? "Thất bại" : "Thành công"}</Tag>
+          <span className="log-code">{props.row.action}</span>
         </div>
+        <p className="log-sheet__title">{describeAudit(props.row, props.names)}</p>
+      </section>
+      <section className="log-panel">
+        <h3>Thông tin</h3>
+        <div className="log-detail">
+          <Field label="Thời điểm" value={formatStamp(props.row.created_at)} />
+          <Field label="Người" value={props.row.actor_username || "Hệ thống"} />
+          <Field label="Đối tượng" value={props.row.entity} />
+          <Field label="Mã yêu cầu" value={props.row.request_id} mono />
+        </div>
+      </section>
+      {extra.length > 0 ? (
+        <section className="log-panel">
+          <h3>Ghi thêm</h3>
+          <dl className="log-pairs">
+            {extra.map((item) => (
+              <div key={item.label}>
+                <dt>{item.label}</dt>
+                <dd>{item.value}</dd>
+              </div>
+            ))}
+          </dl>
+        </section>
       ) : null}
-      <pre className="log-json">{logJson(props.row)}</pre>
     </div>
   );
 }
 
-function logJson(row: SystemLog): string {
-  return JSON.stringify(
-    {
-      event: row.event,
-      message: row.message,
-      actor: row.actor_username,
-      ip: row.ip,
-      request_id: row.request_id,
-      context: row.context,
-    },
-    null,
-    2,
+function LogDetail(props: { row: SystemLog }) {
+  const view = presentLog(props.row);
+  const failed = props.row.level === "error";
+  const turns = logTurns(props.row.context.dialogue);
+  const extra = plainRows(props.row.context);
+  return (
+    <div className="log-view">
+      <section className={failed ? "log-sheet log-sheet--fail" : "log-sheet"}>
+        <div className="log-reason__badges">
+          <Tag color={failed ? "red" : "blue"}>{failed ? "Lỗi" : "Thông tin"}</Tag>
+          {view.method ? <span className={`log-method log-method--${view.method.toLowerCase()}`}>{view.method}</span> : null}
+          {view.status ? <Tag color={view.status >= 500 ? "red" : "default"}>{view.status}</Tag> : null}
+          <span className="log-code">{logScope(props.row.event)}</span>
+        </div>
+        <p className="log-sheet__title">{view.title}</p>
+        {view.path ? (
+          <p className="log-reason__path">
+            <LogPath path={view.path} />
+          </p>
+        ) : null}
+      </section>
+      <section className="log-panel">
+        <h3>Thông tin</h3>
+        <div className="log-detail">
+          <Field label="Thời điểm" value={formatStamp(props.row.created_at)} />
+          <Field label="Người" value={props.row.actor_username || "Hệ thống"} />
+          <Field label="IP" value={props.row.ip} mono />
+          <Field label="Mã yêu cầu" value={props.row.request_id} mono />
+        </div>
+      </section>
+      {turns.length > 0 ? (
+        <section className="log-panel">
+          <h3>Hội thoại</h3>
+          <div className="log-dialogue">
+            {turns.map((turn, index) => (
+              <p key={`${turn.role}-${index}`}>
+                <strong>{turn.role}.</strong> {turn.text}
+                {turn.at ? <time>{formatStamp(turn.at)}</time> : null}
+              </p>
+            ))}
+          </div>
+        </section>
+      ) : null}
+      {extra.length > 0 ? (
+        <section className="log-panel">
+          <h3>Ghi thêm</h3>
+          <dl className="log-pairs">
+            {extra.map((item) => (
+              <div key={item.label}>
+                <dt>{item.label}</dt>
+                <dd>{item.value}</dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+      ) : null}
+    </div>
   );
+}
+
+function Field(props: { label: string; value: string | null | undefined; mono?: boolean }) {
+  return (
+    <p>
+      <span>{props.label}</span>
+      <strong className={props.mono ? "is-mono" : undefined}>{props.value || "—"}</strong>
+    </p>
+  );
+}
+
+const CONTEXT_LABELS: Record<string, string> = {
+  error_name: "Mã lỗi",
+  channel: "Kênh",
+  outcome: "Kết quả",
+  reason: "Lý do",
+  received: "Đã nhận",
+  updated: "Đã cập nhật",
+  assigned: "Đã giao",
+  released: "Đã trả hàng chờ",
+  failed: "Số lỗi",
+  accepted: "Đã gửi được",
+  sent: "Đã gửi",
+  count: "Số lượng",
+  idle_minutes: "Số phút im lặng",
+  closed: "Hội thoại đã đóng",
+  pulled: "Số dòng",
+  username: "Tên đăng nhập",
+  game_account: "Tài khoản",
+  site: "Hậu đài",
+  status: "Trạng thái",
+  label: "Nhãn",
+};
+
+const SKIP_CONTEXT = new Set(["path", "method", "detail", "dialogue", "payload", "message", "body", "content"]);
+
+function plainRows(record: Record<string, unknown>): Array<{ label: string; value: string }> {
+  return Object.entries(record).flatMap(([key, value]) => {
+    if (SKIP_CONTEXT.has(key) || value == null || value === "" || (key === "status" && typeof value === "number")) {
+      return [];
+    }
+    if (typeof value === "object") {
+      return [];
+    }
+    return [{ label: CONTEXT_LABELS[key] ?? key.replaceAll("_", " "), value: shownValue(key, value) }];
+  });
+}
+
+function shownValue(key: string, value: unknown): string {
+  if (key === "channel") {
+    if (value === "ai_voice") {
+      return "Gọi AI";
+    }
+    if (value === "sms") {
+      return "SMS";
+    }
+  }
+  if (key === "outcome") {
+    if (value === "rejected") {
+      return "Từ chối";
+    }
+    if (value === "accepted") {
+      return "Đã nhận";
+    }
+  }
+  if (key === "reason") {
+    if (value === "bad_signature") {
+      return "Chữ ký sai";
+    }
+    if (value === "missing_signature") {
+      return "Thiếu chữ ký";
+    }
+    if (value === "invalid_json") {
+      return "Nội dung không đọc được";
+    }
+  }
+  if (typeof value === "boolean") {
+    return value ? "Có" : "Không";
+  }
+  return String(value);
 }
 
 function text(value: unknown): string {

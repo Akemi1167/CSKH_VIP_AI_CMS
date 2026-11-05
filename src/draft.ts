@@ -26,6 +26,7 @@ export function emptyDraft(): Draft {
     display_name: "",
     timezone: "Asia/Ho_Chi_Minh",
     role_codes: ["agent"],
+    work_functions: ["web_chat", "telegram"],
     status: "active",
     password: generatePassword(),
   };
@@ -37,13 +38,14 @@ export function draftFromStaff(staff: Staff): Draft {
     display_name: staff.display_name,
     timezone: staff.timezone,
     role_codes: [...staff.roles],
+    work_functions: Array.isArray(staff.work_functions) ? [...staff.work_functions] : ["web_chat", "telegram"],
     status: staff.status === "disabled" ? "disabled" : "active",
     password: "",
   };
 }
 
 export function cloneDraft(draft: Draft): Draft {
-  return { ...draft, role_codes: [...draft.role_codes] };
+  return { ...draft, role_codes: [...draft.role_codes], work_functions: [...draft.work_functions] };
 }
 
 export function sameDraft(left: Draft, right: Draft): boolean {
@@ -53,7 +55,8 @@ export function sameDraft(left: Draft, right: Draft): boolean {
     left.timezone === right.timezone &&
     left.status === right.status &&
     left.password === right.password &&
-    sameRoles(left.role_codes, right.role_codes)
+    sameRoles(left.role_codes, right.role_codes) &&
+    sameRoles(left.work_functions, right.work_functions)
   );
 }
 
@@ -104,6 +107,9 @@ export function patchFromDraft(origin: Draft, draft: Draft): UpdateStaffBody | n
   }
   if (!sameRoles(draft.role_codes, origin.role_codes)) {
     body.role_codes = draft.role_codes;
+  }
+  if (!sameRoles(draft.work_functions, origin.work_functions)) {
+    body.work_functions = draft.work_functions;
   }
   if (draft.password) {
     body.password = draft.password;
