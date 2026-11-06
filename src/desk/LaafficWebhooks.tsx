@@ -28,7 +28,7 @@ export function LaafficWebhooks(props: { onUnauthorized: () => void; onMfaSetup:
       }
       return false;
     },
-    [props],
+    [props.onUnauthorized, props.onMfaSetup],
   );
 
   useEffect(() => {

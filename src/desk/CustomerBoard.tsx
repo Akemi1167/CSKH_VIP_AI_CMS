@@ -67,7 +67,7 @@ export function CustomerBoard(props: { canImport: boolean; canRevoke: boolean; c
       }
       return false;
     },
-    [props],
+    [props.onUnauthorized, props.onMfaSetup],
   );
 
   const load = useCallback(

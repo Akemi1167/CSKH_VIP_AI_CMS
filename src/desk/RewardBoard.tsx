@@ -49,7 +49,7 @@ export function RewardBoard(props: { canReadCustomers: boolean; onUnauthorized: 
       }
       return false;
     },
-    [props],
+    [props.onUnauthorized, props.onMfaSetup],
   );
 
   const load = useCallback(async (nextPeriod: string) => {

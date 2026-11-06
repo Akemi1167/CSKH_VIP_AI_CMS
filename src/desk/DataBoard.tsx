@@ -37,7 +37,7 @@ export function DataBoard(props: {
       }
       return false;
     },
-    [props],
+    [props.onUnauthorized, props.onMfaSetup],
   );
 
   const load = useCallback(async (nextSite: string) => {

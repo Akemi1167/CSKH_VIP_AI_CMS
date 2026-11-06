@@ -83,7 +83,7 @@ export function StaffBoard(props: {
       }
       return false;
     },
-    [props],
+    [props.onUnauthorized, props.onMfaSetup],
   );
 
   const refresh = useCallback(async () => {

@@ -30,7 +30,7 @@ export function StationSmsBoard(props: { canWrite: boolean; canTest: boolean; on
       }
       return false;
     },
-    [props],
+    [props.onUnauthorized, props.onMfaSetup],
   );
 
   const load = useCallback(async () => {

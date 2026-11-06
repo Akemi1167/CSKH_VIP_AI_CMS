@@ -37,7 +37,7 @@ export function VoiceReviewBoard(props: { onUnauthorized: () => void; onMfaSetup
       }
       return false;
     },
-    [props],
+    [props.onUnauthorized, props.onMfaSetup],
   );
 
   const load = useCallback(async () => {

@@ -180,7 +180,7 @@ export function WorkBoard(props: {
       }
       return false;
     },
-    [props],
+    [props.onUnauthorized, props.onMfaSetup],
   );
 
   useEffect(() => {

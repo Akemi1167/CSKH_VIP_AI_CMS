@@ -11,7 +11,7 @@ export type DockTask = {
   channel: string;
   assignee_user_id?: string | null;
   assignee_name?: string | null;
-  member?: { site: string | null } | null;
+  member?: { game_account?: string | null; display_name?: string | null; site?: string | null } | null;
   messages: DockMessage[];
 };
 

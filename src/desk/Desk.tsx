@@ -84,6 +84,12 @@ export function Desk(props: {
   const [page, setPage] = useState<DeskPage>("overview");
   const [panelBranchId, setPanelBranchId] = useState<string | null>(null);
   const unread = useInboxUnread();
+  const endSession = useCallback(
+    (notice?: string) => {
+      props.onLoggedOut(notice ?? "Phiên đã hết. Đăng nhập lại.");
+    },
+    [props.onLoggedOut],
+  );
   const onScheduleDirty = useCallback((dirty: boolean) => setScheduleDirty(dirty), []);
   useEffect(() => {
     if (!canReadTasks) {
@@ -350,7 +356,7 @@ export function Desk(props: {
           canUpdate={canUpdateTasks}
           canManageAny={canReadAllTasks}
           selfId={profile.id}
-          onUnauthorized={() => props.onLoggedOut("Phiên đã hết. Đăng nhập lại.")}
+          onUnauthorized={endSession}
           onMfaSetup={props.onMfaSetup}
         />
       ) : null}
@@ -365,7 +371,7 @@ export function Desk(props: {
           </div>
           <ErrorAlert error={error} />
           {page === "overview" ? (
-            <CareHome canReadTasks={canReadTasks} canReport={canReadCustomers || canReadTasks} onUnauthorized={() => props.onLoggedOut("Phiên đã hết. Đăng nhập lại.")} onMfaSetup={props.onMfaSetup} />
+            <CareHome canReadTasks={canReadTasks} canReport={canReadCustomers || canReadTasks} onUnauthorized={endSession} onMfaSetup={props.onMfaSetup} />
           ) : null}
           {page === "inbox" && canReadTasks ? (
             <WorkBoard
@@ -385,12 +391,12 @@ export function Desk(props: {
               canTransfer={canTransfer}
               canListStaff={canReadStaff}
               selfId={profile.id}
-              onUnauthorized={() => props.onLoggedOut("Phiên đã hết. Đăng nhập lại.")}
+              onUnauthorized={endSession}
               onMfaSetup={props.onMfaSetup}
             />
           ) : null}
           {page === "contacts" && canReadTasks ? (
-            <ContactBoard onUnauthorized={() => props.onLoggedOut("Phiên đã hết. Đăng nhập lại.")} onMfaSetup={props.onMfaSetup} />
+            <ContactBoard onUnauthorized={endSession} onMfaSetup={props.onMfaSetup} />
           ) : null}
           {page === "tasks" && canReadTasks ? (
             <WorkBoard
@@ -403,26 +409,26 @@ export function Desk(props: {
               canTransfer={canTransfer}
               canListStaff={canReadStaff}
               selfId={profile.id}
-              onUnauthorized={() => props.onLoggedOut("Phiên đã hết. Đăng nhập lại.")}
+              onUnauthorized={endSession}
               onMfaSetup={props.onMfaSetup}
             />
           ) : null}
           {page === "history" && (canReadCustomers || canReadTasks) ? (
-            <CareHistoryBoard onUnauthorized={() => props.onLoggedOut("Phiên đã hết. Đăng nhập lại.")} onMfaSetup={props.onMfaSetup} />
+            <CareHistoryBoard onUnauthorized={endSession} onMfaSetup={props.onMfaSetup} />
           ) : null}
           {page === "personal" && (canReadCustomers || canReadTasks) ? (
-            <PersonalReportBoard onUnauthorized={() => props.onLoggedOut("Phiên đã hết. Đăng nhập lại.")} onMfaSetup={props.onMfaSetup} />
+            <PersonalReportBoard onUnauthorized={endSession} onMfaSetup={props.onMfaSetup} />
           ) : null}
           {page === "queue" && canReadQueue ? (
-            <QueueBoard canAssign={canAssign} canListStaff={canReadStaff} onUnauthorized={() => props.onLoggedOut("Phiên đã hết. Đăng nhập lại.")} onMfaSetup={props.onMfaSetup} />
+            <QueueBoard canAssign={canAssign} canListStaff={canReadStaff} onUnauthorized={endSession} onMfaSetup={props.onMfaSetup} />
           ) : null}
           {page === "staff" && canReadStaff ? (
             <StaffBoard
               me={profile}
               canWrite={canWriteStaff}
-              onUnauthorized={() => props.onLoggedOut("Phiên đã hết. Đăng nhập lại.")}
+              onUnauthorized={endSession}
               onMfaSetup={props.onMfaSetup}
-              onSessionEnded={(notice) => props.onLoggedOut(notice)}
+              onSessionEnded={endSession}
               onSelfUpdated={setProfile}
             />
           ) : null}
@@ -432,19 +438,19 @@ export function Desk(props: {
               canWriteHours={canWriteSchedule && canReadStaff}
               canWriteRoster={canWriteSchedule}
               rosterScope={canReadStaff ? "all" : "team"}
-              onUnauthorized={() => props.onLoggedOut("Phiên đã hết. Đăng nhập lại.")}
+              onUnauthorized={endSession}
               onMfaSetup={props.onMfaSetup}
               onDirtyChange={onScheduleDirty}
             />
           ) : null}
           {page === "warehouse" && canReadCustomers ? (
-            <DataBoard mode="warehouse" canWrite={false} onUnauthorized={() => props.onLoggedOut("Phiên đã hết. Đăng nhập lại.")} onMfaSetup={props.onMfaSetup} />
+            <DataBoard mode="warehouse" canWrite={false} onUnauthorized={endSession} onMfaSetup={props.onMfaSetup} />
           ) : null}
           {page === "distribute" && canReadCustomers ? (
-            <DataBoard mode="assign" canWrite={canImportCustomers && canReadSettings} onUnauthorized={() => props.onLoggedOut("Phiên đã hết. Đăng nhập lại.")} onMfaSetup={props.onMfaSetup} />
+            <DataBoard mode="assign" canWrite={canImportCustomers && canReadSettings} onUnauthorized={endSession} onMfaSetup={props.onMfaSetup} />
           ) : null}
           {page === "customers" && canReadCustomers ? (
-            <CustomerBoard canImport={canImportCustomers} canRevoke={canRevokeCare} canAssignOwner={canImportCustomers && canReadSettings} onUnauthorized={() => props.onLoggedOut("Phiên đã hết. Đăng nhập lại.")} onMfaSetup={props.onMfaSetup} />
+            <CustomerBoard canImport={canImportCustomers} canRevoke={canRevokeCare} canAssignOwner={canImportCustomers && canReadSettings} onUnauthorized={endSession} onMfaSetup={props.onMfaSetup} />
           ) : null}
           {page === "campaigns" && canReadCampaigns ? (
             <CampaignBoard
@@ -453,23 +459,23 @@ export function Desk(props: {
               canLaunch={canLaunchCampaigns}
               canManage={canManageCampaigns}
               canReport={canReportCampaigns}
-              onUnauthorized={() => props.onLoggedOut("Phiên đã hết. Đăng nhập lại.")}
+              onUnauthorized={endSession}
               onMfaSetup={props.onMfaSetup}
             />
           ) : null}
-          {page === "shift" && canReportCampaigns ? <ShiftBoard onUnauthorized={() => props.onLoggedOut("Phiên đã hết. Đăng nhập lại.")} onMfaSetup={props.onMfaSetup} /> : null}
-          {page === "effect" && canReportCampaigns ? <EffectBoard onUnauthorized={() => props.onLoggedOut("Phiên đã hết. Đăng nhập lại.")} onMfaSetup={props.onMfaSetup} /> : null}
+          {page === "shift" && canReportCampaigns ? <ShiftBoard onUnauthorized={endSession} onMfaSetup={props.onMfaSetup} /> : null}
+          {page === "effect" && canReportCampaigns ? <EffectBoard onUnauthorized={endSession} onMfaSetup={props.onMfaSetup} /> : null}
           {page === "rewards" && canApproveRewards ? (
-            <RewardBoard canReadCustomers={canReadCustomers} onUnauthorized={() => props.onLoggedOut("Phiên đã hết. Đăng nhập lại.")} onMfaSetup={props.onMfaSetup} />
+            <RewardBoard canReadCustomers={canReadCustomers} onUnauthorized={endSession} onMfaSetup={props.onMfaSetup} />
           ) : null}
           {page === "journal" && canReadAudit ? (
-            <JournalBoard canListStaff={canReadStaff} onUnauthorized={() => props.onLoggedOut("Phiên đã hết. Đăng nhập lại.")} onMfaSetup={props.onMfaSetup} />
+            <JournalBoard canListStaff={canReadStaff} onUnauthorized={endSession} onMfaSetup={props.onMfaSetup} />
           ) : null}
           {page === "stations" && canReadSettings ? (
-            <StationBoard canWrite={canWriteSettings} onUnauthorized={() => props.onLoggedOut("Phiên đã hết. Đăng nhập lại.")} onMfaSetup={props.onMfaSetup} />
+            <StationBoard canWrite={canWriteSettings} onUnauthorized={endSession} onMfaSetup={props.onMfaSetup} />
           ) : null}
           {page === "stationSms" && canReadCampaigns ? (
-            <StationSmsBoard canWrite={canCreateCampaigns} canTest={canLaunchCampaigns} onUnauthorized={() => props.onLoggedOut("Phiên đã hết. Đăng nhập lại.")} onMfaSetup={props.onMfaSetup} />
+            <StationSmsBoard canWrite={canCreateCampaigns} canTest={canLaunchCampaigns} onUnauthorized={endSession} onMfaSetup={props.onMfaSetup} />
           ) : null}
           {page === "callTasks" && canReadCampaigns ? (
             <CampaignBoard
@@ -480,15 +486,15 @@ export function Desk(props: {
               canLaunch={canLaunchCampaigns}
               canManage={canManageCampaigns}
               canReport={canReportCampaigns}
-              onUnauthorized={() => props.onLoggedOut("Phiên đã hết. Đăng nhập lại.")}
+              onUnauthorized={endSession}
               onMfaSetup={props.onMfaSetup}
             />
           ) : null}
           {page === "voiceReview" && canReviewRecordings ? (
-            <VoiceReviewBoard onUnauthorized={() => props.onLoggedOut("Phiên đã hết. Đăng nhập lại.")} onMfaSetup={props.onMfaSetup} />
+            <VoiceReviewBoard onUnauthorized={endSession} onMfaSetup={props.onMfaSetup} />
           ) : null}
           {page === "voice" && canReadCampaigns ? (
-            <VoiceBoard canTest={canLaunchCampaigns} onUnauthorized={() => props.onLoggedOut("Phiên đã hết. Đăng nhập lại.")} onMfaSetup={props.onMfaSetup} />
+            <VoiceBoard canTest={canLaunchCampaigns} onUnauthorized={endSession} onMfaSetup={props.onMfaSetup} />
           ) : null}
           {page === "smsHistory" && canReadCampaigns ? (
             <ProviderHistoryBoard
@@ -496,7 +502,7 @@ export function Desk(props: {
               title="Lịch sử tin nhắn"
               lead="Tin đã gửi qua Laaffic trong 7 ngày gần nhất."
               canSync={canLaunchCampaigns || canManageCampaigns}
-              onUnauthorized={() => props.onLoggedOut("Phiên đã hết. Đăng nhập lại.")}
+              onUnauthorized={endSession}
               onMfaSetup={props.onMfaSetup}
             />
           ) : null}
@@ -506,21 +512,21 @@ export function Desk(props: {
               title="Lịch sử cuộc gọi"
               lead="Từng cuộc gọi AI trên Laaffic trong 7 ngày gần nhất. Danh sách tự cập nhật, không cần bấm đồng bộ."
               canSync={canLaunchCampaigns || canManageCampaigns}
-              onUnauthorized={() => props.onLoggedOut("Phiên đã hết. Đăng nhập lại.")}
+              onUnauthorized={endSession}
               onMfaSetup={props.onMfaSetup}
             />
           ) : null}
           {page === "rateLimit" && canReadSettings ? (
-            <RateLimitBoard canWrite={canWriteSettings} onUnauthorized={() => props.onLoggedOut("Phiên đã hết. Đăng nhập lại.")} onMfaSetup={props.onMfaSetup} />
+            <RateLimitBoard canWrite={canWriteSettings} onUnauthorized={endSession} onMfaSetup={props.onMfaSetup} />
           ) : null}
           {page === "chatIdle" && canReadSettings ? (
-            <ChatIdleBoard canWrite={canWriteSettings} onUnauthorized={() => props.onLoggedOut("Phiên đã hết. Đăng nhập lại.")} onMfaSetup={props.onMfaSetup} />
+            <ChatIdleBoard canWrite={canWriteSettings} onUnauthorized={endSession} onMfaSetup={props.onMfaSetup} />
           ) : null}
           {page === "embed" && canReadSettings ? (
-            <EmbedBoard onUnauthorized={() => props.onLoggedOut("Phiên đã hết. Đăng nhập lại.")} onMfaSetup={props.onMfaSetup} />
+            <EmbedBoard onUnauthorized={endSession} onMfaSetup={props.onMfaSetup} />
           ) : null}
           {page === "telegram" && canManageTelegram ? (
-            <TelegramBoard onUnauthorized={() => props.onLoggedOut("Phiên đã hết. Đăng nhập lại.")} onMfaSetup={props.onMfaSetup} />
+            <TelegramBoard onUnauthorized={endSession} onMfaSetup={props.onMfaSetup} />
           ) : null}
         </div>
       </main>

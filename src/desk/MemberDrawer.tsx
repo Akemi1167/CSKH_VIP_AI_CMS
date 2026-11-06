@@ -65,7 +65,7 @@ export function MemberDrawer(props: {
       }
       return false;
     },
-    [props],
+    [props.onUnauthorized, props.onMfaSetup],
   );
 
   const load = useCallback(async () => {

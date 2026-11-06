@@ -26,7 +26,7 @@ export function EffectBoard(props: { onUnauthorized: () => void; onMfaSetup: () 
       }
       return false;
     },
-    [props],
+    [props.onUnauthorized, props.onMfaSetup],
   );
 
   const load = useCallback(

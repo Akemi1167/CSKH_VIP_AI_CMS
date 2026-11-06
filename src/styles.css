@@ -869,17 +869,25 @@ a {
 
 .chat-dock__bubble {
   position: relative;
-  display: grid;
-  place-items: center;
-  width: 52px;
-  height: 52px;
-  border: 0;
-  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 48px;
+  max-width: 220px;
+  padding: 0 14px 0 6px;
+  border-radius: 999px;
   background: #1d4ed8;
   color: #fff;
   font-weight: 700;
-  cursor: pointer;
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+}
+
+.chat-dock__bubble strong {
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .chat-dock__badge {
@@ -899,8 +907,9 @@ a {
 .chat-dock__window {
   display: flex;
   flex-direction: column;
-  width: min(320px, calc(100vw - 32px));
-  height: min(440px, calc(100vh - 120px));
+  width: min(440px, calc(100vw - 32px));
+  height: min(560px, calc(100vh - 96px));
+  flex: 0 0 auto;
   overflow: hidden;
   border: 1px solid #2a3142;
   border-radius: 16px;
@@ -910,51 +919,72 @@ a {
 
 .chat-dock__head {
   display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 8px;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px;
   border-bottom: 1px solid #1e2230;
 }
 
-.chat-dock__head button {
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: #9aa3b5;
-  cursor: pointer;
-}
-
-.chat-dock__title {
+.chat-dock__who {
   display: flex;
   flex: 1;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   min-width: 0;
-  width: auto;
-  height: auto;
-  text-align: left;
 }
 
-.chat-dock__title strong,
-.chat-dock__title small {
+.chat-dock__who strong,
+.chat-dock__who small {
   display: block;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
 }
 
-.chat-dock__title strong {
+.chat-dock__who strong {
   color: #eef0f6;
-  font-size: 13px;
+  font-size: 15px;
+  line-height: 1.25;
 }
 
-.chat-dock__title small {
+.chat-dock__who small {
+  margin-top: 2px;
   color: #9aa3b5;
-  font-size: 11px;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.chat-dock__tools {
+  display: flex;
+  flex-shrink: 0;
+  gap: 2px;
+}
+
+.chat-dock__tools button,
+.chat-dock__bubble {
+  border: 0;
+  cursor: pointer;
+}
+
+.chat-dock__tools button {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: transparent;
+  color: #9aa3b5;
+}
+
+.chat-dock__tools button:hover {
+  background: #1c2230;
+  color: #eef0f6;
+}
+
+.chat-dock__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #1e2230;
 }
 
 .chat-dock__thread {

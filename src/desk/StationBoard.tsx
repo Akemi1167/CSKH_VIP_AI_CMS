@@ -49,7 +49,7 @@ export function StationBoard(props: { canWrite: boolean; onUnauthorized: () => v
       }
       return false;
     },
-    [props],
+    [props.onUnauthorized, props.onMfaSetup],
   );
 
   const load = useCallback(async () => {

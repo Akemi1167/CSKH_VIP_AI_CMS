@@ -58,7 +58,7 @@ export function ScheduleBoard(props: {
       }
       return false;
     },
-    [props],
+    [props.onUnauthorized, props.onMfaSetup],
   );
 
   const refresh = useCallback(async () => {

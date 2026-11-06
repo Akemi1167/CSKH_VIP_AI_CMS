@@ -28,7 +28,7 @@ export function ChatIdleBoard(props: { canWrite: boolean; onUnauthorized: () => 
       }
       return false;
     },
-    [props],
+    [props.onUnauthorized, props.onMfaSetup],
   );
 
   const load = useCallback(async () => {

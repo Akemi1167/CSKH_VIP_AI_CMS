@@ -133,7 +133,7 @@ export function CampaignBoard(props: {
       }
       return false;
     },
-    [props],
+    [props.onUnauthorized, props.onMfaSetup],
   );
 
   const load = useCallback(async (nextStatus: string) => {

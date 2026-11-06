@@ -72,7 +72,7 @@ export function EmbedBoard(props: { onUnauthorized: () => void; onMfaSetup: () =
       }
       return false;
     },
-    [props],
+    [props.onUnauthorized, props.onMfaSetup],
   );
 
   function patch(next: Partial<Draft>) {

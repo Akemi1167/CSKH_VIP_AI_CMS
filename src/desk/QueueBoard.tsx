@@ -45,7 +45,7 @@ export function QueueBoard(props: { canAssign: boolean; canListStaff: boolean; o
       }
       return false;
     },
-    [props],
+    [props.onUnauthorized, props.onMfaSetup],
   );
 
   const load = useCallback(async () => {

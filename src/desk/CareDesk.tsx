@@ -53,7 +53,7 @@ export function CareHome(props: { canReadTasks: boolean; canReport: boolean; onU
       }
       return false;
     },
-    [props],
+    [props.onUnauthorized, props.onMfaSetup],
   );
 
   useEffect(() => {
@@ -178,7 +178,7 @@ export function ContactBoard(props: { onUnauthorized: () => void; onMfaSetup: ()
       }
       return false;
     },
-    [props],
+    [props.onUnauthorized, props.onMfaSetup],
   );
 
   const load = useCallback(async () => {
@@ -265,7 +265,7 @@ export function CareHistoryBoard(props: { onUnauthorized: () => void; onMfaSetup
       }
       return false;
     },
-    [props],
+    [props.onUnauthorized, props.onMfaSetup],
   );
 
   useEffect(() => {
@@ -330,7 +330,7 @@ export function PersonalReportBoard(props: { onUnauthorized: () => void; onMfaSe
       }
       return false;
     },
-    [props],
+    [props.onUnauthorized, props.onMfaSetup],
   );
 
   useEffect(() => {

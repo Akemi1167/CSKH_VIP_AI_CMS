@@ -39,7 +39,7 @@ export function JournalBoard(props: { canListStaff: boolean; onUnauthorized: () 
       }
       return false;
     },
-    [props],
+    [props.onUnauthorized, props.onMfaSetup],
   );
 
   useEffect(() => {
