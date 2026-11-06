@@ -1,6 +1,6 @@
 import { Button, Input } from "antd";
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
-import { ApiError, api, toWsUrl } from "../api.ts";
+import { ApiError, api, toApiUrl, toWsUrl } from "../api.ts";
 import { formatStamp } from "../copy.ts";
 
 type Bubble = {
@@ -22,6 +22,7 @@ type GuestTicket = {
 };
 
 const STORAGE = "cskh.guest-chat";
+const stationCode = readStation();
 const GREETING = "Xin chào. Nhân viên sẽ trả lời bạn trong khung này.";
 
 export function GuestChat() {
@@ -60,7 +61,7 @@ export function GuestChat() {
   }, []);
 
   useEffect(() => {
-    document.title = "Liên hệ · CSKH VIP";
+    document.title = stationCode ? `Liên hệ · ${stationCode}` : "Liên hệ · CSKH VIP";
     if (saved.current) {
       void connect(saved.current);
     }
@@ -188,8 +189,20 @@ export function GuestChat() {
     <div className="guest-page">
       <section className="guest-card">
         <header className="embed-widget__head">
-          <strong>CSKH VIP</strong>
-          <p>{started ? statusLabel(status) : "Liên hệ nhân viên"}</p>
+          {stationCode ? (
+            <img
+              className="station-logo"
+              src={toApiUrl(`/api/v1/stations/${encodeURIComponent(stationCode)}/logo`)}
+              alt=""
+              onError={(event) => {
+                event.currentTarget.style.display = "none";
+              }}
+            />
+          ) : null}
+          <div>
+            <strong>{stationCode || "CSKH VIP"}</strong>
+            <p>{started ? statusLabel(status) : "Liên hệ nhân viên"}</p>
+          </div>
         </header>
         {started ? (
           <>
@@ -269,6 +282,11 @@ function statusLabel(status: "connecting" | "live" | "down"): string {
     return "Đang nối…";
   }
   return "Mất kết nối";
+}
+
+function readStation(): string {
+  const value = new URLSearchParams(window.location.search).get("dai")?.trim().toUpperCase() ?? "";
+  return /^[A-Z0-9]{2,16}$/.test(value) ? value : "";
 }
 
 function loadSession(): GuestSession | null {

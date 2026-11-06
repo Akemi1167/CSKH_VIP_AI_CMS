@@ -24,6 +24,19 @@ type StatusFilter = "all" | "active" | "disabled";
 
 const KNOWN_FIELDS = ["username", "display_name", "password", "role_codes", "work_functions", "timezone", "status"];
 
+function careStations(draft: Draft): string[] {
+  return draft.role_codes.includes("agent") ? draft.stations : [];
+}
+
+function sameCodes(left: string[], right: string[]): boolean {
+  if (left.length !== right.length) {
+    return false;
+  }
+  const a = [...left].sort();
+  const b = [...right].sort();
+  return a.every((code, index) => code === b[index]);
+}
+
 export function StaffBoard(props: {
   me: UserProfile;
   canWrite: boolean;
@@ -35,6 +48,7 @@ export function StaffBoard(props: {
   const searchRef = useRef<HTMLInputElement>(null);
   const [people, setPeople] = useState<Staff[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
+  const [stations, setStations] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<ApiError | null>(null);
   const [query, setQuery] = useState("");
@@ -84,8 +98,14 @@ export function StaffBoard(props: {
       }
       return [];
     }
-    setPeople(staffResult.value.items);
+    setPeople(staffResult.value.items.map((person) => ({ ...person, stations: person.stations ?? [] })));
     setLoadError(null);
+    try {
+      const stationResult = await api<{ items: { code: string }[] }>("/api/v1/stations");
+      setStations(stationResult.items.map((item) => item.code));
+    } catch {
+      setStations([]);
+    }
     if (roleResult.status === "fulfilled") {
       setRoles(roleResult.value.items);
     }
@@ -207,26 +227,48 @@ export function StaffBoard(props: {
           timezone: draft.timezone,
         };
         const created = await api<Staff>("/api/v1/admin/staff", { method: "POST", body });
+        const codes = careStations(draft);
+        const withStations = codes.length
+          ? {
+              ...created,
+              stations: (await api<{ stations: string[] }>(`/api/v1/admin/staff/${created.id}/stations`, { method: "PUT", body: { station_codes: codes } })).stations,
+            }
+          : { ...created, stations: created.stations ?? [] };
         const items = await refresh();
         setQuery("");
         setFilter("all");
-        setIssued({ id: created.id, password: draft.password });
+        setIssued({ id: withStations.id, password: draft.password });
         setSaved("Đã tạo nhân viên.");
-        const nextDraft = draftFromStaff(created);
+        const nextDraft = draftFromStaff(withStations);
         setSelection({ kind: "edit", id: created.id });
         setDraft(nextDraft);
         setOrigin(cloneDraft(nextDraft));
-        setPeople(items.length > 0 ? items : [created]);
+        setPeople(items.length > 0 ? items : [withStations]);
         setFieldErrors({});
         return;
       }
       const body: UpdateStaffBody | null = patchFromDraft(origin, draft);
-      if (!body) {
+      const codes = careStations(draft);
+      const stationChange = !sameCodes(origin.stations, codes);
+      if (!body && !stationChange) {
         setSaved("Không có gì để lưu.");
         return;
       }
-      const updated = await api<Staff>(`/api/v1/admin/staff/${selection.id}`, { method: "PATCH", body });
-      const endsSelf = selection.id === props.me.id && Boolean(body.role_codes || body.password);
+      let updated = people.find((person) => person.id === selection.id);
+      if (body) {
+        updated = await api<Staff>(`/api/v1/admin/staff/${selection.id}`, { method: "PATCH", body });
+      }
+      if (!updated) {
+        throw new ApiError(0, "network", "Không lưu được nhân viên", "");
+      }
+      if (stationChange) {
+        const savedStations = await api<{ stations: string[] }>(`/api/v1/admin/staff/${selection.id}/stations`, {
+          method: "PUT",
+          body: { station_codes: codes },
+        });
+        updated = { ...updated, stations: savedStations.stations };
+      }
+      const endsSelf = selection.id === props.me.id && Boolean(body?.role_codes || body?.password);
       if (endsSelf) {
         props.onSessionEnded("Đã lưu. Phiên của bạn đã đóng, hãy đăng nhập lại.");
         return;
@@ -236,12 +278,12 @@ export function StaffBoard(props: {
       setDraft(nextDraft);
       setOrigin(cloneDraft(nextDraft));
       setPeople(items);
-      setSaved(body.password || body.role_codes || body.status === "disabled" ? "Đã lưu. Phiên đăng nhập của người này đã đóng." : "Đã lưu.");
+      setSaved(body?.password || body?.role_codes || body?.status === "disabled" ? "Đã lưu. Phiên đăng nhập của người này đã đóng." : "Đã lưu.");
       setFieldErrors({});
       if (updated.id === props.me.id) {
         props.onSelfUpdated({ ...props.me, display_name: updated.display_name, roles: updated.roles });
       }
-      if (body.password) {
+      if (body?.password) {
         setIssued({ id: updated.id, password: body.password });
       }
     } catch (caught) {
@@ -394,6 +436,21 @@ export function StaffBoard(props: {
       ),
     },
     {
+      title: "Đài",
+      dataIndex: "stations",
+      render: (codes: string[] | undefined, person) =>
+        person.roles.includes("agent") ? (
+          <Space size={4} wrap>
+            {(codes ?? []).length === 0 ? <Typography.Text type="secondary">Chưa gắn</Typography.Text> : null}
+            {(codes ?? []).map((code) => (
+              <Tag key={code}>{code}</Tag>
+            ))}
+          </Space>
+        ) : (
+          <Typography.Text type="secondary">—</Typography.Text>
+        ),
+    },
+    {
       title: "Trạng thái",
       dataIndex: "status",
       width: 120,
@@ -469,7 +526,7 @@ export function StaffBoard(props: {
           <Typography.Title level={3} className="page-header__title">
             Nhân sự
           </Typography.Title>
-          <Typography.Text type="secondary">Icon trên mỗi dòng: chat website, Telegram, đổi mật khẩu, MFA, sửa hồ sơ.</Typography.Text>
+          <Typography.Text type="secondary">Một nhân viên chăm sóc có thể gắn nhiều đài. Icon trên mỗi dòng: chat website, Telegram, đổi mật khẩu, MFA, sửa hồ sơ.</Typography.Text>
         </div>
         {props.canWrite ? (
           <Button type="primary" icon={<PlusOutlined />} onClick={() => choose({ kind: "create" })}>
@@ -628,6 +685,7 @@ export function StaffBoard(props: {
             mode={selection.kind === "create" ? "create" : "edit"}
             draft={draft}
             roles={roles}
+            stations={stations}
             canWrite={props.canWrite}
             isSelf={selection.kind === "edit" && selection.id === props.me.id}
             mfaEnabled={editing?.mfa_enabled ?? false}

@@ -8,6 +8,7 @@ export function StaffEditor(props: {
   mode: "create" | "edit";
   draft: Draft;
   roles: Role[];
+  stations: string[];
   canWrite: boolean;
   isSelf: boolean;
   mfaEnabled: boolean;
@@ -199,6 +200,21 @@ export function StaffEditor(props: {
         </div>
         <p className="page-note">Hàng chờ chỉ giao đúng loại hội thoại đã bật. Tắt cả hai thì người này không nhận hội thoại mới. Nút Nhận việc trên menu vẫn phải bật.</p>
       </Form.Item>
+
+      {props.draft.role_codes.includes("agent") ? (
+        <Form.Item label="Đài chăm sóc">
+          <Select
+            mode="multiple"
+            allowClear
+            disabled={!props.canWrite}
+            placeholder={props.stations.length === 0 ? "Chưa có đài đang mở" : "Chọn một hoặc nhiều đài"}
+            value={props.draft.stations}
+            options={[...new Set([...props.stations, ...props.draft.stations])].sort().map((code) => ({ value: code, label: code }))}
+            onChange={(stations) => props.onChange({ ...props.draft, stations })}
+          />
+          <p className="page-note">Một nhân viên có thể chăm nhiều đài. Hàng chờ chỉ giao hội viên của những đài đã chọn.</p>
+        </Form.Item>
+      ) : null}
 
       <Form.Item
         label={props.mode === "create" ? "Mật khẩu tạm" : "Mật khẩu mới"}

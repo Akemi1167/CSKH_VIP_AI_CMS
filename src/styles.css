@@ -324,6 +324,39 @@ a {
   border-right: 1px solid var(--c-border);
 }
 
+.station-mark {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  vertical-align: middle;
+}
+
+.station-logo {
+  display: block;
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.station-logo--lg {
+  width: 72px;
+  height: 72px;
+}
+
+.station-mark .station-logo {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+}
+
+.embed-widget__head {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
 .chat-avatar {
   display: grid;
   flex: none;
@@ -402,6 +435,33 @@ a {
   margin: 3px 0;
   color: #d5dbe8;
   font-size: 13px;
+}
+
+.chat-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  align-items: center;
+  margin-top: 2px;
+  color: var(--c-subtle);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.chat-list__item .chat-meta {
+  overflow: visible;
+  white-space: normal;
+  text-overflow: unset;
+}
+
+.chat-meta__station {
+  color: #d5dbe8;
+  font-weight: 600;
+}
+
+.chat-meta__who {
+  color: #f4f7fb;
+  font-weight: 600;
 }
 
 .chat-list__item--active {

@@ -2,7 +2,7 @@ import { PlusOutlined } from "@ant-design/icons";
 import { Alert, Button, Form, Input, Modal, Select, Space, Switch, Table, Tag, Typography } from "antd";
 import type { TableColumnsType } from "antd";
 import { useCallback, useEffect, useState } from "react";
-import { ApiError, api } from "../api.ts";
+import { ApiError, api, toApiUrl } from "../api.ts";
 import type { Staff } from "../types.ts";
 import { ErrorAlert } from "../ui.tsx";
 
@@ -15,6 +15,7 @@ type StationMember = {
 type Station = {
   code: string;
   status: "active" | "disabled";
+  has_logo?: boolean;
   staff: StationMember[];
   lead: StationMember | null;
 };
@@ -31,6 +32,8 @@ export function StationBoard(props: { canWrite: boolean; onUnauthorized: () => v
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<Station | null>(null);
   const [leading, setLeading] = useState<Station | null>(null);
+  const [logoFor, setLogoFor] = useState<Station | null>(null);
+  const [logoTick, setLogoTick] = useState(0);
   const [pendingOff, setPendingOff] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -106,7 +109,21 @@ export function StationBoard(props: { canWrite: boolean; onUnauthorized: () => v
   }
 
   const columns: TableColumnsType<Station> = [
-    { title: "Mã", dataIndex: "code", width: 160 },
+    { title: "Mã", dataIndex: "code", width: 120 },
+    {
+      title: "Logo",
+      width: 150,
+      render: (_, row) => (
+        <Space size={8}>
+          {row.has_logo ? <img className="station-logo" src={`${toApiUrl(`/api/v1/stations/${encodeURIComponent(row.code)}/logo`)}?v=${logoTick}`} alt="" /> : <Typography.Text type="secondary">Chưa có</Typography.Text>}
+          {props.canWrite ? (
+            <Button size="small" onClick={() => setLogoFor(row)}>
+              Logo
+            </Button>
+          ) : null}
+        </Space>
+      ),
+    },
     {
       title: "Trạng thái",
       dataIndex: "status",
@@ -170,7 +187,7 @@ export function StationBoard(props: { canWrite: boolean; onUnauthorized: () => v
           <Typography.Title level={3} className="page-header__title">
             Hậu đài
           </Typography.Title>
-          <Typography.Text type="secondary">Trang game khi nhập hội viên. Gắn nhân viên chăm sóc và tổ trưởng của từng trang.</Typography.Text>
+          <Typography.Text type="secondary">Gắn nhân viên chăm sóc, tổ trưởng và logo. Logo hiện khi chăm khách để khỏi nhầm đài.</Typography.Text>
         </div>
         {props.canWrite ? (
           <div className="page-header__actions">
@@ -207,6 +224,21 @@ export function StationBoard(props: { canWrite: boolean; onUnauthorized: () => v
             setItems((current) => current.map((item) => (item.code === station.code ? station : item)));
             setLeading(null);
             setNotice(`Đã gắn tổ trưởng cho ${station.code}.`);
+          }}
+          onUnauthorized={props.onUnauthorized}
+          onMfaSetup={props.onMfaSetup}
+        />
+      ) : null}
+      {logoFor ? (
+        <StationLogo
+          station={logoFor}
+          tick={logoTick}
+          onClose={() => setLogoFor(null)}
+          onSaved={(station) => {
+            setItems((current) => current.map((item) => (item.code === station.code ? { ...item, ...station, staff: station.staff ?? item.staff, lead: station.lead ?? item.lead } : item)));
+            setLogoTick(Date.now());
+            setLogoFor(null);
+            setNotice(station.has_logo ? `Đã lưu logo ${station.code}.` : `Đã gỡ logo ${station.code}.`);
           }}
           onUnauthorized={props.onUnauthorized}
           onMfaSetup={props.onMfaSetup}
@@ -288,7 +320,7 @@ function AssignStaff(props: {
     <Modal title={`Nhân viên ${props.station.code}`} open centered width={480} confirmLoading={saving} okText="Lưu" cancelText="Đóng" onCancel={props.onClose} onOk={() => void submit()}>
       <ErrorAlert error={error} />
       <Form layout="vertical" requiredMark={false}>
-        <Form.Item label="Nhân viên chăm sóc" help="Chỉ nhân viên vai trò chăm sóc đang làm việc. Một người có thể gắn nhiều trang. Hàng chờ chưa chia theo danh sách này.">
+        <Form.Item label="Nhân viên chăm sóc" help="Chỉ nhân viên vai trò chăm sóc đang làm việc. Một người có thể gắn nhiều đài. Hàng chờ giao hội viên của đài này cho những người trong danh sách.">
           <Select
             mode="multiple"
             allowClear
@@ -356,8 +388,122 @@ function AssignLead(props: {
     <Modal title={`Tổ trưởng ${props.station.code}`} open centered width={480} confirmLoading={saving} okText="Lưu" cancelText="Đóng" okButtonProps={{ disabled: !userId }} onCancel={props.onClose} onOk={() => void submit()}>
       <ErrorAlert error={error} />
       <Form layout="vertical" requiredMark={false}>
-        <Form.Item label="Tổ trưởng" help={options.length === 0 ? "Cần một tài khoản vai trò tổ trưởng đang làm." : undefined}>
+        <Form.Item label="Tổ trưởng" help={options.length === 0 ? "Cần một tài khoản vai trò tổ trưởng đang làm." : "Một tổ trưởng có thể phụ trách nhiều đài."}>
           <Select showSearch optionFilterProp="label" placeholder="Chọn tổ trưởng" value={userId} options={options} onChange={setUserId} />
+        </Form.Item>
+      </Form>
+    </Modal>
+  );
+}
+
+function StationLogo(props: {
+  station: Station;
+  tick: number;
+  onClose: () => void;
+  onSaved: (station: Station) => void;
+  onUnauthorized: () => void;
+  onMfaSetup: () => void;
+}) {
+  const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [fieldError, setFieldError] = useState<string | null>(null);
+  const [error, setError] = useState<ApiError | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  function chooseFile(next: File | undefined) {
+    if (!next) {
+      return;
+    }
+    if (next.size > 512 * 1024) {
+      setFieldError("Ảnh tối đa 512 KB.");
+      return;
+    }
+    setFieldError(null);
+    setFile(next);
+    setPreview(URL.createObjectURL(next));
+  }
+
+  function fail(problem: ApiError) {
+    if (problem.status === 401) {
+      props.onUnauthorized();
+      return;
+    }
+    if (problem.code === "mfa_setup_required") {
+      props.onMfaSetup();
+      return;
+    }
+    setError(problem);
+  }
+
+  async function upload() {
+    if (!file) {
+      setFieldError("Chọn ảnh PNG, JPEG hoặc WebP.");
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      const body = new FormData();
+      body.append("file", file);
+      const saved = await api<Station>(`/api/v1/admin/stations/${encodeURIComponent(props.station.code)}/logo`, { method: "PUT", body });
+      props.onSaved({ ...props.station, ...saved, has_logo: true, staff: saved.staff ?? props.station.staff, lead: saved.lead ?? props.station.lead });
+    } catch (caught) {
+      fail(caught instanceof ApiError ? caught : new ApiError(0, "network", "Không lưu được logo", ""));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function remove() {
+    setSaving(true);
+    setError(null);
+    try {
+      const saved = await api<Station>(`/api/v1/admin/stations/${encodeURIComponent(props.station.code)}/logo`, { method: "DELETE" });
+      props.onSaved({ ...props.station, ...saved, has_logo: false, staff: saved.staff ?? props.station.staff, lead: saved.lead ?? props.station.lead });
+    } catch (caught) {
+      fail(caught instanceof ApiError ? caught : new ApiError(0, "network", "Không gỡ được logo", ""));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const current = props.station.has_logo ? `${toApiUrl(`/api/v1/stations/${encodeURIComponent(props.station.code)}/logo`)}?v=${props.tick}` : null;
+
+  return (
+    <Modal
+      title={`Logo ${props.station.code}`}
+      open
+      centered
+      width={420}
+      confirmLoading={saving}
+      okText="Lưu"
+      cancelText="Đóng"
+      okButtonProps={{ disabled: !file }}
+      onCancel={props.onClose}
+      onOk={() => void upload()}
+      footer={(_, { OkBtn, CancelBtn }) => (
+        <Space>
+          {props.station.has_logo ? (
+            <Button danger loading={saving} onClick={() => void remove()}>
+              Gỡ logo
+            </Button>
+          ) : null}
+          <CancelBtn />
+          <OkBtn />
+        </Space>
+      )}
+    >
+      <ErrorAlert error={error} />
+      <Form layout="vertical" requiredMark={false}>
+        <Form.Item label="Ảnh" validateStatus={fieldError ? "error" : ""} help={fieldError || "PNG, JPEG hoặc WebP, tối đa 512 KB. Khách và nhân viên thấy logo này khi chăm sóc."}>
+          <Space direction="vertical" size={8}>
+            {preview || current ? <img className="station-logo station-logo--lg" src={preview || current || undefined} alt="" /> : <Typography.Text type="secondary">Chưa có logo</Typography.Text>}
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              onChange={(event) => chooseFile(event.target.files?.[0])}
+            />
+          </Space>
         </Form.Item>
       </Form>
     </Modal>

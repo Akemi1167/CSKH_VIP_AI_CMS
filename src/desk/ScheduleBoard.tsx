@@ -26,8 +26,9 @@ const KNOWN = ["timezone", "start_local", "end_local", "break_start_local", "bre
 
 export function ScheduleBoard(props: {
   canAdmin: boolean;
-  canWrite: boolean;
-  canListStaff: boolean;
+  canWriteHours: boolean;
+  canWriteRoster: boolean;
+  rosterScope: "all" | "team";
   onUnauthorized: () => void;
   onMfaSetup: () => void;
   onDirtyChange: (dirty: boolean) => void;
@@ -100,7 +101,7 @@ export function ScheduleBoard(props: {
     return () => window.clearInterval(timer);
   }, []);
 
-  const dirty = props.canWrite && (baseline === null || signature(form) !== baseline);
+  const dirty = props.canWriteHours && (baseline === null || signature(form) !== baseline);
 
   useEffect(() => {
     props.onDirtyChange(dirty);
@@ -182,9 +183,10 @@ export function ScheduleBoard(props: {
           <Typography.Text type="secondary">
             {hoursLine(current, state ? clockLabel(state) : null)}
             {upcoming ? ` Ca sắp tới ${upcoming.start_local}–${upcoming.end_local}.` : ""}
+            {props.rosterScope === "team" ? " Bạn ghi nghỉ cho nhân viên các đài mình phụ trách." : ""}
           </Typography.Text>
         </div>
-        {props.canWrite ? <Button onClick={() => setHoursOpen(true)}>Sửa giờ ca</Button> : null}
+        {props.canWriteHours ? <Button onClick={() => setHoursOpen(true)}>Sửa giờ ca</Button> : null}
       </div>
 
       {loadError ? (
@@ -207,13 +209,14 @@ export function ScheduleBoard(props: {
 
       <RosterGrid
         shift={current ?? upcoming}
-        canList={props.canListStaff}
-        canWrite={props.canWrite && Boolean(current ?? upcoming)}
+        canList
+        canWrite={props.canWriteRoster && Boolean(current ?? upcoming)}
+        scope={props.rosterScope}
         onUnauthorized={props.onUnauthorized}
         onMfaSetup={props.onMfaSetup}
       />
 
-      {props.canWrite ? (
+      {props.canWriteHours ? (
         <Modal
           title="Giờ ca của team"
           open={hoursOpen}

@@ -2,7 +2,7 @@ import { ReloadOutlined } from "@ant-design/icons";
 import { Alert, Button, Drawer, Form, Input, Modal, Select, Space, Table, Tag, Typography } from "antd";
 import type { TableColumnsType } from "antd";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ApiError, api } from "../api.ts";
+import { ApiError, api, toApiUrl } from "../api.ts";
 import { formatStamp } from "../copy.ts";
 import type { Staff } from "../types.ts";
 import { ErrorAlert } from "../ui.tsx";
@@ -146,6 +146,7 @@ export function WorkBoard(props: {
   const [reason, setReason] = useState("Chuyển việc");
   const [warning, setWarning] = useState<string | null>(null);
   const [reminders, setReminders] = useState<{ id: string; customer_ref: string; site: string | null; due_on: string }[]>([]);
+  const [logos, setLogos] = useState<Set<string>>(new Set());
   const [live, setLive] = useState<"connecting" | "live" | "down">("down");
   const listRef = useRef({ status, assigneeId, ids: new Set<string>() });
   listRef.current = { status, assigneeId, ids: new Set(items.map((row) => row.id)) };
@@ -165,6 +166,20 @@ export function WorkBoard(props: {
     },
     [props],
   );
+
+  useEffect(() => {
+    let ignore = false;
+    api<{ items: { code: string; has_logo?: boolean }[] }>("/api/v1/stations")
+      .then((result) => {
+        if (!ignore) {
+          setLogos(new Set(result.items.filter((item) => item.has_logo).map((item) => item.code)));
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   const load = useCallback(async (nextStatus: string, nextAssignee: string) => {
     const params = new URLSearchParams();
@@ -476,7 +491,7 @@ export function WorkBoard(props: {
 
   const columns: TableColumnsType<TaskRow> = [
     ...(oversight ? [{ title: "Nhân viên", dataIndex: "assignee_name", width: 160, ellipsis: true, render: (value: string | null) => value || "—" } satisfies TableColumnsType<TaskRow>[number]] : []),
-    ...(oversight ? [{ title: "Đài", width: 90, render: (_, row) => row.member?.site || "—" } satisfies TableColumnsType<TaskRow>[number]] : []),
+    ...(oversight ? [{ title: "Đài", width: 120, render: (_, row) => (row.member?.site ? <StationMark code={row.member.site} logos={logos} /> : "—") } satisfies TableColumnsType<TaskRow>[number]] : []),
     { title: "Kênh", dataIndex: "channel", width: 110, render: (value: string) => (value === "telegram" ? "Telegram" : "Web") },
     { title: "Tin cuối", ellipsis: true, render: (_, row) => row.last_message?.body || "—" },
     { title: "Trạng thái", dataIndex: "status", width: 130, render: (value: string) => STATUS_LABEL[value] ?? value },
@@ -626,11 +641,7 @@ export function WorkBoard(props: {
                       {pending ? <span className="chat-unread">{pending.count}</span> : <time>{shortTime(when)}</time>}
                     </span>
                     <span className="chat-list__preview">{pending?.body || row.last_message?.body || "Chưa có tin"}</span>
-                    <small>
-                      {row.member?.site ? row.member.site : oversight ? "Chưa gắn đài" : row.channel === "telegram" ? "Telegram" : "Web"}
-                      {oversight && row.member?.site ? (row.channel === "telegram" ? " · Telegram" : " · Web") : ""}
-                      {row.assignee_name ? ` · ${row.assignee_name}` : ""} · {STATUS_LABEL[row.status] ?? row.status}
-                    </small>
+                    <ChatFacts site={row.member?.site} channel={row.channel} assignee={row.assignee_name} status={row.status} logos={logos} oversight={oversight} />
                   </span>
                 </button>
               );
@@ -646,11 +657,7 @@ export function WorkBoard(props: {
                     </span>
                     <div>
                     <strong>{detail.customer_ref}</strong>
-                    <p>
-                      {detail.member?.site ? `${detail.member.site} · ` : ""}
-                      {detail.channel === "telegram" ? "Telegram" : "Web"}
-                      {detail.assignee_name ? ` · ${detail.assignee_name}` : ""} · {STATUS_LABEL[detail.status] ?? detail.status}
-                    </p>
+                    <ChatFacts site={detail.member?.site} channel={detail.channel} assignee={detail.assignee_name} status={detail.status} logos={logos} oversight={oversight} />
                     </div>
                   </div>
                   <Space wrap>
@@ -739,9 +746,12 @@ export function WorkBoard(props: {
         {detail ? (
           <>
             <p className="page-note">
+              {oversight ? "Đài " : null}
+              {detail.member?.site ? <StationMark code={detail.member.site} logos={logos} /> : oversight ? "chưa gắn" : null}
+              {detail.member?.site || oversight ? " · " : ""}
               {detail.channel === "telegram" ? "Telegram" : "Web"}
               {detail.campaign_name ? ` · ${detail.campaign_name}` : ""}
-              {detail.assignee_name ? ` · ${detail.assignee_name}` : ""} · {STATUS_LABEL[detail.status] ?? detail.status}
+              {oversight ? ` · ${detail.assignee_name ? `Đang chăm ${detail.assignee_name}` : "Chưa giao"}` : detail.assignee_name ? ` · ${detail.assignee_name}` : ""} · {STATUS_LABEL[detail.status] ?? detail.status}
             </p>
             <div className="task-thread">
               {detail.messages.map((message) => (
@@ -825,5 +835,31 @@ export function WorkBoard(props: {
         </Form>
       </Modal>
     </section>
+  );
+}
+
+function ChatFacts(props: { site?: string | null; channel: string; assignee?: string | null; status: string; logos: Set<string>; oversight: boolean }) {
+  const channel = props.channel === "telegram" ? "Telegram" : "Web";
+  return (
+    <span className="chat-meta">
+      <span className="chat-meta__station">
+        {props.oversight ? "Đài " : null}
+        {props.site ? <StationMark code={props.site} logos={props.logos} /> : props.oversight ? "chưa gắn" : channel}
+      </span>
+      {props.oversight ? <span className="chat-meta__who">{props.assignee ? `Đang chăm ${props.assignee}` : "Chưa giao"}</span> : null}
+      <span>
+        {props.site || props.oversight ? `${channel} · ` : ""}
+        {STATUS_LABEL[props.status] ?? props.status}
+      </span>
+    </span>
+  );
+}
+
+function StationMark(props: { code: string; logos: Set<string> }) {
+  return (
+    <span className="station-mark">
+      {props.logos.has(props.code) ? <img className="station-logo" src={toApiUrl(`/api/v1/stations/${encodeURIComponent(props.code)}/logo`)} alt="" /> : null}
+      {props.code}
+    </span>
   );
 }

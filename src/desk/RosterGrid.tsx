@@ -3,7 +3,14 @@ import { Alert, Button, Input, Space, Spin, Typography } from "antd";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ApiError, api } from "../api.ts";
 import { classifyDay, dayWindows, markBody, nextMark, type Mark } from "../roster.ts";
-import type { Leave, Shift, Staff } from "../types.ts";
+import type { Leave, Shift } from "../types.ts";
+
+type RosterPerson = {
+  id: string;
+  display_name: string;
+  username: string;
+  status: string;
+};
 
 const WEEKDAY = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
 
@@ -27,13 +34,14 @@ export function RosterGrid(props: {
   shift: Shift | null;
   canList: boolean;
   canWrite: boolean;
+  scope: "all" | "team";
   onUnauthorized: () => void;
   onMfaSetup: () => void;
 }) {
   const today = new Date();
   const [cursor, setCursor] = useState({ y: today.getFullYear(), m0: today.getMonth() });
   const [query, setQuery] = useState("");
-  const [staff, setStaff] = useState<Staff[]>([]);
+  const [staff, setStaff] = useState<RosterPerson[]>([]);
   const [leaves, setLeaves] = useState<Map<string, Leave[]>>(new Map());
   const [loading, setLoading] = useState(props.canList);
   const [error, setError] = useState<ApiError | null>(null);
@@ -67,7 +75,7 @@ export function RosterGrid(props: {
     }
     const ticket = epoch.current;
     try {
-      const listed = await api<{ items: Staff[] }>("/api/v1/admin/staff");
+      const listed = await api<{ items: RosterPerson[] }>(props.scope === "team" ? "/api/v1/team/roster" : "/api/v1/admin/staff");
       const active = listed.items.filter((person) => person.status === "active");
       const nextLeaves = new Map<string, Leave[]>();
       const failed: string[] = [];
@@ -103,7 +111,7 @@ export function RosterGrid(props: {
         setLoading(false);
       }
     }
-  }, [canList, failAuth]);
+  }, [canList, failAuth, props.scope]);
 
   useEffect(() => {
     void load();
@@ -118,7 +126,7 @@ export function RosterGrid(props: {
     return staff.filter((person) => `${person.display_name} ${person.username}`.toLocaleLowerCase("vi").includes(text));
   }, [query, staff]);
 
-  async function cycle(person: Staff, day: number) {
+  async function cycle(person: RosterPerson, day: number) {
     if (!props.shift || !props.canWrite || lock.current) {
       return;
     }
@@ -214,7 +222,9 @@ export function RosterGrid(props: {
           <Spin />
         </div>
       ) : null}
-      {props.canList && !loading && visible.length === 0 ? <Alert type="info" showIcon message={staff.length ? "Không có thành viên khớp." : "Chưa có nhân viên đang làm."} /> : null}
+      {props.canList && !loading && visible.length === 0 ? (
+        <Alert type="info" showIcon message={staff.length ? "Không có thành viên khớp." : props.scope === "team" ? "Chưa có nhân viên trong các đài bạn phụ trách." : "Chưa có nhân viên đang làm."} />
+      ) : null}
       {props.canList && !loading && visible.length > 0 ? (
         <div className="roster-scroll">
           <table className="roster-table">

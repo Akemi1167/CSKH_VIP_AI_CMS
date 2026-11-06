@@ -379,6 +379,8 @@ const AUDIT_FILTERS = [
   { value: "stations.create", label: "Thêm hậu đài" },
   { value: "stations.update", label: "Bật hoặc tắt hậu đài" },
   { value: "stations.assign", label: "Gắn nhân viên hậu đài" },
+  { value: "stations.logo", label: "Đổi logo đài" },
+  { value: "staff.stations", label: "Gắn đài cho nhân viên" },
   { value: "stations.lead", label: "Gắn tổ trưởng hậu đài" },
   { value: "staff.availability", label: "Bật hoặc tắt nhận việc" },
   { value: "customers.owner", label: "Gán người giữ hội viên" },
@@ -451,6 +453,12 @@ function describeAudit(row: AuditEvent, names: Map<string, string>): string {
     const who = name ? ` ${name}` : "";
     const detail = changes.length > 0 ? `: ${changes.join(", ")}` : "";
     return `Sửa hồ sơ${who}${detail}.`;
+  }
+  if (row.action === "staff.stations") {
+    const username = text(summary.username);
+    const stations = Array.isArray(summary.stations) ? summary.stations.filter((item): item is string => typeof item === "string") : [];
+    const who = username ? ` ${username}` : "";
+    return stations.length === 0 ? `Bỏ đài chăm sóc của nhân viên${who}.` : `Gắn đài ${stations.join(", ")} cho nhân viên${who}.`;
   }
   if (row.action === "staff.mfa_reset") {
     const username = text(summary.username);
@@ -561,6 +569,11 @@ function describeAudit(row: AuditEvent, names: Map<string, string>): string {
   if (row.action === "laaffic.sync") {
     const count = typeof summary.pulled === "number" ? summary.pulled : 0;
     return summary.channel === "ai_voice" ? `Đồng bộ ${count} cuộc gọi từ Laaffic.` : `Đồng bộ ${count} tin nhắn từ Laaffic.`;
+  }
+  if (row.action === "stations.logo") {
+    const code = row.entity_id || text(summary.station);
+    const name = code ? ` ${code}` : "";
+    return summary.status === "cleared" ? `Gỡ logo hậu đài${name}.` : `Đổi logo hậu đài${name}.`;
   }
   if (row.action === "stations.assign") {
     const code = row.entity_id || text(summary.station);

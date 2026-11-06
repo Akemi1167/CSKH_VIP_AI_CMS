@@ -137,7 +137,10 @@ export function Desk(props: {
     if (canManageTelegram) {
       settings.push({ kind: "leaf", id: "telegram", label: "Telegram", icon: <SendOutlined /> });
     }
-    const extras: NavLeaf[] = [{ kind: "leaf", id: "schedule", label: "Ca làm", icon: <ClockCircleOutlined /> }];
+    const extras: NavLeaf[] = [];
+    if (canReadSchedule) {
+      extras.push({ kind: "leaf", id: "schedule", label: "Ca làm", icon: <ClockCircleOutlined /> });
+    }
     if (canReadCampaigns) {
       extras.push({ kind: "leaf", id: "campaigns", label: "Chiến dịch", icon: <MailOutlined /> });
     }
@@ -152,7 +155,9 @@ export function Desk(props: {
     if (settings.length > 0) {
       settingsGroups.push({ label: "Hệ thống", items: settings });
     }
-    settingsGroups.push({ label: "Khác", items: extras });
+    if (extras.length > 0) {
+      settingsGroups.push({ label: "Khác", items: extras });
+    }
     const sections: MenuSection[] = [{ id: "operate", label: "Chăm sóc hội viên", items: care }];
     if (sms.length > 0) {
       sections.push({ id: "sms", label: "Tin nhắn", items: sms });
@@ -160,11 +165,13 @@ export function Desk(props: {
     if (voice.length > 0) {
       sections.push({ id: "voice", label: "Gọi AI", items: voice });
     }
-    sections.push({
-      id: "settings",
-      label: "Cài đặt",
-      items: [{ kind: "branch", id: "settings", label: "Cài đặt", panelTitle: "Cài đặt hệ thống", icon: <SettingOutlined />, groups: settingsGroups }],
-    });
+    if (settingsGroups.length > 0) {
+      sections.push({
+        id: "settings",
+        label: "Cài đặt",
+        items: [{ kind: "branch", id: "settings", label: "Cài đặt", panelTitle: canReadSettings ? "Cài đặt hệ thống" : "Cài đặt", icon: <SettingOutlined />, groups: settingsGroups }],
+      });
+    }
     const central: NavLeaf[] = [];
     if (canReadCustomers) {
       central.push({ kind: "leaf", id: "warehouse", label: "Kho Data tập trung", icon: <BookOutlined /> });
@@ -184,7 +191,7 @@ export function Desk(props: {
     }
     const query = keyword.trim().toLocaleLowerCase("vi");
     return { sections: filterSections(sections, query), query };
-  }, [canApproveRewards, canManageTelegram, canReadAudit, canReadCampaigns, canReadCustomers, canReadQueue, canReadSettings, canReadStaff, canReadTasks, canReportCampaigns, canReviewRecordings, keyword]);
+  }, [canApproveRewards, canManageTelegram, canReadAudit, canReadCampaigns, canReadCustomers, canReadQueue, canReadSchedule, canReadSettings, canReadStaff, canReadTasks, canReportCampaigns, canReviewRecordings, keyword]);
 
   function openPage(next: DeskPage) {
     if (next === page) {
@@ -400,11 +407,12 @@ export function Desk(props: {
               onSelfUpdated={setProfile}
             />
           ) : null}
-          {page === "schedule" || (page === "staff" && !canReadStaff) ? (
+          {page === "schedule" && canReadSchedule ? (
             <ScheduleBoard
-              canAdmin={canReadSchedule}
-              canWrite={canWriteSchedule}
-              canListStaff={canReadStaff}
+              canAdmin={canReadStaff}
+              canWriteHours={canWriteSchedule && canReadStaff}
+              canWriteRoster={canWriteSchedule}
+              rosterScope={canReadStaff ? "all" : "team"}
               onUnauthorized={() => props.onLoggedOut("Phiên đã hết. Đăng nhập lại.")}
               onMfaSetup={props.onMfaSetup}
               onDirtyChange={onScheduleDirty}
