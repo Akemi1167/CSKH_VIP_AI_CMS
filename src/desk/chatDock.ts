@@ -20,12 +20,14 @@ export type DockWindow = {
   expanded: boolean;
   draft: string;
   unread: number;
+  alert?: boolean;
 };
 
 const MAX_WINDOWS = 6;
 const MAX_EXPANDED = 3;
 
 let snapshot: DockWindow[] = [];
+let focusedDockId: string | null = null;
 const listeners = new Set<() => void>();
 
 function commit(next: DockWindow[]): void {
@@ -79,8 +81,8 @@ export function seedDockBubble(event: LiveChatMessage): void {
     applyDockLiveMessage(event);
     return;
   }
-  const rest = snapshot;
   commit([
+    ...snapshot,
     {
       task: {
         id: event.task_id,
@@ -93,8 +95,8 @@ export function seedDockBubble(event: LiveChatMessage): void {
       expanded: false,
       draft: "",
       unread: event.sender_type === "customer" ? 1 : 0,
+      alert: event.sender_type === "customer" && focusedDockId !== event.task_id,
     },
-    ...rest,
   ]);
 }
 
@@ -110,9 +112,24 @@ export function closeDockChat(id: string): void {
   commit(snapshot.filter((window) => window.task.id !== id));
 }
 
+export function noteDockFocus(id: string | null): void {
+  focusedDockId = id;
+  if (!id) {
+    return;
+  }
+  const current = snapshot.find((window) => window.task.id === id);
+  if (!current?.alert && current?.unread === 0) {
+    return;
+  }
+  commit(snapshot.map((window) => (window.task.id === id ? { ...window, alert: false, unread: 0 } : window)));
+}
+
 export function setDockExpanded(id: string, expanded: boolean): void {
+  if (expanded) {
+    focusedDockId = id;
+  }
   commit(
-    snapshot.map((window) => (window.task.id === id ? { ...window, expanded, unread: expanded ? 0 : window.unread } : window)),
+    snapshot.map((window) => (window.task.id === id ? { ...window, expanded, alert: expanded ? false : window.alert, unread: expanded ? 0 : window.unread } : window)),
   );
 }
 
@@ -149,11 +166,13 @@ export function applyDockLiveMessage(event: LiveChatMessage): void {
   const messages = exists
     ? window.task.messages
     : [...window.task.messages, { id: event.message_id, sender_type: event.sender_type, body: event.body, created_at: event.created_at, has_image: event.has_image }];
-  const unread = window.expanded || event.sender_type !== "customer" || exists ? window.unread : window.unread + 1;
+  const incoming = event.sender_type === "customer" && !exists;
+  const mine = focusedDockId === event.task_id;
   const next = snapshot.slice();
   next[index] = {
     ...window,
-    unread: window.expanded ? 0 : unread,
+    alert: incoming && !mine ? true : mine ? false : window.alert,
+    unread: mine ? 0 : incoming ? window.unread + 1 : window.unread,
     task: {
       ...window.task,
       status: event.task_status || window.task.status,

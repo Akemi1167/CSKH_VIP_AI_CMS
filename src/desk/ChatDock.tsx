@@ -1,11 +1,11 @@
 import { CloseOutlined, MinusOutlined } from "@ant-design/icons";
 import { Button, Input } from "antd";
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import { ApiError, api } from "../api.ts";
 import { formatStamp } from "../copy.ts";
 import { ChatBody } from "./ChatBody.tsx";
 import { bindInboxBoard, markInboxRead, sendStaffReply, staffChatLive } from "./inboxWatch.ts";
-import { applyDockLiveMessage, applyDockLiveTask, closeDockChat, replaceDockTask, seedDockBubble, setDockDraft, setDockExpanded, useChatDock, type DockMessage, type DockTask } from "./chatDock.ts";
+import { applyDockLiveMessage, applyDockLiveTask, closeDockChat, noteDockFocus, replaceDockTask, seedDockBubble, setDockDraft, setDockExpanded, useChatDock, type DockMessage, type DockTask } from "./chatDock.ts";
 
 const OPEN_STATUS = new Set(["ASSIGNED", "IN_PROGRESS", "WAITING_CUSTOMER"]);
 
@@ -60,13 +60,28 @@ export function ChatDock(props: {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const pageRef = useRef(props.page);
   const scopeRef = useRef(props.scope);
+  const caretRef = useRef<{ el: HTMLTextAreaElement; start: number; end: number } | null>(null);
   pageRef.current = props.page;
   scopeRef.current = props.scope;
+
+  useLayoutEffect(() => {
+    const caret = caretRef.current;
+    caretRef.current = null;
+    if (!caret?.el.isConnected || document.activeElement === caret.el) {
+      return;
+    }
+    caret.el.focus({ preventScroll: true });
+    caret.el.setSelectionRange(caret.start, caret.end);
+  });
 
   useEffect(() => {
     return bindInboxBoard({
       onStatus: () => undefined,
       onMessage: (event) => {
+        const active = document.activeElement;
+        if (active instanceof HTMLTextAreaElement) {
+          caretRef.current = { el: active, start: active.selectionStart ?? active.value.length, end: active.selectionEnd ?? active.value.length };
+        }
         if (scopeRef.current === "own" && pageRef.current !== "inbox" && event.sender_type === "customer") {
           seedDockBubble(event);
           return;
@@ -152,6 +167,38 @@ export function ChatDock(props: {
     }
   }
 
+  async function sendImage(id: string, task: DockTask, file: File, caption: string) {
+    if (file.size === 0 || file.size > 5 * 1024 * 1024) {
+      setErrors((current) => ({ ...current, [id]: "Ảnh tối đa 5 MB" }));
+      return;
+    }
+    setBusyId(id);
+    setErrors((current) => ({ ...current, [id]: "" }));
+    const params = new URLSearchParams({ version: String(task.version) });
+    if (caption.trim()) {
+      params.set("caption", caption.trim());
+    }
+    try {
+      const saved = await api<{ message_id: string; version: number; status: string; body: string }>(`/api/v1/tasks/${id}/images?${params}`, {
+        method: "POST",
+        body: file,
+      });
+      setDockDraft(id, "");
+      replaceDockTask({
+        ...task,
+        version: saved.version || task.version,
+        status: saved.status || task.status,
+        messages: task.messages.some((message) => message.id === saved.message_id)
+          ? task.messages
+          : [...task.messages, { id: saved.message_id, sender_type: "agent", body: saved.body, created_at: new Date().toISOString(), has_image: true }],
+      });
+    } catch (caught) {
+      fail(id, caught);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   return (
     <div className="chat-dock">
       {windows.map((chat) => {
@@ -164,8 +211,8 @@ export function ChatDock(props: {
             <button
               key={chat.task.id}
               type="button"
-              className="chat-dock__bubble"
-              title={guestFacts(chat.task)}
+              className={chat.alert ? "chat-dock__bubble chat-dock__bubble--alert" : "chat-dock__bubble"}
+              title={chat.alert ? `Tin mới · ${guestFacts(chat.task)}` : guestFacts(chat.task)}
               onClick={() => {
                 setDockExpanded(chat.task.id, true);
                 markInboxRead(chat.task.id);
@@ -181,7 +228,7 @@ export function ChatDock(props: {
           );
         }
         return (
-          <section key={chat.task.id} className="chat-dock__window">
+          <section key={chat.task.id} className={chat.alert ? "chat-dock__window chat-dock__window--alert" : "chat-dock__window"}>
             <header className="chat-dock__head">
               <div className="chat-dock__who">
                 <span className="chat-avatar" aria-hidden="true">
@@ -190,6 +237,7 @@ export function ChatDock(props: {
                 <span>
                   <strong>{name}</strong>
                   <small>{guestFacts(chat.task)}</small>
+                  {chat.alert ? <em className="chat-dock__new">Tin mới</em> : null}
                 </span>
               </div>
               <div className="chat-dock__tools">
@@ -222,8 +270,10 @@ export function ChatDock(props: {
               >
                 <Input.TextArea
                   value={chat.draft}
-                  autoSize={{ minRows: 1, maxRows: 3 }}
+                  rows={2}
                   placeholder={chat.task.channel === "telegram" ? "Nhắn khách trên Telegram" : "Nhắn khách"}
+                  onFocus={() => noteDockFocus(chat.task.id)}
+                  onBlur={() => noteDockFocus(null)}
                   onChange={(event) => setDockDraft(chat.task.id, event.target.value)}
                   onKeyDown={(event: KeyboardEvent<HTMLTextAreaElement>) => {
                     if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) {
@@ -233,6 +283,21 @@ export function ChatDock(props: {
                     void send(chat.task.id, chat.task, chat.draft);
                   }}
                 />
+                <label className="chat-photo-send">
+                  Ảnh
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/gif"
+                    disabled={busyId === chat.task.id}
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      event.currentTarget.value = "";
+                      if (file) {
+                        void sendImage(chat.task.id, chat.task, file, chat.draft);
+                      }
+                    }}
+                  />
+                </label>
                 <Button type="primary" htmlType="submit" loading={busyId === chat.task.id} disabled={chat.draft.trim().length === 0}>
                   Gửi
                 </Button>

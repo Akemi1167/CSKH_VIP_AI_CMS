@@ -1,7 +1,7 @@
 import { toApiUrl } from "../api.ts";
 
 export function ChatBody(props: { taskId: string; message: { id: string; body: string; has_image?: boolean } }) {
-  const caption = props.message.has_image && props.message.body === "Khách gửi ảnh." ? "" : props.message.body;
+  const caption = props.message.has_image && (props.message.body === "Khách gửi ảnh." || props.message.body === "Đã gửi ảnh.") ? "" : props.message.body;
   return (
     <>
       {props.message.has_image ? (

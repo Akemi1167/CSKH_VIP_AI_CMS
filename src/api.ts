@@ -73,6 +73,11 @@ export async function api<T>(path: string, options: Options = {}): Promise<T> {
   };
   if (options.body instanceof FormData) {
     init.body = options.body;
+  } else if (typeof Blob !== "undefined" && options.body instanceof Blob) {
+    init.body = options.body;
+    if (!headers.has("content-type") && options.body.type) {
+      headers.set("content-type", options.body.type);
+    }
   } else if (options.body !== undefined) {
     headers.set("content-type", "application/json");
     init.body = JSON.stringify(options.body);

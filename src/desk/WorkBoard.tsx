@@ -403,6 +403,47 @@ export function WorkBoard(props: {
     }
   }
 
+  async function sendImage(file: File) {
+    if (!detail) {
+      return;
+    }
+    if (file.size === 0 || file.size > 5 * 1024 * 1024) {
+      setError(new ApiError(400, "validation_error", "Ảnh tối đa 5 MB", ""));
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    const caption = replyRef.current.trim();
+    const params = new URLSearchParams({ version: String(detail.version) });
+    if (caption) {
+      params.set("caption", caption);
+    }
+    const taskId = detail.id;
+    try {
+      const saved = await api<{ message_id: string; version: number; status: string; body: string }>(`/api/v1/tasks/${taskId}/images?${params}`, {
+        method: "POST",
+        body: file,
+      });
+      writeReply("");
+      setDetail((current) => {
+        if (!current || current.id !== taskId) {
+          return current;
+        }
+        const message = { id: saved.message_id, sender_type: "agent", body: saved.body, created_at: new Date().toISOString(), has_image: true };
+        const messages = current.messages.some((item) => item.id === saved.message_id) ? current.messages : [...current.messages, message];
+        return { ...current, version: saved.version || current.version, status: asStatus(saved.status, current.status), messages };
+      });
+      await load(status, assigneeId);
+    } catch (caught) {
+      const problem = caught instanceof ApiError ? caught : new ApiError(0, "chat", "Không gửi được ảnh", "");
+      if (!failAuth(problem)) {
+        setError(problem);
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function openTransfer() {
     setTransferOpen(true);
     setUserId(undefined);
@@ -761,6 +802,21 @@ export function WorkBoard(props: {
                         void sendReply();
                       }}
                     />
+                    <label className="chat-photo-send">
+                      Ảnh
+                      <input
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp,image/gif"
+                        disabled={busy}
+                        onChange={(event) => {
+                          const file = event.target.files?.[0];
+                          event.currentTarget.value = "";
+                          if (file) {
+                            void sendImage(file);
+                          }
+                        }}
+                      />
+                    </label>
                     <Button type="primary" htmlType="submit" loading={busy} disabled={reply.trim().length === 0}>
                       Gửi
                     </Button>
