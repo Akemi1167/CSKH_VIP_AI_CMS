@@ -275,18 +275,37 @@ function alertStaff(name: string, body: string, taskId: string): void {
 }
 
 function ping(): void {
-  if (!audio || audio.state !== "running") {
+  const context = audio;
+  if (!context) {
     return;
   }
-  const oscillator = audio.createOscillator();
-  const gain = audio.createGain();
-  oscillator.frequency.value = 880;
-  gain.gain.setValueAtTime(0.05, audio.currentTime);
-  gain.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + 0.18);
-  oscillator.connect(gain);
-  gain.connect(audio.destination);
-  oscillator.start();
-  oscillator.stop(audio.currentTime + 0.18);
+  if (context.state === "suspended") {
+    void context.resume().then(() => playChime(context));
+    return;
+  }
+  if (context.state !== "running") {
+    return;
+  }
+  playChime(context);
+}
+
+function playChime(context: AudioContext): void {
+  const now = context.currentTime;
+  const notes = [880, 1175];
+  notes.forEach((frequency, index) => {
+    const start = now + index * 0.14;
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    oscillator.type = "sine";
+    oscillator.frequency.value = frequency;
+    gain.gain.setValueAtTime(0.0001, start);
+    gain.gain.exponentialRampToValueAtTime(0.22, start + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.22);
+    oscillator.connect(gain);
+    gain.connect(context.destination);
+    oscillator.start(start);
+    oscillator.stop(start + 0.24);
+  });
 }
 
 function publish(): void {

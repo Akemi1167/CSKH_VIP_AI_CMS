@@ -1,4 +1,4 @@
-import { AppstoreOutlined, AuditOutlined, BarChartOutlined, BookOutlined, CheckSquareOutlined, ClockCircleOutlined, CommentOutlined, FundOutlined, GiftOutlined, GlobalOutlined, HistoryOutlined, KeyOutlined, LeftOutlined, LogoutOutlined, MailOutlined, MessageOutlined, PhoneOutlined, SearchOutlined, SendOutlined, SettingOutlined, ShareAltOutlined, ShopOutlined, TeamOutlined, UnorderedListOutlined, UserOutlined } from "@ant-design/icons";
+import { AppstoreOutlined, AuditOutlined, BarChartOutlined, BookOutlined, CheckSquareOutlined, ClockCircleOutlined, CommentOutlined, FundOutlined, GiftOutlined, GlobalOutlined, HistoryOutlined, KeyOutlined, LeftOutlined, LogoutOutlined, MailOutlined, MessageOutlined, PhoneOutlined, PictureOutlined, SearchOutlined, SendOutlined, SettingOutlined, ShareAltOutlined, ShopOutlined, TeamOutlined, UnorderedListOutlined, UserOutlined } from "@ant-design/icons";
 import { Button, Input, Modal, Space, Switch } from "antd";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { ApiError, api, probe, setCsrfToken } from "../api.ts";
@@ -28,9 +28,10 @@ import { PasswordDialog } from "./PasswordDialog.tsx";
 import { ScheduleBoard } from "./ScheduleBoard.tsx";
 import { StaffBoard } from "./StaffBoard.tsx";
 import { ChatDock } from "./ChatDock.tsx";
+import { MediaBoard } from "./MediaBoard.tsx";
 import { armAlertSound, askChatNotification, startInboxWatch, stopInboxWatch, useInboxUnread } from "./inboxWatch.ts";
 
-type DeskPage = "overview" | "inbox" | "contacts" | "tasks" | "history" | "personal" | "queue" | "schedule" | "staff" | "customers" | "warehouse" | "distribute" | "campaigns" | "shift" | "effect" | "rewards" | "journal" | "stations" | "stationSms" | "callTasks" | "voice" | "voiceReview" | "smsHistory" | "voiceHistory" | "rateLimit" | "chatIdle" | "embed" | "telegram";
+type DeskPage = "overview" | "inbox" | "contacts" | "tasks" | "history" | "personal" | "queue" | "schedule" | "staff" | "customers" | "warehouse" | "distribute" | "campaigns" | "shift" | "effect" | "rewards" | "journal" | "stations" | "media" | "stationSms" | "callTasks" | "voice" | "voiceReview" | "smsHistory" | "voiceHistory" | "rateLimit" | "chatIdle" | "embed" | "telegram";
 
 type NavLeaf = { kind: "leaf"; id: DeskPage; label: string; icon: ReactNode };
 type NavGroup = { label?: string; items: NavLeaf[] };
@@ -99,9 +100,11 @@ export function Desk(props: {
     const arm = () => armAlertSound();
     const openInbox = () => setPage("inbox");
     window.addEventListener("pointerdown", arm);
+    window.addEventListener("keydown", arm);
     window.addEventListener("cskh-open-inbox", openInbox);
     return () => {
       window.removeEventListener("pointerdown", arm);
+      window.removeEventListener("keydown", arm);
       window.removeEventListener("cskh-open-inbox", openInbox);
       stopInboxWatch();
     };
@@ -179,6 +182,7 @@ export function Desk(props: {
     const central: NavLeaf[] = [];
     if (canReadSettings) {
       central.push({ kind: "leaf", id: "stations", label: "Hậu đài", icon: <ShopOutlined /> });
+      central.push({ kind: "leaf", id: "media", label: "Media", icon: <PictureOutlined /> });
     }
     if (canReadCustomers) {
       central.push({ kind: "leaf", id: "warehouse", label: "Kho Data tập trung", icon: <BookOutlined /> });
@@ -473,6 +477,9 @@ export function Desk(props: {
           ) : null}
           {page === "stations" && canReadSettings ? (
             <StationBoard canWrite={canWriteSettings} onUnauthorized={endSession} onMfaSetup={props.onMfaSetup} />
+          ) : null}
+          {page === "media" && canReadSettings ? (
+            <MediaBoard canWrite={canWriteSettings} onUnauthorized={endSession} onMfaSetup={props.onMfaSetup} />
           ) : null}
           {page === "stationSms" && canReadCampaigns ? (
             <StationSmsBoard canWrite={canCreateCampaigns} canTest={canLaunchCampaigns} onUnauthorized={endSession} onMfaSetup={props.onMfaSetup} />

@@ -8,6 +8,7 @@ type Bubble = {
   sender: "customer" | "agent";
   body: string;
   created_at: string;
+  image_url?: string;
 };
 
 type GuestSession = {
@@ -17,6 +18,7 @@ type GuestSession = {
 
 type GuestTicket = {
   ticket: string;
+  upload_token: string;
   conversation_id: string;
   messages: Bubble[];
 };
@@ -38,6 +40,8 @@ export function GuestChat() {
   const textRef = useRef("");
   const composingRef = useRef(false);
   const lastSentRef = useRef({ body: "", at: 0 });
+  const uploadTokenRef = useRef("");
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const connect = useCallback(async (session: GuestSession) => {
     setStatus("connecting");
@@ -52,6 +56,7 @@ export function GuestChat() {
       const next = { conversationId: issued.conversation_id, name: session.name };
       saved.current = next;
       localStorage.setItem(STORAGE, JSON.stringify(next));
+      uploadTokenRef.current = issued.upload_token;
       setMessages(issued.messages);
       openSocket(issued.ticket);
     } catch (caught) {
@@ -93,7 +98,7 @@ export function GuestChat() {
         return;
       }
       if (frame.type === "ack" && frame.message_id) {
-        confirmCustomerMessage(frame.message_id, frame.created_at);
+        confirmCustomerMessage(frame.message_id, frame.created_at, undefined, frame.image_url);
         return;
       }
       if (frame.type === "error") {
@@ -104,11 +109,12 @@ export function GuestChat() {
         setError(frame.message || "Chat từ chối tin");
         return;
       }
-      if (frame.type === "message" && frame.message_id && frame.body && frame.sender_type === "agent") {
+      if (frame.type === "message" && frame.message_id && frame.sender_type === "agent" && (frame.body || frame.image_url)) {
         const id = frame.message_id;
-        const body = frame.body;
+        const body = frame.body || "";
         const createdAt = frame.created_at || new Date().toISOString();
-        setMessages((current) => (current.some((item) => item.id === id) ? current : [...current, { id, sender: "agent", body, created_at: createdAt }]));
+        const imageUrl = frame.image_url;
+        setMessages((current) => (current.some((item) => item.id === id) ? current : [...current, { id, sender: "agent", body, created_at: createdAt, image_url: imageUrl }]));
       }
     });
     socket.addEventListener("close", () => {
@@ -120,7 +126,7 @@ export function GuestChat() {
     });
   }
 
-  function confirmCustomerMessage(serverId: string, createdAt?: string, body?: string) {
+  function confirmCustomerMessage(serverId: string, createdAt?: string, body?: string, imageUrl?: string) {
     setMessages((current) => {
       if (current.some((item) => item.id === serverId)) {
         return current;
@@ -128,12 +134,14 @@ export function GuestChat() {
       const sourceId = pendingRef.current[0];
       if (sourceId && current.some((item) => item.id === sourceId)) {
         pendingRef.current = pendingRef.current.slice(1);
-        return current.map((item) => (item.id === sourceId ? { ...item, id: serverId, body: body || item.body, created_at: createdAt || item.created_at } : item));
+        return current.map((item) =>
+          item.id === sourceId ? { ...item, id: serverId, body: body || item.body, image_url: imageUrl || item.image_url, created_at: createdAt || item.created_at } : item,
+        );
       }
-      if (!body) {
+      if (!body && !imageUrl) {
         return current;
       }
-      return [...current, { id: serverId, sender: "customer", body, created_at: createdAt || new Date().toISOString() }];
+      return [...current, { id: serverId, sender: "customer", body: body || "", created_at: createdAt || new Date().toISOString(), image_url: imageUrl }];
     });
   }
 
@@ -160,6 +168,35 @@ export function GuestChat() {
     socket.send(JSON.stringify({ type: "message", source_message_id: id, body }));
     setMessages((current) => [...current, { id, sender: "customer", body, created_at: new Date().toISOString() }]);
     writeText("");
+  }
+
+  async function sendImage(file: File) {
+    const socket = socketRef.current;
+    const token = uploadTokenRef.current;
+    if (!token || !socket || socket.readyState !== WebSocket.OPEN) {
+      setError("Chưa nối được chat.");
+      return;
+    }
+    if (file.size === 0 || file.size > 5 * 1024 * 1024 || !/^image\/(png|jpe?g|webp|gif)$/i.test(file.type)) {
+      setError("Chỉ gửi ảnh PNG, JPEG, WEBP hoặc GIF, tối đa 5 MB.");
+      return;
+    }
+    setError(null);
+    try {
+      const saved = await api<{ media_id: string; url: string }>("/api/v1/chat/guest/images", {
+        method: "POST",
+        body: file,
+        headers: { "x-chat-upload": token },
+      });
+      const caption = textRef.current.trim();
+      const id = crypto.randomUUID();
+      pendingRef.current = [...pendingRef.current, id];
+      socket.send(JSON.stringify({ type: "message", source_message_id: id, media_id: saved.media_id, ...(caption ? { body: caption } : {}) }));
+      setMessages((current) => [...current, { id, sender: "customer", body: caption, created_at: new Date().toISOString(), image_url: saved.url }]);
+      writeText("");
+    } catch (caught) {
+      setError(caught instanceof ApiError ? caught.message : "Không gửi được ảnh");
+    }
   }
 
   function sendOnEnter(event: KeyboardEvent<HTMLTextAreaElement>) {
@@ -210,12 +247,16 @@ export function GuestChat() {
               <article className="chat-bubble chat-bubble--agent">
                 <p>{GREETING}</p>
               </article>
-              {messages.map((message) => (
-                <article key={message.id} className={message.sender === "customer" ? "chat-bubble chat-bubble--customer" : "chat-bubble chat-bubble--agent"}>
-                  <p>{message.body}</p>
-                  <time>{formatStamp(message.created_at)}</time>
-                </article>
-              ))}
+              {messages.map((message) => {
+                const caption = message.image_url && (message.body === "Khách gửi ảnh." || message.body === "Đã gửi ảnh.") ? "" : message.body;
+                return (
+                  <article key={message.id} className={message.sender === "customer" ? "chat-bubble chat-bubble--customer" : "chat-bubble chat-bubble--agent"}>
+                    {message.image_url ? <img className="chat-photo" alt="" src={message.image_url} /> : null}
+                    {caption ? <p>{caption}</p> : null}
+                    <time>{formatStamp(message.created_at)}</time>
+                  </article>
+                );
+              })}
             </div>
             {error ? <p className="chat-compose__error">{error}</p> : null}
             {status === "down" ? (
@@ -232,6 +273,22 @@ export function GuestChat() {
                   send();
                 }}
               >
+                <label className="chat-photo-send">
+                  Ảnh
+                  <input
+                    ref={fileRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/gif"
+                    disabled={!live}
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      event.target.value = "";
+                      if (file) {
+                        void sendImage(file);
+                      }
+                    }}
+                  />
+                </label>
                 <Input.TextArea
                   value={text}
                   disabled={!live}
@@ -305,9 +362,9 @@ function loadSession(): GuestSession | null {
   }
 }
 
-function readFrame(raw: string): { type?: string; message_id?: string; sender_type?: string; body?: string; created_at?: string; message?: string } | undefined {
+function readFrame(raw: string): { type?: string; message_id?: string; sender_type?: string; body?: string; created_at?: string; message?: string; image_url?: string } | undefined {
   try {
-    const parsed = JSON.parse(raw) as { type?: string; message_id?: string; sender_type?: string; body?: string; created_at?: string; message?: string };
+    const parsed = JSON.parse(raw) as { type?: string; message_id?: string; sender_type?: string; body?: string; created_at?: string; message?: string; image_url?: string };
     return parsed && typeof parsed === "object" ? parsed : undefined;
   } catch {
     return undefined;
