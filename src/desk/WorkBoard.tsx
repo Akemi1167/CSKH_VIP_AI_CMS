@@ -1,4 +1,4 @@
-import { ReloadOutlined } from "@ant-design/icons";
+import { MessageOutlined, ReloadOutlined } from "@ant-design/icons";
 import { Alert, Button, Drawer, Form, Input, Modal, Select, Space, Table, Tag, Typography } from "antd";
 import type { TableColumnsType } from "antd";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -6,6 +6,8 @@ import { ApiError, api, toApiUrl } from "../api.ts";
 import { formatStamp } from "../copy.ts";
 import type { Staff } from "../types.ts";
 import { ErrorAlert } from "../ui.tsx";
+import { ChatBody } from "./ChatBody.tsx";
+import { openDockChat, rememberDockChat } from "./chatDock.ts";
 import { bindInboxBoard, markInboxRead, noteInboxRows, sendStaffReply, setInboxFocus, staffChatLive, useInboxUnread } from "./inboxWatch.ts";
 import type { LiveChatMessage } from "./staffChat.ts";
 
@@ -28,7 +30,7 @@ type TaskRow = {
 };
 
 type TaskDetail = TaskRow & {
-  messages: { id: string; sender_type: string; body: string; created_at: string }[];
+  messages: { id: string; sender_type: string; body: string; created_at: string; has_image?: boolean }[];
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -151,6 +153,20 @@ export function WorkBoard(props: {
   const listRef = useRef({ status, assigneeId, ids: new Set<string>() });
   listRef.current = { status, assigneeId, ids: new Set(items.map((row) => row.id)) };
   const unread = useInboxUnread();
+  const detailRef = useRef<TaskDetail | null>(null);
+  detailRef.current = detail;
+
+  useEffect(() => {
+    if (!chatLayout) {
+      return;
+    }
+    return () => {
+      const current = detailRef.current;
+      if (current) {
+        rememberDockChat(current);
+      }
+    };
+  }, [chatLayout]);
 
   const failAuth = useCallback(
     (caught: ApiError) => {
@@ -320,7 +336,7 @@ export function WorkBoard(props: {
         ...current,
         version: event.version || current.version,
         status: statusNext,
-        messages: [...current.messages, { id: event.message_id, sender_type: event.sender_type, body: event.body, created_at: event.created_at }],
+        messages: [...current.messages, { id: event.message_id, sender_type: event.sender_type, body: event.body, created_at: event.created_at, has_image: event.has_image }],
       };
     });
     if (!known) {
@@ -631,19 +647,38 @@ export function WorkBoard(props: {
               const active = detail?.id === row.id;
               const className = ["chat-list__item", active ? "chat-list__item--active" : "", pending ? "chat-list__item--unread" : ""].filter(Boolean).join(" ");
               return (
-                <button key={row.id} type="button" className={className} onClick={() => void openTask(row.id)}>
-                  <span className="chat-avatar" aria-hidden="true">
-                    {chatInitial(row.customer_ref)}
-                  </span>
-                  <span className="chat-list__body">
-                    <span className="chat-list__top">
-                      <strong>{row.customer_ref}</strong>
-                      {pending ? <span className="chat-unread">{pending.count}</span> : <time>{shortTime(when)}</time>}
+                <div key={row.id} className="chat-list__row">
+                  <button type="button" className={className} onClick={() => void openTask(row.id)}>
+                    <span className="chat-avatar" aria-hidden="true">
+                      {chatInitial(row.customer_ref)}
                     </span>
-                    <span className="chat-list__preview">{pending?.body || row.last_message?.body || "Chưa có tin"}</span>
-                    <ChatFacts site={row.member?.site} channel={row.channel} assignee={row.assignee_name} status={row.status} logos={logos} oversight={oversight} />
-                  </span>
-                </button>
+                    <span className="chat-list__body">
+                      <span className="chat-list__top">
+                        <strong>{row.customer_ref}</strong>
+                        {pending ? <span className="chat-unread">{pending.count}</span> : <time>{shortTime(when)}</time>}
+                      </span>
+                      <span className="chat-list__preview">{pending?.body || row.last_message?.body || "Chưa có tin"}</span>
+                      <ChatFacts site={row.member?.site} channel={row.channel} assignee={row.assignee_name} status={row.status} logos={logos} oversight={oversight} />
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    className="chat-list__pin"
+                    title="Mở cửa sổ chat"
+                    onClick={() => {
+                      void api<TaskDetail>(`/api/v1/tasks/${row.id}`)
+                        .then((result) => openDockChat(result, true))
+                        .catch((caught: unknown) => {
+                          const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không mở được cửa sổ chat", "");
+                          if (!failAuth(problem)) {
+                            setError(problem);
+                          }
+                        });
+                    }}
+                  >
+                    <MessageOutlined />
+                  </button>
+                </div>
               );
             })}
           </aside>
@@ -661,6 +696,9 @@ export function WorkBoard(props: {
                     </div>
                   </div>
                   <Space wrap>
+                    <Button size="small" onClick={() => openDockChat(detail, true)}>
+                      Cửa sổ
+                    </Button>
                     {canHandle && open
                       ? nextStatuses.map((next) => (
                           <Button key={next} size="small" loading={busy} onClick={() => void changeStatus(next)}>
@@ -690,7 +728,7 @@ export function WorkBoard(props: {
                     const mine = message.sender_type !== "customer";
                     return (
                       <article key={message.id} className={mine ? "chat-bubble chat-bubble--agent" : "chat-bubble chat-bubble--customer"}>
-                        <p>{message.body}</p>
+                        <ChatBody taskId={detail.id} message={message} />
                         <time>{message.created_at ? formatStamp(message.created_at) : ""}</time>
                       </article>
                     );
@@ -755,10 +793,10 @@ export function WorkBoard(props: {
             </p>
             <div className="task-thread">
               {detail.messages.map((message) => (
-                <p key={message.id} className={message.sender_type === "agent" ? "task-line task-line--agent" : "task-line"}>
+                <div key={message.id} className={message.sender_type === "agent" ? "task-line task-line--agent" : "task-line"}>
                   <span>{message.sender_type === "customer" ? "Khách" : oversight ? detail.assignee_name || "Nhân viên" : "Bạn"}</span>
-                  {message.body}
-                </p>
+                  <ChatBody taskId={detail.id} message={message} />
+                </div>
               ))}
             </div>
             {canHandle && open ? (

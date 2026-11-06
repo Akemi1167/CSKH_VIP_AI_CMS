@@ -27,6 +27,7 @@ import { WorkBoard } from "./WorkBoard.tsx";
 import { PasswordDialog } from "./PasswordDialog.tsx";
 import { ScheduleBoard } from "./ScheduleBoard.tsx";
 import { StaffBoard } from "./StaffBoard.tsx";
+import { ChatDock } from "./ChatDock.tsx";
 import { armAlertSound, askChatNotification, startInboxWatch, stopInboxWatch, useInboxUnread } from "./inboxWatch.ts";
 
 type DeskPage = "overview" | "inbox" | "contacts" | "tasks" | "history" | "personal" | "queue" | "schedule" | "staff" | "customers" | "warehouse" | "distribute" | "campaigns" | "shift" | "effect" | "rewards" | "journal" | "stations" | "stationSms" | "callTasks" | "voice" | "voiceReview" | "smsHistory" | "voiceHistory" | "rateLimit" | "chatIdle" | "embed" | "telegram";
@@ -116,9 +117,6 @@ export function Desk(props: {
     const settings: NavLeaf[] = [];
     const sms: NavLeaf[] = [];
     const voice: NavLeaf[] = [];
-    if (canReadSettings) {
-      settings.push({ kind: "leaf", id: "stations", label: "Hậu đài", icon: <ShopOutlined /> });
-    }
     if (canReadCampaigns) {
       sms.push({ kind: "leaf", id: "stationSms", label: "Tin nhắn", icon: <CommentOutlined /> });
       sms.push({ kind: "leaf", id: "smsHistory", label: "Lịch sử tin nhắn", icon: <HistoryOutlined /> });
@@ -173,6 +171,9 @@ export function Desk(props: {
       });
     }
     const central: NavLeaf[] = [];
+    if (canReadSettings) {
+      central.push({ kind: "leaf", id: "stations", label: "Hậu đài", icon: <ShopOutlined /> });
+    }
     if (canReadCustomers) {
       central.push({ kind: "leaf", id: "warehouse", label: "Kho Data tập trung", icon: <BookOutlined /> });
       central.push({ kind: "leaf", id: "distribute", label: "Phân bổ Data", icon: <ShareAltOutlined /> });
@@ -328,7 +329,7 @@ export function Desk(props: {
               <p className="sidebar-user__name">{profile.display_name}</p>
               <p className="sidebar-user__role">{roleLine || profile.username}</p>
               <p className="sidebar-user__role">
-                <Switch size="small" checked={accepting} loading={acceptingBusy} onChange={(checked) => void setAvailability(checked)} /> Nhận việc
+                <Switch size="small" checked={accepting} loading={acceptingBusy} onChange={(checked) => void setAvailability(checked)} /> {accepting ? "Đang nhận việc" : "Đang nghỉ"}
               </p>
             </div>
             <button type="button" className="sidebar-user__logout" title="Đổi mật khẩu" onClick={() => setPasswordOpen(true)}>
@@ -342,8 +343,26 @@ export function Desk(props: {
         </div>
       </aside>
       {panel ? <SubPanel branch={panel} page={page} onOpen={openPage} onClose={() => setPanelBranchId(null)} /> : null}
+      {canReadTasks ? (
+        <ChatDock
+          page={page}
+          scope={canReadAllTasks ? "staff" : canReadTeamTasks ? "team" : "own"}
+          canUpdate={canUpdateTasks}
+          canManageAny={canReadAllTasks}
+          selfId={profile.id}
+          onUnauthorized={() => props.onLoggedOut("Phiên đã hết. Đăng nhập lại.")}
+          onMfaSetup={props.onMfaSetup}
+        />
+      ) : null}
       <main className="app-main bg-grid">
         <div className="app-main__inner">
+          <div className={accepting ? "availability" : "availability availability--paused"}>
+            <Switch checked={accepting} loading={acceptingBusy} onChange={(checked) => void setAvailability(checked)} />
+            <div>
+              <strong>{accepting ? "Đang nhận việc" : "Đang nghỉ"}</strong>
+              <p>{accepting ? "Gạt tắt khi ăn cơm hoặc đi vệ sinh. Việc đang mở vẫn ở chỗ bạn." : "Việc mới chưa giao cho bạn. Gạt lại khi sẵn sàng nhận tiếp."}</p>
+            </div>
+          </div>
           <ErrorAlert error={error} />
           {page === "overview" ? (
             <CareHome canReadTasks={canReadTasks} canReport={canReadCustomers || canReadTasks} onUnauthorized={() => props.onLoggedOut("Phiên đã hết. Đăng nhập lại.")} onMfaSetup={props.onMfaSetup} />
@@ -356,7 +375,7 @@ export function Desk(props: {
                   ? "Mọi hội thoại của tất cả đài. Chọn bên trái để xem và trả lời."
                   : canReadTeamTasks
                     ? "Hội thoại của nhân viên các đài bạn phụ trách. Có thể chuyển cho người khác hoặc thu về tự xử lý."
-                    : "Hội thoại đang giao cho bạn. Tin khách web tới ngay trên khung chat."
+                    : "Hội thoại đang giao cho bạn. Mở cửa sổ để chăm nhiều khách cùng lúc, kể cả khi sang màn khác."
               }
               layout="chat"
               scope={canReadAllTasks ? "staff" : canReadTeamTasks ? "team" : "own"}

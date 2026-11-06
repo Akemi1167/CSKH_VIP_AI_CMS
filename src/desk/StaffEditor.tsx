@@ -198,7 +198,7 @@ export function StaffEditor(props: {
             );
           })}
         </div>
-        <p className="page-note">Hàng chờ chỉ giao đúng loại hội thoại đã bật. Tắt cả hai thì người này không nhận hội thoại mới. Nút Nhận việc trên menu vẫn phải bật.</p>
+        <p className="page-note">Hàng chờ chỉ giao đúng loại hội thoại đã bật. Tắt cả hai thì người này không nhận hội thoại mới. Nút nhận việc trên desk vẫn phải bật.</p>
       </Form.Item>
 
       {props.draft.role_codes.includes("agent") ? (

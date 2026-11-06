@@ -14,6 +14,7 @@ export type LiveChatMessage = {
   version: number;
   sender_type: string;
   body: string;
+  has_image?: boolean;
   created_at: string;
   customer_ref: string;
   channel: string;
@@ -160,6 +161,7 @@ export class StaffChat {
         version: frame.version ?? 0,
         sender_type: frame.sender_type ?? "customer",
         body: frame.body,
+        has_image: frame.has_image === true,
         created_at: frame.created_at,
         customer_ref: frame.customer_ref ?? "",
         channel: frame.channel ?? "web_chat",
@@ -197,6 +199,7 @@ type Frame = {
   version?: number;
   sender_type?: string;
   body?: string;
+  has_image?: boolean;
   created_at?: string;
   customer_ref?: string;
   channel?: string;
