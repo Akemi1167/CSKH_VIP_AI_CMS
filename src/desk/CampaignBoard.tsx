@@ -1,8 +1,8 @@
-import { PlusOutlined, ReloadOutlined, UploadOutlined } from "@ant-design/icons";
+import { DownloadOutlined, PlusOutlined, ReloadOutlined, UploadOutlined } from "@ant-design/icons";
 import { Button, Drawer, Form, Input, Select, Space, Table, Typography } from "antd";
 import type { TableColumnsType } from "antd";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ApiError, api } from "../api.ts";
+import { ApiError, api, toApiUrl } from "../api.ts";
 import { formatStamp } from "../copy.ts";
 import { LaafficWebhooks } from "./LaafficWebhooks.tsx";
 import { TestVoice } from "./VoiceBoard.tsx";
@@ -353,6 +353,31 @@ export function CampaignBoard(props: {
     }
   }
 
+  async function downloadTemplate() {
+    setReadingFile(true);
+    setError(null);
+    try {
+      const response = await fetch(toApiUrl("/api/v1/campaigns/voice-roster/template"), {
+        credentials: "include",
+        headers: { "x-request-id": crypto.randomUUID() },
+      });
+      if (!response.ok) {
+        throw new ApiError(response.status, "download_failed", "Không tải được file mẫu", "");
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "mau-goi-nhom.xlsx";
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (caught) {
+      catchProblem(caught, "Không tải được file mẫu");
+    } finally {
+      setReadingFile(false);
+    }
+  }
+
   async function readRosterFile(file: File) {
     const name = file.name.toLowerCase();
     if (!name.endsWith(".csv") && !name.endsWith(".xlsx")) {
@@ -497,8 +522,11 @@ export function CampaignBoard(props: {
           <Form.Item label="Số lần gọi" help="Kể cả lần đầu. Chưa kết nối thì gọi lại sau 15 phút.">
             <Select value={draft.maxAttempts} onChange={(value) => setDraft({ ...draft, maxAttempts: value })} options={["1", "2", "3", "4", "5"].map((value) => ({ value, label: value }))} />
           </Form.Item>
-          <Form.Item label="Danh sách hội viên" help="Mỗi dòng 4 cột, cách nhau bằng tab hoặc dấu phẩy: tài khoản, số điện thoại, cấp VIP, đài. File .csv hoặc .xlsx cùng 4 cột, tối đa 1 MB và 500 dòng. Dòng tiêu đề nếu có sẽ được bỏ qua.">
+          <Form.Item label="Danh sách hội viên" help="Tải file mẫu, điền hội viên, rồi nhập lại. Tiêu đề có tiếng Việt và tiếng Trung. Xóa hai dòng màu kem trước khi tải lên.">
             <div className="roster-file">
+              <Button htmlType="button" icon={<DownloadOutlined />} disabled={busy || readingFile} onClick={() => void downloadTemplate()}>
+                Tải file mẫu
+              </Button>
               <Button htmlType="button" icon={<UploadOutlined />} loading={readingFile} disabled={busy} onClick={() => rosterFileRef.current?.click()}>
                 Nhập Excel / CSV
               </Button>
