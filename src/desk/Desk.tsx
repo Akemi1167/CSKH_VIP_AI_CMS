@@ -1,4 +1,4 @@
-import { AppstoreOutlined, AuditOutlined, BarChartOutlined, BookOutlined, CheckSquareOutlined, ClockCircleOutlined, CommentOutlined, FundOutlined, GiftOutlined, GlobalOutlined, HistoryOutlined, KeyOutlined, LeftOutlined, LogoutOutlined, MailOutlined, MessageOutlined, PhoneOutlined, PictureOutlined, SearchOutlined, SendOutlined, SettingOutlined, ShareAltOutlined, ShopOutlined, TeamOutlined, UnorderedListOutlined, UserOutlined } from "@ant-design/icons";
+import { AppstoreOutlined, AuditOutlined, BarChartOutlined, BookOutlined, CheckSquareOutlined, ClockCircleOutlined, CommentOutlined, FundOutlined, GiftOutlined, GlobalOutlined, HistoryOutlined, KeyOutlined, LayoutOutlined, LeftOutlined, LogoutOutlined, MailOutlined, MessageOutlined, PhoneOutlined, PictureOutlined, SearchOutlined, SendOutlined, SettingOutlined, ShareAltOutlined, ShopOutlined, TeamOutlined, UnorderedListOutlined, UserOutlined } from "@ant-design/icons";
 import { Button, Input, Modal, Space, Switch } from "antd";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { ApiError, api, probe, setCsrfToken } from "../api.ts";
@@ -10,6 +10,7 @@ import { CareHistoryBoard, CareHome, ContactBoard, PersonalReportBoard } from ".
 import { CustomerBoard } from "./CustomerBoard.tsx";
 import { ChatIdleBoard } from "./ChatIdleBoard.tsx";
 import { EmbedBoard } from "./EmbedBoard.tsx";
+import { HomeBoard } from "./HomeBoard.tsx";
 import { DataBoard } from "./DataBoard.tsx";
 import { JournalBoard } from "./JournalBoard.tsx";
 import { QueueBoard } from "./QueueBoard.tsx";
@@ -31,7 +32,7 @@ import { ChatDock } from "./ChatDock.tsx";
 import { MediaBoard } from "./MediaBoard.tsx";
 import { armAlertSound, askChatNotification, startInboxWatch, stopInboxWatch, useInboxUnread } from "./inboxWatch.ts";
 
-type DeskPage = "overview" | "inbox" | "contacts" | "tasks" | "history" | "personal" | "queue" | "schedule" | "staff" | "customers" | "warehouse" | "distribute" | "campaigns" | "shift" | "effect" | "rewards" | "journal" | "stations" | "media" | "stationSms" | "callTasks" | "voice" | "voiceReview" | "smsHistory" | "voiceHistory" | "rateLimit" | "chatIdle" | "embed" | "telegram";
+type DeskPage = "overview" | "inbox" | "contacts" | "tasks" | "history" | "personal" | "queue" | "schedule" | "staff" | "customers" | "warehouse" | "distribute" | "campaigns" | "shift" | "effect" | "rewards" | "journal" | "stations" | "media" | "stationSms" | "callTasks" | "voice" | "voiceReview" | "smsHistory" | "voiceHistory" | "rateLimit" | "chatIdle" | "embed" | "home" | "telegram";
 
 type NavLeaf = { kind: "leaf"; id: DeskPage; label: string; icon: ReactNode };
 type NavGroup = { label?: string; items: NavLeaf[] };
@@ -140,6 +141,7 @@ export function Desk(props: {
       settings.push({ kind: "leaf", id: "rateLimit", label: "Không chặn IP", icon: <GlobalOutlined /> });
       settings.push({ kind: "leaf", id: "chatIdle", label: "Thời gian chat", icon: <ClockCircleOutlined /> });
       settings.push({ kind: "leaf", id: "embed", label: "Chat nhúng", icon: <MessageOutlined /> });
+      settings.push({ kind: "leaf", id: "home", label: "Trang chủ", icon: <LayoutOutlined /> });
     }
     if (canManageTelegram) {
       settings.push({ kind: "leaf", id: "telegram", label: "Telegram", icon: <SendOutlined /> });
@@ -531,6 +533,9 @@ export function Desk(props: {
           ) : null}
           {page === "embed" && canReadSettings ? (
             <EmbedBoard onUnauthorized={endSession} onMfaSetup={props.onMfaSetup} />
+          ) : null}
+          {page === "home" && canReadSettings ? (
+            <HomeBoard canWrite={canWriteSettings} onUnauthorized={endSession} onMfaSetup={props.onMfaSetup} />
           ) : null}
           {page === "telegram" && canManageTelegram ? (
             <TelegramBoard onUnauthorized={endSession} onMfaSetup={props.onMfaSetup} />

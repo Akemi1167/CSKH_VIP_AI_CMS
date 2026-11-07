@@ -1107,6 +1107,44 @@ a {
   margin-bottom: 1.5rem;
 }
 
+.home-editor {
+  display: grid;
+  gap: 28px;
+}
+
+.home-editor > section > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.home-editor h5 {
+  margin: 0;
+}
+
+.home-row {
+  display: grid;
+  grid-template-columns: minmax(140px, 220px) minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: start;
+  margin-bottom: 8px;
+}
+
+.home-row--banner {
+  grid-template-columns: minmax(0, 1fr);
+  padding: 12px;
+  border: 1px solid var(--c-border);
+  border-radius: 12px;
+  background: var(--c-card);
+}
+
+.home-row__actions {
+  display: flex;
+  gap: 6px;
+}
+
 .page-header__actions {
   display: flex;
   flex-shrink: 0;
