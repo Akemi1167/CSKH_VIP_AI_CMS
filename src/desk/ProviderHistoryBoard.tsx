@@ -1,4 +1,4 @@
-import { Button, Input, Modal, Table, Typography } from "antd";
+import { Button, Input, Modal, Spin, Table, Tag, Typography } from "antd";
 import type { TableColumnsType } from "antd";
 import { useCallback, useEffect, useState } from "react";
 import { ApiError, api } from "../api.ts";
@@ -179,15 +179,6 @@ export function ProviderHistoryBoard(props: {
   ];
   const calls = items.filter((row) => !isTaskRow(row)).sort((a, b) => timeValue(b.happened_at) - timeValue(a.happened_at));
   const tasks = items.filter(isTaskRow).sort((a, b) => timeValue(taskMoment(b, calls)) - timeValue(taskMoment(a, calls)));
-  const taskColumns: TableColumnsType<HistoryItem> = [
-    { title: "Lúc gọi", width: 168, render: (_value, row) => stamp(taskMoment(row, calls)) },
-    { title: "Task", ellipsis: true, render: (_value, row) => <TaskTitle row={row} /> },
-    { title: "Trạng thái", width: 140, dataIndex: "status_label" },
-    { title: "Tiến độ", width: 100, render: (_value, row) => percent(row.facts?.progress) },
-    { title: "Kết quả", width: 280, render: (_value, row) => taskSummary(row) },
-    { title: "Số đã gọi", render: (_value, row) => reportedNumbers(callsFor(row, calls)) },
-    { title: "Tỷ lệ nghe", width: 120, render: (_value, row) => percent(row.facts?.answer_rate) },
-  ];
   const attached = new Set(tasks.flatMap((task) => callsFor(task, calls).map((call) => call.provider_ref)));
   const looseCalls = calls.filter((call) => !attached.has(call.provider_ref));
 
@@ -209,7 +200,7 @@ export function ProviderHistoryBoard(props: {
       <p className="page-note" style={{ marginTop: 0 }}>
         {props.channel === "sms"
           ? "Lấy 7 ngày gần nhất. Số được che. Không lưu nội dung tin."
-          : "Tự lấy báo cáo Laaffic mỗi 2 phút. Bấm một task để xem từng số đã gọi. Số và file nghe chỉ có khi Laaffic gửi báo cáo cuộc gọi về."}
+          : "Tự lấy báo cáo Laaffic mỗi 2 phút. Mỗi task là một thẻ, các cuộc gọi nằm trong thẻ đó. Số và file nghe chỉ có khi Laaffic gửi báo cáo cuộc gọi về."}
       </p>
       {props.channel === "ai_voice" ? <LaafficWebhooks onUnauthorized={props.onUnauthorized} onMfaSetup={props.onMfaSetup} /> : null}
       {error ? <ErrorAlert error={error} /> : null}
@@ -259,19 +250,17 @@ export function ProviderHistoryBoard(props: {
         <Table rowKey="provider_ref" size="middle" columns={smsColumns} dataSource={items} loading={loading} pagination={false} locale={{ emptyText: "Chưa có lịch sử. Bấm đồng bộ để lấy từ Laaffic." }} />
       ) : (
         <>
-          <Typography.Title level={5}>Task gọi nhóm</Typography.Title>
-          <Table
-            className="history-table"
-            rowKey="provider_ref"
-            size="middle"
-            columns={taskColumns}
-            dataSource={tasks}
-            loading={loading}
-            pagination={false}
-            locale={{ emptyText: filters.task || filters.phone || filters.account ? "Không có task khớp bộ lọc." : "Chưa có task." }}
-            expandable={{
-              expandedRowRender: (task) => (
-                <TaskCalls
+          {loading && tasks.length === 0 ? (
+            <div className="voice-tasks__loading">
+              <Spin />
+            </div>
+          ) : tasks.length === 0 ? (
+            <p className="page-note">{filters.task || filters.phone || filters.account ? "Không có task khớp bộ lọc." : "Chưa có task."}</p>
+          ) : (
+            <div className="voice-tasks">
+              {tasks.map((task) => (
+                <VoiceTaskCard
+                  key={task.provider_ref}
                   task={task}
                   calls={callsFor(task, calls)}
                   columns={callColumns}
@@ -281,10 +270,9 @@ export function ProviderHistoryBoard(props: {
                     }
                   }}
                 />
-              ),
-              rowExpandable: () => true,
-            }}
-          />
+              ))}
+            </div>
+          )}
           {looseCalls.length > 0 ? (
             <div className="history-block">
               <Typography.Title level={5}>Cuộc gọi chưa gắn task</Typography.Title>
@@ -330,16 +318,6 @@ function taskMoment(task: HistoryItem, calls: HistoryItem[]): string | null {
   return best;
 }
 
-function TaskTitle(props: { row: HistoryItem }) {
-  const name = props.row.facts?.task_name || props.row.facts?.task_id || props.row.detail || "—";
-  return (
-    <div>
-      <div>{name}</div>
-      {props.row.campaign_name ? <Typography.Text type="secondary">{props.row.campaign_name}</Typography.Text> : null}
-    </div>
-  );
-}
-
 function isTaskRow(row: HistoryItem): boolean {
   const facts = row.facts;
   return row.phone_mask === "—" && (facts?.number_count != null || facts?.called_count != null || Boolean(facts?.progress));
@@ -372,15 +350,64 @@ function callsFor(task: HistoryItem, calls: HistoryItem[]): HistoryItem[] {
   });
 }
 
-function reportedNumbers(calls: HistoryItem[]): string {
-  const phones = calls.map((call) => call.phone_mask).filter((phone) => phone && phone !== "—");
-  if (phones.length === 0) {
-    return "Chưa báo về";
+function VoiceTaskCard(props: { task: HistoryItem; calls: HistoryItem[]; columns: TableColumnsType<HistoryItem>; onFail: (error: ApiError) => void }) {
+  const named = props.task.facts?.task_name;
+  const campaign = props.task.campaign_name;
+  const title = named || campaign || "Task gọi nhóm";
+  const id = props.task.facts?.task_id || props.task.provider_ref;
+  const facts = props.task.facts;
+  const stats = [
+    ["Tiến độ", percent(facts?.progress)],
+    ["Số", facts?.number_count != null ? String(facts.number_count) : "—"],
+    ["Đã gọi", facts?.called_count != null ? String(facts.called_count) : "—"],
+    ["Nghe máy", facts?.answered_count != null ? String(facts.answered_count) : "—"],
+    ["Lỗi", facts?.failed_count != null ? String(facts.failed_count) : "—"],
+    ["Tỷ lệ nghe", percent(facts?.answer_rate)],
+  ];
+  return (
+    <article className="voice-task">
+      <header className="voice-task__head">
+        <div>
+          <p className="voice-task__kicker">Task gọi nhóm</p>
+          <h3 className="voice-task__title">{title}</h3>
+          <p className="voice-task__id">{id}</p>
+          {named && campaign && named !== campaign ? <p className="voice-task__campaign">Chiến dịch {campaign}</p> : null}
+        </div>
+        <div className="voice-task__meta">
+          <Tag color={taskStatusColor(props.task.status_label)}>{props.task.status_label}</Tag>
+          <time>{stamp(taskMoment(props.task, props.calls))}</time>
+        </div>
+      </header>
+      <dl className="voice-task__stats">
+        {stats.map(([label, value]) => (
+          <div key={label}>
+            <dt>{label}</dt>
+            <dd>{value}</dd>
+          </div>
+        ))}
+      </dl>
+      <div className="voice-task__calls">
+        <p className="voice-task__calls-label">{props.calls.length > 0 ? `${props.calls.length} cuộc gọi` : "Từng cuộc gọi"}</p>
+        <TaskCalls task={props.task} calls={props.calls} columns={props.columns} onFail={props.onFail} />
+      </div>
+    </article>
+  );
+}
+
+function taskStatusColor(label: string): string {
+  if (label === "Đang gọi" || label === "Đang gửi") {
+    return "blue";
   }
-  if (phones.length <= 2) {
-    return phones.join(", ");
+  if (label === "Đã gọi xong") {
+    return "green";
   }
-  return `${phones.slice(0, 2).join(", ")} +${phones.length - 2}`;
+  if (label === "Gửi lỗi") {
+    return "red";
+  }
+  if (label === "Tạm dừng") {
+    return "gold";
+  }
+  return "default";
 }
 
 function TaskCalls(props: { task: HistoryItem; calls: HistoryItem[]; columns: TableColumnsType<HistoryItem>; onFail: (error: ApiError) => void }) {
@@ -419,17 +446,6 @@ function CallTable(props: { calls: HistoryItem[]; columns: TableColumnsType<Hist
       ) : null}
     </div>
   );
-}
-
-function taskSummary(row: HistoryItem): string {
-  const facts = row.facts;
-  const parts = [
-    facts?.number_count != null ? `${facts.number_count} số` : "",
-    facts?.called_count != null ? `${facts.called_count} đã gọi` : "",
-    facts?.answered_count != null ? `${facts.answered_count} nghe` : "",
-    facts?.failed_count != null ? `${facts.failed_count} lỗi` : "",
-  ].filter(Boolean);
-  return parts.length > 0 ? parts.join(" · ") : "—";
 }
 
 function CallOutcome(props: { row: HistoryItem }) {

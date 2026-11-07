@@ -1215,6 +1215,125 @@ a {
   height: 40px;
 }
 
+.voice-tasks {
+  display: grid;
+  gap: 16px;
+}
+
+.voice-tasks__loading {
+  display: grid;
+  place-items: center;
+  min-height: 160px;
+}
+
+.voice-task {
+  overflow: hidden;
+  border: 1px solid #2a3142;
+  border-left: 3px solid #3d7eff;
+  border-radius: 12px;
+  background: #161922;
+}
+
+.voice-task__head {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 16px 16px 12px;
+}
+
+.voice-task__kicker,
+.voice-task__id,
+.voice-task__campaign,
+.voice-task__meta {
+  margin: 0;
+  color: #9aa3b5;
+  font-size: 12px;
+}
+
+.voice-task__kicker {
+  margin-bottom: 4px;
+}
+
+.voice-task__title {
+  margin: 0;
+  color: #eef0f6;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.voice-task__id {
+  margin-top: 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.voice-task__campaign {
+  margin-top: 2px;
+}
+
+.voice-task__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-end;
+  white-space: nowrap;
+}
+
+.voice-task__stats {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0 16px 12px;
+}
+
+.voice-task__stats div {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #10141c;
+}
+
+.voice-task__stats dt {
+  color: #9aa3b5;
+  font-size: 12px;
+}
+
+.voice-task__stats dd {
+  margin: 2px 0 0;
+  color: #eef0f6;
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.voice-task__calls-label {
+  margin: 0;
+  padding: 8px 16px;
+  border-top: 1px solid #2a3142;
+  background: #10141c;
+  color: #9aa3b5;
+  font-size: 12px;
+}
+
+.voice-task__calls .history-calls {
+  padding: 0 8px 8px;
+  background: #10141c;
+}
+
+@media (max-width: 900px) {
+  .voice-task__head {
+    flex-direction: column;
+  }
+
+  .voice-task__meta {
+    align-items: flex-start;
+  }
+
+  .voice-task__stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
 .page-header__title {
   margin: 0 0 4px !important;
   color: #eef0f6 !important;
