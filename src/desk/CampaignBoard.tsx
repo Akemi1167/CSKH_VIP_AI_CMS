@@ -1,7 +1,7 @@
-import { PlusOutlined, ReloadOutlined } from "@ant-design/icons";
+import { PlusOutlined, ReloadOutlined, UploadOutlined } from "@ant-design/icons";
 import { Button, Drawer, Form, Input, Select, Space, Table, Typography } from "antd";
 import type { TableColumnsType } from "antd";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, api } from "../api.ts";
 import { formatStamp } from "../copy.ts";
 import { LaafficWebhooks } from "./LaafficWebhooks.tsx";
@@ -117,6 +117,8 @@ export function CampaignBoard(props: {
   const [attemptChoice, setAttemptChoice] = useState("2");
   const [careNote, setCareNote] = useState("");
   const [busy, setBusy] = useState(false);
+  const [readingFile, setReadingFile] = useState(false);
+  const rosterFileRef = useRef<HTMLInputElement>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [stations, setStations] = useState<string[]>([]);
   const [draft, setDraft] = useState({ name: "", channel: (props.voiceTasks ? "ai_voice" : "sms") as Channel, site: "", body: "", destinationUrl: "", agentId: "", dimensionId: "", maxAttempts: "2" });
@@ -351,6 +353,35 @@ export function CampaignBoard(props: {
     }
   }
 
+  async function readRosterFile(file: File) {
+    const name = file.name.toLowerCase();
+    if (!name.endsWith(".csv") && !name.endsWith(".xlsx")) {
+      setError(new ApiError(400, "validation_error", "Chỉ nhận file .csv hoặc .xlsx", ""));
+      return;
+    }
+    if (file.size === 0 || file.size > 1_048_576) {
+      setError(new ApiError(400, "validation_error", file.size === 0 ? "File trống" : "File vượt 1 MB", ""));
+      return;
+    }
+    const body = new FormData();
+    body.set("file", file);
+    setReadingFile(true);
+    setError(null);
+    try {
+      const result = await api<{ rows: { account: string; phone: string; tier: string; site: string }[] }>("/api/v1/campaigns/voice-roster/file", {
+        method: "POST",
+        body,
+      });
+      setCallList(result.rows.map((row) => [row.account, row.phone, row.tier, row.site].join("\t")).join("\n"));
+      setSkips([]);
+      setListNote(`Đã đọc ${result.rows.length} dòng từ file. Kiểm tra rồi tạo task.`);
+    } catch (caught) {
+      catchProblem(caught, "Không đọc được file");
+    } finally {
+      setReadingFile(false);
+    }
+  }
+
   async function createTask() {
     const name = draft.name.trim();
     if (name.length < 2) {
@@ -466,7 +497,24 @@ export function CampaignBoard(props: {
           <Form.Item label="Số lần gọi" help="Kể cả lần đầu. Chưa kết nối thì gọi lại sau 15 phút.">
             <Select value={draft.maxAttempts} onChange={(value) => setDraft({ ...draft, maxAttempts: value })} options={["1", "2", "3", "4", "5"].map((value) => ({ value, label: value }))} />
           </Form.Item>
-          <Form.Item label="Danh sách hội viên" help="Mỗi dòng 4 cột, cách nhau bằng tab hoặc dấu phẩy: tài khoản, số điện thoại, cấp VIP, đài. Dòng tiêu đề nếu có sẽ được bỏ qua.">
+          <Form.Item label="Danh sách hội viên" help="Mỗi dòng 4 cột, cách nhau bằng tab hoặc dấu phẩy: tài khoản, số điện thoại, cấp VIP, đài. File .csv hoặc .xlsx cùng 4 cột, tối đa 1 MB và 500 dòng. Dòng tiêu đề nếu có sẽ được bỏ qua.">
+            <div className="roster-file">
+              <Button htmlType="button" icon={<UploadOutlined />} loading={readingFile} disabled={busy} onClick={() => rosterFileRef.current?.click()}>
+                Nhập Excel / CSV
+              </Button>
+              <input
+                ref={rosterFileRef}
+                type="file"
+                accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  event.target.value = "";
+                  if (file) {
+                    void readRosterFile(file);
+                  }
+                }}
+              />
+            </div>
             <Input.TextArea rows={8} value={callList} placeholder={"vipuser01\t0901234567\tVIP1\tJ88"} onChange={(event) => setCallList(event.target.value)} />
           </Form.Item>
           <Button type="primary" htmlType="submit" loading={busy} disabled={callList.trim().length === 0 || draft.name.trim().length < 2 || draft.agentId.trim().length === 0}>

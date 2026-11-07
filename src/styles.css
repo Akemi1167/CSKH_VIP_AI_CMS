@@ -1791,6 +1791,26 @@ a {
   margin-bottom: 16px;
 }
 
+.roster-file {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.roster-file input[type="file"] {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  margin: -1px !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  clip-path: inset(50%) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+  opacity: 0 !important;
+}
+
 .shift-card,
 .shift-form {
   padding: 16px;
