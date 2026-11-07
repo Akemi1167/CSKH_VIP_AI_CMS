@@ -1239,25 +1239,28 @@ a {
   gap: 16px;
   align-items: flex-start;
   justify-content: space-between;
-  padding: 16px 16px 12px;
+  padding: 16px;
+  background: linear-gradient(90deg, #1a4a8a 0%, #17315c 55%, #152238 100%);
+  border-bottom: 1px solid #3d6ec4;
 }
 
 .voice-task__kicker,
 .voice-task__id,
-.voice-task__campaign,
 .voice-task__meta {
   margin: 0;
-  color: #9aa3b5;
+  color: #c5d7f5;
   font-size: 12px;
 }
 
 .voice-task__kicker {
   margin-bottom: 4px;
+  color: #9ec0ff;
+  font-weight: 600;
 }
 
 .voice-task__title {
   margin: 0;
-  color: #eef0f6;
+  color: #ffffff;
   font-size: 18px;
   font-weight: 700;
   letter-spacing: -0.02em;
@@ -1269,7 +1272,10 @@ a {
 }
 
 .voice-task__campaign {
-  margin-top: 2px;
+  margin: 6px 0 0;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 650;
 }
 
 .voice-task__meta {
