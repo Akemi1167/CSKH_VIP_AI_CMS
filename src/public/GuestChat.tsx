@@ -1,3 +1,4 @@
+import { PictureOutlined } from "@ant-design/icons";
 import { Button, Input } from "antd";
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { ApiError, api, toApiUrl, toWsUrl } from "../api.ts";
@@ -273,8 +274,8 @@ export function GuestChat() {
                   send();
                 }}
               >
-                <label className="chat-photo-send">
-                  Ảnh
+                <label className="chat-photo-send" title="Gửi ảnh" aria-label="Gửi ảnh">
+                  <PictureOutlined />
                   <input
                     ref={fileRef}
                     type="file"

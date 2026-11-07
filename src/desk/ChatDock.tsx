@@ -1,4 +1,4 @@
-import { CloseOutlined, MinusOutlined } from "@ant-design/icons";
+import { CloseOutlined, MinusOutlined, PictureOutlined } from "@ant-design/icons";
 import { Button, Input } from "antd";
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import { ApiError, api } from "../api.ts";
@@ -283,8 +283,8 @@ export function ChatDock(props: {
                     void send(chat.task.id, chat.task, chat.draft);
                   }}
                 />
-                <label className="chat-photo-send">
-                  Ảnh
+                <label className="chat-photo-send" title="Gửi ảnh" aria-label="Gửi ảnh">
+                  <PictureOutlined />
                   <input
                     type="file"
                     accept="image/png,image/jpeg,image/webp,image/gif"

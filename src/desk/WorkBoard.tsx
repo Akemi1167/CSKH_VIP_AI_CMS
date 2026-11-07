@@ -1,4 +1,4 @@
-import { MessageOutlined, ReloadOutlined } from "@ant-design/icons";
+import { MessageOutlined, PictureOutlined, ReloadOutlined } from "@ant-design/icons";
 import { Alert, Button, Drawer, Form, Input, Modal, Select, Space, Table, Tag, Typography } from "antd";
 import type { TableColumnsType } from "antd";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -802,8 +802,8 @@ export function WorkBoard(props: {
                         void sendReply();
                       }}
                     />
-                    <label className="chat-photo-send">
-                      Ảnh
+                    <label className="chat-photo-send" title="Gửi ảnh" aria-label="Gửi ảnh">
+                      <PictureOutlined />
                       <input
                         type="file"
                         accept="image/png,image/jpeg,image/webp,image/gif"
