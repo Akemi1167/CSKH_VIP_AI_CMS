@@ -309,6 +309,30 @@ export function WorkBoard(props: {
     }
   }
 
+  async function reopenChat() {
+    if (!detail) {
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await api(`/api/v1/tasks/${detail.id}/reopen`, { method: "POST", body: { version: detail.version } });
+      const nextFilter = status === "COMPLETED" ? (oversight ? "all" : "open") : status;
+      if (nextFilter !== status) {
+        setStatus(nextFilter);
+      }
+      await load(nextFilter, assigneeId);
+      await openTask(detail.id);
+    } catch (caught) {
+      const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không mở lại được hội thoại", "");
+      if (!failAuth(problem)) {
+        setError(problem);
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function applyLiveMessage(event: LiveChatMessage) {
     const known = listRef.current.ids.has(event.task_id);
     setItems((current) => {
@@ -561,6 +585,7 @@ export function WorkBoard(props: {
   const nextStatuses = detail ? (NEXT_STATUS[detail.status] ?? []) : [];
   const open = detail ? nextStatuses.length > 0 : false;
   const canHandle = Boolean(detail && props.canUpdate && (props.canManageAny || detail.assignee_user_id === props.selfId));
+  const canReopen = Boolean(detail && props.canUpdate && detail.channel === "telegram" && detail.status === "COMPLETED");
   const canMove = Boolean(props.canTransfer && open && (props.scope === "team" || props.canListStaff));
   const canPull = Boolean(canMove && props.scope === "team" && detail && detail.assignee_user_id !== props.selfId);
 
@@ -829,6 +854,13 @@ export function WorkBoard(props: {
                       Gửi
                     </Button>
                   </Form>
+                ) : canReopen ? (
+                  <div className="chat-compose">
+                    <p className="chat-note">Hội thoại Telegram đã đóng. Mở lại để nhắn tiếp.</p>
+                    <Button type="primary" loading={busy} onClick={() => void reopenChat()}>
+                      Mở lại
+                    </Button>
+                  </div>
                 ) : canPull ? (
                   <p className="chat-note">Hội thoại đang của nhân viên. Thu về nếu bạn muốn trả lời.</p>
                 ) : (
@@ -887,6 +919,10 @@ export function WorkBoard(props: {
                   ) : null}
                 </Space>
               </Form>
+            ) : canReopen ? (
+              <Button type="primary" loading={busy} onClick={() => void reopenChat()}>
+                Mở lại
+              </Button>
             ) : open && !canHandle ? (
               <p className="page-note">Hội thoại đang của nhân viên. Thu về nếu bạn muốn trả lời.</p>
             ) : (

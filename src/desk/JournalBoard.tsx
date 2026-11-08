@@ -366,6 +366,7 @@ const AUDIT_FILTERS = [
   { value: "customers.import", label: "Nhập hội viên" },
   { value: "task.update", label: "Đổi trạng thái task" },
   { value: "task.reply", label: "Trả lời task" },
+  { value: "task.reopen", label: "Mở lại hội thoại Telegram" },
   { value: "task.assign", label: "Giao task" },
   { value: "task.transfer", label: "Chuyển task" },
   { value: "customers.care", label: "Gắn nhãn chăm sóc" },
@@ -485,6 +486,9 @@ function describeAudit(row: AuditEvent, names: Map<string, string>): string {
   }
   if (row.action === "task.reply") {
     return "Trả lời một task.";
+  }
+  if (row.action === "task.reopen") {
+    return "Mở lại hội thoại Telegram đã đóng.";
   }
   if (row.action === "task.assign" || row.action === "task.transfer") {
     const who = text(summary.to_user_id) ? (names.get(text(summary.to_user_id)) ?? "một nhân viên") : "một nhân viên";

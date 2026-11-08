@@ -125,6 +125,19 @@ export function ChatDock(props: {
     }
   }
 
+  async function reopen(id: string, version: number) {
+    setBusyId(id);
+    setErrors((current) => ({ ...current, [id]: "" }));
+    try {
+      await api(`/api/v1/tasks/${id}/reopen`, { method: "POST", body: { version } });
+      await refresh(id);
+    } catch (caught) {
+      fail(id, caught);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   async function refresh(id: string) {
     try {
       const task = await api<DockTask>(`/api/v1/tasks/${id}`);
@@ -206,6 +219,7 @@ export function ChatDock(props: {
       {windows.map((chat) => {
         const open = OPEN_STATUS.has(chat.task.status);
         const canHandle = props.canUpdate && open && (props.canManageAny || chat.task.assignee_user_id === props.selfId);
+        const canReopen = props.canUpdate && chat.task.channel === "telegram" && chat.task.status === "COMPLETED" && (props.canManageAny || !chat.task.assignee_user_id || chat.task.assignee_user_id === props.selfId);
         const name = guestName(chat.task);
         const nextStatuses = NEXT_STATUS[chat.task.status] ?? [];
         if (!chat.expanded) {
@@ -306,7 +320,16 @@ export function ChatDock(props: {
                 </Button>
               </form>
             ) : (
-              <p className="chat-dock__note">{open ? "Hội thoại đang của nhân viên khác." : "Hội thoại đã đóng."}</p>
+              <>
+                {canReopen ? (
+                  <div className="chat-dock__actions">
+                    <Button size="small" type="primary" loading={busyId === chat.task.id} onClick={() => void reopen(chat.task.id, chat.task.version)}>
+                      Mở lại
+                    </Button>
+                  </div>
+                ) : null}
+                <p className="chat-dock__note">{open ? "Hội thoại đang của nhân viên khác." : canReopen ? "Hội thoại Telegram đã đóng. Mở lại để nhắn tiếp." : "Hội thoại đã đóng."}</p>
+              </>
             )}
           </section>
         );

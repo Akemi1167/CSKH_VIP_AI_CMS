@@ -630,6 +630,12 @@ a {
   border-top: 1px solid var(--c-border);
 }
 
+.chat-compose .chat-note {
+  flex: 1;
+  margin: 0;
+  padding: 0 0 8px;
+}
+
 .chat-compose__error,
 .chat-note {
   margin: 0;
