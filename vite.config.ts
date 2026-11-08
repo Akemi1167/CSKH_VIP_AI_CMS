@@ -7,6 +7,27 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react()],
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (id.includes("node_modules/react-dom") || id.includes("node_modules/react/") || id.includes("node_modules/scheduler")) {
+              return "react";
+            }
+            if (
+              id.includes("node_modules/antd") ||
+              id.includes("node_modules/@ant-design") ||
+              id.includes("node_modules/@rc-component") ||
+              id.includes("node_modules/dayjs") ||
+              /node_modules\/rc-[^/]+/.test(id)
+            ) {
+              return "ui";
+            }
+            return undefined;
+          },
+        },
+      },
+    },
     server: {
       port: 5174,
       strictPort: true,

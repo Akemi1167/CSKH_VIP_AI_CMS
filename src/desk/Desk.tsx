@@ -1,38 +1,46 @@
 import { AppstoreOutlined, AuditOutlined, BarChartOutlined, BookOutlined, CheckSquareOutlined, ClockCircleOutlined, CommentOutlined, FundOutlined, GiftOutlined, GlobalOutlined, HistoryOutlined, KeyOutlined, LayoutOutlined, LeftOutlined, LogoutOutlined, MailOutlined, MessageOutlined, PhoneOutlined, PictureOutlined, SearchOutlined, SendOutlined, SettingOutlined, ShareAltOutlined, ShopOutlined, TeamOutlined, UnorderedListOutlined, UserOutlined } from "@ant-design/icons";
-import { Button, Input, Modal, Space, Switch } from "antd";
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { Button, Input, Modal, Space, Spin, Switch } from "antd";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState, type ComponentType, type ReactNode } from "react";
 import { ApiError, api, probe, setCsrfToken } from "../api.ts";
 import { roleName } from "../copy.ts";
 import type { UserProfile } from "../types.ts";
 import { ErrorAlert } from "../ui.tsx";
-import { CampaignBoard } from "./CampaignBoard.tsx";
-import { CareHistoryBoard, CareHome, ContactBoard, PersonalReportBoard } from "./CareDesk.tsx";
-import { CustomerBoard } from "./CustomerBoard.tsx";
-import { ChatIdleBoard } from "./ChatIdleBoard.tsx";
-import { EmbedBoard } from "./EmbedBoard.tsx";
-import { HomeBoard } from "./HomeBoard.tsx";
-import { DataBoard } from "./DataBoard.tsx";
-import { JournalBoard } from "./JournalBoard.tsx";
-import { QueueBoard } from "./QueueBoard.tsx";
-import { VerifyBoard } from "./VerifyBoard.tsx";
-import { RateLimitBoard } from "./RateLimitBoard.tsx";
-import { RewardBoard } from "./RewardBoard.tsx";
-import { EffectBoard } from "./EffectBoard.tsx";
-import { ShiftBoard } from "./ShiftBoard.tsx";
-import { VoiceReviewBoard } from "./VoiceReviewBoard.tsx";
-import { StationBoard } from "./StationBoard.tsx";
-import { StationSmsBoard } from "./StationSmsBoard.tsx";
-import { ProviderHistoryBoard } from "./ProviderHistoryBoard.tsx";
-import { VoiceBoard } from "./VoiceBoard.tsx";
-import { VoiceCallBoard } from "./VoiceCallBoard.tsx";
-import { TelegramBoard } from "./TelegramBoard.tsx";
-import { WorkBoard } from "./WorkBoard.tsx";
-import { PasswordDialog } from "./PasswordDialog.tsx";
-import { ScheduleBoard } from "./ScheduleBoard.tsx";
-import { StaffBoard } from "./StaffBoard.tsx";
 import { ChatDock } from "./ChatDock.tsx";
-import { MediaBoard } from "./MediaBoard.tsx";
+import { PasswordDialog } from "./PasswordDialog.tsx";
 import { armAlertSound, askChatNotification, startInboxWatch, stopInboxWatch, useInboxUnread } from "./inboxWatch.ts";
+
+function screen<P extends object>(load: () => Promise<ComponentType<P>>) {
+  return lazy(() => load().then((component) => ({ default: component })));
+}
+
+const CareHome = screen(() => import("./CareDesk.tsx").then((module) => module.CareHome));
+const ContactBoard = screen(() => import("./CareDesk.tsx").then((module) => module.ContactBoard));
+const CareHistoryBoard = screen(() => import("./CareDesk.tsx").then((module) => module.CareHistoryBoard));
+const PersonalReportBoard = screen(() => import("./CareDesk.tsx").then((module) => module.PersonalReportBoard));
+const CampaignBoard = screen(() => import("./CampaignBoard.tsx").then((module) => module.CampaignBoard));
+const CustomerBoard = screen(() => import("./CustomerBoard.tsx").then((module) => module.CustomerBoard));
+const ChatIdleBoard = screen(() => import("./ChatIdleBoard.tsx").then((module) => module.ChatIdleBoard));
+const EmbedBoard = screen(() => import("./EmbedBoard.tsx").then((module) => module.EmbedBoard));
+const HomeBoard = screen(() => import("./HomeBoard.tsx").then((module) => module.HomeBoard));
+const DataBoard = screen(() => import("./DataBoard.tsx").then((module) => module.DataBoard));
+const JournalBoard = screen(() => import("./JournalBoard.tsx").then((module) => module.JournalBoard));
+const QueueBoard = screen(() => import("./QueueBoard.tsx").then((module) => module.QueueBoard));
+const VerifyBoard = screen(() => import("./VerifyBoard.tsx").then((module) => module.VerifyBoard));
+const RateLimitBoard = screen(() => import("./RateLimitBoard.tsx").then((module) => module.RateLimitBoard));
+const RewardBoard = screen(() => import("./RewardBoard.tsx").then((module) => module.RewardBoard));
+const EffectBoard = screen(() => import("./EffectBoard.tsx").then((module) => module.EffectBoard));
+const ShiftBoard = screen(() => import("./ShiftBoard.tsx").then((module) => module.ShiftBoard));
+const VoiceReviewBoard = screen(() => import("./VoiceReviewBoard.tsx").then((module) => module.VoiceReviewBoard));
+const StationBoard = screen(() => import("./StationBoard.tsx").then((module) => module.StationBoard));
+const StationSmsBoard = screen(() => import("./StationSmsBoard.tsx").then((module) => module.StationSmsBoard));
+const ProviderHistoryBoard = screen(() => import("./ProviderHistoryBoard.tsx").then((module) => module.ProviderHistoryBoard));
+const VoiceBoard = screen(() => import("./VoiceBoard.tsx").then((module) => module.VoiceBoard));
+const VoiceCallBoard = screen(() => import("./VoiceCallBoard.tsx").then((module) => module.VoiceCallBoard));
+const TelegramBoard = screen(() => import("./TelegramBoard.tsx").then((module) => module.TelegramBoard));
+const WorkBoard = screen(() => import("./WorkBoard.tsx").then((module) => module.WorkBoard));
+const ScheduleBoard = screen(() => import("./ScheduleBoard.tsx").then((module) => module.ScheduleBoard));
+const StaffBoard = screen(() => import("./StaffBoard.tsx").then((module) => module.StaffBoard));
+const MediaBoard = screen(() => import("./MediaBoard.tsx").then((module) => module.MediaBoard));
 
 type DeskPage = "overview" | "inbox" | "contacts" | "tasks" | "history" | "personal" | "queue" | "schedule" | "staff" | "customers" | "warehouse" | "distribute" | "campaigns" | "shift" | "effect" | "rewards" | "journal" | "stations" | "media" | "stationSms" | "callTasks" | "voice" | "voiceReview" | "smsHistory" | "voiceHistory" | "rateLimit" | "chatIdle" | "voiceLimit" | "embed" | "home" | "telegram" | "verify";
 
@@ -382,6 +390,7 @@ export function Desk(props: {
             </div>
           </div>
           <ErrorAlert error={error} />
+          <Suspense fallback={<div className="page-loading"><Spin /></div>}>
           {page === "overview" ? (
             <CareHome canReadTasks={canReadTasks} canReport={canReadCustomers || canReadTasks} onUnauthorized={endSession} onMfaSetup={props.onMfaSetup} />
           ) : null}
@@ -552,6 +561,7 @@ export function Desk(props: {
           {page === "telegram" && canManageTelegram ? (
             <TelegramBoard onUnauthorized={endSession} onMfaSetup={props.onMfaSetup} />
           ) : null}
+          </Suspense>
         </div>
       </main>
       <Modal

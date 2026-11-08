@@ -28,7 +28,7 @@ RUN rm -rf /usr/share/nginx/html/*
 # Copy file build từ builder stage
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Copy cấu hình Nginx no-cache
+# HTML không cache. File /assets/ có hash thì cache lâu.
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 # Health check kiểm tra dịch vụ sống

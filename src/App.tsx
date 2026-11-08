@@ -1,10 +1,19 @@
 import { Spin } from "antd";
-import { useCallback, useEffect, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import { ApiError, api } from "./api.ts";
-import { AuthScreen } from "./auth/AuthScreen.tsx";
-import { Desk } from "./desk/Desk.tsx";
-import { GuestChat } from "./public/GuestChat.tsx";
 import type { Me, UserProfile } from "./types.ts";
+
+const AuthScreen = lazy(() => import("./auth/AuthScreen.tsx").then((module) => ({ default: module.AuthScreen })));
+const Desk = lazy(() => import("./desk/Desk.tsx").then((module) => ({ default: module.Desk })));
+const GuestChat = lazy(() => import("./public/GuestChat.tsx").then((module) => ({ default: module.GuestChat })));
+
+function Booting() {
+  return (
+    <div className="route-loading">
+      <Spin size="large" />
+    </div>
+  );
+}
 
 function isGuestPath(): boolean {
   const path = window.location.pathname.replace(/\/+$/, "") || "/";
@@ -50,45 +59,49 @@ export function App() {
   }, [guestPage, phase]);
 
   if (guestPage) {
-    return <GuestChat />;
+    return (
+      <Suspense fallback={<Booting />}>
+        <GuestChat />
+      </Suspense>
+    );
   }
 
   if (phase === "loading") {
-    return (
-      <div className="route-loading">
-        <Spin size="large" />
-      </div>
-    );
+    return <Booting />;
   }
 
   if (phase === "desk" && user) {
     return (
-      <Desk
-        user={user}
-        onMfaSetup={() => setPhase("mfa_setup")}
-        onLoggedOut={(nextNotice) => {
-          setUser(null);
-          setNotice(nextNotice ?? null);
-          setPhase("login");
-        }}
-      />
+      <Suspense fallback={<Booting />}>
+        <Desk
+          user={user}
+          onMfaSetup={() => setPhase("mfa_setup")}
+          onLoggedOut={(nextNotice) => {
+            setUser(null);
+            setNotice(nextNotice ?? null);
+            setPhase("login");
+          }}
+        />
+      </Suspense>
     );
   }
 
   return (
-    <AuthScreen
-      start={phase === "mfa_setup" ? "mfa_setup" : "login"}
-      notice={notice ?? bootError}
-      noticeTone={notice ? "ok" : "error"}
-      onReady={() => {
-        setNotice(null);
-        void refresh();
-      }}
-      onLeave={() => {
-        setUser(null);
-        setNotice(null);
-        setPhase("login");
-      }}
-    />
+    <Suspense fallback={<Booting />}>
+      <AuthScreen
+        start={phase === "mfa_setup" ? "mfa_setup" : "login"}
+        notice={notice ?? bootError}
+        noticeTone={notice ? "ok" : "error"}
+        onReady={() => {
+          setNotice(null);
+          void refresh();
+        }}
+        onLeave={() => {
+          setUser(null);
+          setNotice(null);
+          setPhase("login");
+        }}
+      />
+    </Suspense>
   );
 }

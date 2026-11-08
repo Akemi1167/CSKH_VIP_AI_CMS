@@ -2219,6 +2219,12 @@ html button.leave-dot.leave-dot--blocked {
   background: #0e1016;
 }
 
+.page-loading {
+  display: grid;
+  min-height: 240px;
+  place-items: center;
+}
+
 .login-page {
   position: relative;
   min-height: 100vh;
