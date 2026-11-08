@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "re
 import { ApiError, api, toApiUrl, toWsUrl } from "../api.ts";
 import { formatStamp } from "../copy.ts";
 import { showReadMark, withRead } from "../readMark.ts";
+import { UiFrame } from "../uiFrame.tsx";
 
 type Bubble = {
   id: string;
@@ -286,6 +287,7 @@ export function GuestChat() {
   }
 
   return (
+    <UiFrame>
     <div className="guest-page">
       <section className="guest-card">
         <header className="embed-widget__head">
@@ -400,6 +402,7 @@ export function GuestChat() {
         )}
       </section>
     </div>
+    </UiFrame>
   );
 }
 

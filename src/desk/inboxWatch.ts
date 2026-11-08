@@ -30,6 +30,14 @@ type TaskListItem = {
 
 const SEEN_KEY = "cskh.inbox-seen";
 const BASE_TITLE = "CSKH VIP";
+let baseTitle = BASE_TITLE;
+
+export function setDeskChromeTitle(title: string): void {
+  baseTitle = title;
+  if (unread.size === 0) {
+    document.title = title;
+  }
+}
 
 const unread = new Map<string, UnreadChat>();
 const seenAt = new Map<string, number>();
@@ -172,6 +180,7 @@ export function stopInboxWatch(): void {
   window.clearInterval(flashTimer);
   document.removeEventListener("visibilitychange", onVisible);
   window.removeEventListener("focus", onVisible);
+  baseTitle = BASE_TITLE;
   document.title = BASE_TITLE;
   restoreIcon();
 }
@@ -333,11 +342,11 @@ function paintChrome(): void {
   const count = unread.size;
   flashOn = !flashOn;
   if (count === 0) {
-    document.title = BASE_TITLE;
+    document.title = baseTitle;
     restoreIcon();
     return;
   }
-  const marked = `(${count}) ${BASE_TITLE}`;
+  const marked = `(${count}) ${baseTitle}`;
   document.title = document.hidden && flashOn ? `(${count}) Chat mới` : marked;
   paintIcon();
 }

@@ -2219,6 +2219,22 @@ html button.leave-dot.leave-dot--blocked {
   background: #0e1016;
 }
 
+.route-loading::after {
+  width: 36px;
+  height: 36px;
+  border: 3px solid #2a3040;
+  border-top-color: #16a34a;
+  border-radius: 50%;
+  animation: route-spin 0.7s linear infinite;
+  content: "";
+}
+
+@keyframes route-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .page-loading {
   display: grid;
   min-height: 240px;

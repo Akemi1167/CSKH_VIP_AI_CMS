@@ -1,4 +1,3 @@
-import { Spin } from "antd";
 import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import { ApiError, api } from "./api.ts";
 import type { Me, UserProfile } from "./types.ts";
@@ -8,11 +7,7 @@ const Desk = lazy(() => import("./desk/Desk.tsx").then((module) => ({ default: m
 const GuestChat = lazy(() => import("./public/GuestChat.tsx").then((module) => ({ default: module.GuestChat })));
 
 function Booting() {
-  return (
-    <div className="route-loading">
-      <Spin size="large" />
-    </div>
-  );
+  return <div className="route-loading" role="status" aria-label="Đang tải" />;
 }
 
 function isGuestPath(): boolean {
@@ -52,10 +47,10 @@ export function App() {
   }, [guestPage, refresh]);
 
   useEffect(() => {
-    if (guestPage) {
+    if (guestPage || phase === "desk" || phase === "loading") {
       return;
     }
-    document.title = phase === "desk" ? "Bàn làm việc · CSKH VIP" : "Đăng nhập · CSKH VIP";
+    document.title = "Đăng nhập · CSKH VIP";
   }, [guestPage, phase]);
 
   if (guestPage) {

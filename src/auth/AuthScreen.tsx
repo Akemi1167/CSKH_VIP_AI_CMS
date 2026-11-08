@@ -7,6 +7,7 @@ import { groupSecret } from "../draft.ts";
 import { copyText } from "../password.ts";
 import type { UserProfile } from "../types.ts";
 import { ErrorAlert } from "../ui.tsx";
+import { UiFrame } from "../uiFrame.tsx";
 
 type Step = "credentials" | "verify" | "setup";
 
@@ -341,6 +342,7 @@ export function AuthScreen(props: {
 
 function LoginFrame(props: { children: ReactNode }) {
   return (
+    <UiFrame>
     <div className="login-page">
       <div className="login-bg" aria-hidden>
         <div className="login-bg__grid" />
@@ -355,5 +357,6 @@ function LoginFrame(props: { children: ReactNode }) {
         <div className="login-shell">{props.children}</div>
       </div>
     </div>
+    </UiFrame>
   );
 }

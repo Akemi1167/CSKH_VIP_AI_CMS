@@ -1,13 +1,15 @@
 import { AppstoreOutlined, AuditOutlined, BarChartOutlined, BookOutlined, CheckSquareOutlined, ClockCircleOutlined, CommentOutlined, FundOutlined, GiftOutlined, GlobalOutlined, HistoryOutlined, KeyOutlined, LayoutOutlined, LeftOutlined, LogoutOutlined, MailOutlined, MessageOutlined, PhoneOutlined, PictureOutlined, SearchOutlined, SendOutlined, SettingOutlined, ShareAltOutlined, ShopOutlined, TeamOutlined, UnorderedListOutlined, UserOutlined } from "@ant-design/icons";
 import { Button, Input, Modal, Space, Spin, Switch } from "antd";
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState, type ComponentType, type ReactNode } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from "react";
 import { ApiError, api, probe, setCsrfToken } from "../api.ts";
 import { roleName } from "../copy.ts";
 import type { UserProfile } from "../types.ts";
 import { ErrorAlert } from "../ui.tsx";
+import { UiFrame } from "../uiFrame.tsx";
 import { ChatDock } from "./ChatDock.tsx";
 import { PasswordDialog } from "./PasswordDialog.tsx";
-import { armAlertSound, askChatNotification, startInboxWatch, stopInboxWatch, useInboxUnread } from "./inboxWatch.ts";
+import { armAlertSound, askChatNotification, setDeskChromeTitle, startInboxWatch, stopInboxWatch, useInboxUnread } from "./inboxWatch.ts";
+import { deskPath, deskTitle, pageFromPath, rememberPage, type DeskPage } from "./routes.ts";
 
 function screen<P extends object>(load: () => Promise<ComponentType<P>>) {
   return lazy(() => load().then((component) => ({ default: component })));
@@ -41,8 +43,6 @@ const WorkBoard = screen(() => import("./WorkBoard.tsx").then((module) => module
 const ScheduleBoard = screen(() => import("./ScheduleBoard.tsx").then((module) => module.ScheduleBoard));
 const StaffBoard = screen(() => import("./StaffBoard.tsx").then((module) => module.StaffBoard));
 const MediaBoard = screen(() => import("./MediaBoard.tsx").then((module) => module.MediaBoard));
-
-type DeskPage = "overview" | "inbox" | "contacts" | "tasks" | "history" | "personal" | "queue" | "schedule" | "staff" | "customers" | "warehouse" | "distribute" | "campaigns" | "shift" | "effect" | "rewards" | "journal" | "stations" | "media" | "stationSms" | "callTasks" | "voice" | "voiceReview" | "smsHistory" | "voiceHistory" | "rateLimit" | "chatIdle" | "voiceLimit" | "embed" | "home" | "telegram" | "verify";
 
 type NavLeaf = { kind: "leaf"; id: DeskPage; label: string; icon: ReactNode };
 type NavGroup = { label?: string; items: NavLeaf[] };
@@ -93,8 +93,12 @@ export function Desk(props: {
   const canApproveRewards = profile.permissions.includes("rewards:approve");
   const [accepting, setAccepting] = useState(profile.accepting_work);
   const [acceptingBusy, setAcceptingBusy] = useState(false);
-  const [page, setPage] = useState<DeskPage>("overview");
+  const [page, setPage] = useState<DeskPage>(() => pageFromPath() ?? "overview");
   const [panelBranchId, setPanelBranchId] = useState<string | null>(null);
+  const pageRef = useRef(page);
+  const dirtyRef = useRef(false);
+  const openPageRef = useRef<(next: DeskPage) => void>(() => undefined);
+  pageRef.current = page;
   const unread = useInboxUnread();
   const endSession = useCallback(
     (notice?: string) => {
@@ -102,14 +106,40 @@ export function Desk(props: {
     },
     [props.onLoggedOut],
   );
-  const onScheduleDirty = useCallback((dirty: boolean) => setScheduleDirty(dirty), []);
+  const onScheduleDirty = useCallback((dirty: boolean) => {
+    dirtyRef.current = dirty;
+    setScheduleDirty(dirty);
+  }, []);
+  useEffect(() => {
+    if (!pageFromPath()) {
+      rememberPage(pageRef.current, "replace");
+    }
+    const onPop = () => {
+      const found = pageFromPath();
+      const next = found ?? "overview";
+      if (!found) {
+        rememberPage("overview", "replace");
+      }
+      if (pageRef.current === "schedule" && dirtyRef.current && next !== "schedule") {
+        rememberPage("schedule", "push");
+        setPendingPage(next);
+        return;
+      }
+      setPage(next);
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+  useEffect(() => {
+    setDeskChromeTitle(deskTitle(page));
+  }, [page]);
   useEffect(() => {
     if (!canReadTasks) {
       return;
     }
     startInboxWatch(canReadAllTasks ? "staff" : canReadTeamTasks ? "team" : "own");
     const arm = () => armAlertSound();
-    const openInbox = () => setPage("inbox");
+    const openInbox = () => openPageRef.current("inbox");
     window.addEventListener("pointerdown", arm);
     window.addEventListener("keydown", arm);
     window.addEventListener("cskh-open-inbox", openInbox);
@@ -217,8 +247,13 @@ export function Desk(props: {
       sections.push({ id: "other", label: "Khác", items: [{ kind: "leaf", id: "journal", label: "Nhật ký", icon: <AuditOutlined /> }] });
     }
     const query = keyword.trim().toLocaleLowerCase("vi");
-    return { sections: filterSections(sections, query), query };
+    return { sections: filterSections(sections, query), query, allowed: leafPages(sections) };
   }, [canApproveRewards, canManageTelegram, canReadAllTasks, canReadAudit, canReadCampaigns, canReadCustomers, canReadQueue, canReadSchedule, canReadSettings, canReadStaff, canReadTasks, canReadTeamTasks, canReportCampaigns, canReviewRecordings, keyword]);
+
+  function showPage(next: DeskPage, mode: "push" | "replace" = "push") {
+    rememberPage(next, mode);
+    setPage(next);
+  }
 
   function openPage(next: DeskPage) {
     if (next === page) {
@@ -228,8 +263,31 @@ export function Desk(props: {
       setPendingPage(next);
       return;
     }
-    setPage(next);
+    showPage(next);
   }
+  openPageRef.current = openPage;
+
+  const restoredPanel = useRef(false);
+  useEffect(() => {
+    if (menus.allowed.includes(page)) {
+      return;
+    }
+    showPage("overview", "replace");
+  }, [menus.allowed, page]);
+  useEffect(() => {
+    if (restoredPanel.current) {
+      return;
+    }
+    restoredPanel.current = true;
+    for (const section of menus.sections) {
+      for (const item of section.items) {
+        if (item.kind === "branch" && containsPage([item], pageRef.current)) {
+          setPanelBranchId(item.id);
+          return;
+        }
+      }
+    }
+  }, [menus.sections]);
 
   function openLeaf(next: DeskPage) {
     if (next === "inbox") {
@@ -330,6 +388,7 @@ export function Desk(props: {
   }
 
   return (
+    <UiFrame>
     <div className="app-shell">
       <aside className="app-sidebar">
         <div className="app-sidebar__brand">
@@ -575,9 +634,10 @@ export function Desk(props: {
               danger
               onClick={() => {
                 if (pendingPage) {
-                  setPage(pendingPage);
+                  dirtyRef.current = false;
+                  setScheduleDirty(false);
+                  showPage(pendingPage);
                 }
-                setScheduleDirty(false);
                 setPendingPage(null);
               }}
             >
@@ -590,6 +650,7 @@ export function Desk(props: {
       </Modal>
       {passwordOpen ? <PasswordDialog onClose={() => setPasswordOpen(false)} onChanged={() => props.onLoggedOut("Đã đổi mật khẩu. Đăng nhập lại.")} /> : null}
     </div>
+    </UiFrame>
   );
 }
 
@@ -604,7 +665,7 @@ function MenuGroup(props: { title: string; items: NavNode[]; page: DeskPage; pan
         {props.items.map((item) =>
           item.kind === "leaf" ? (
             <li key={item.id}>
-              <NavButton active={props.page === item.id} icon={item.icon} label={item.label} badge={item.id === "inbox" ? props.unread : 0} onClick={() => props.onLeaf(item.id)} />
+              <NavButton href={deskPath(item.id)} active={props.page === item.id} icon={item.icon} label={item.label} badge={item.id === "inbox" ? props.unread : 0} onClick={() => props.onLeaf(item.id)} />
             </li>
           ) : (
             <li key={item.id}>
@@ -633,7 +694,7 @@ function SubPanel(props: { branch: NavBranch; page: DeskPage; onOpen: (page: Des
             <ul>
               {group.items.map((child) => (
                 <li key={child.id}>
-                  <NavButton active={props.page === child.id} icon={child.icon} label={child.label} onClick={() => props.onOpen(child.id)} />
+                  <NavButton href={deskPath(child.id)} active={props.page === child.id} icon={child.icon} label={child.label} onClick={() => props.onOpen(child.id)} />
                 </li>
               ))}
             </ul>
@@ -644,13 +705,36 @@ function SubPanel(props: { branch: NavBranch; page: DeskPage; onOpen: (page: Des
   );
 }
 
-function NavButton(props: { active: boolean; icon: ReactNode; label: string; badge?: number; onClick: () => void }) {
-  return (
-    <button className={props.active ? "nav-link nav-link--active" : "nav-link"} type="button" onClick={props.onClick}>
+function NavButton(props: { active: boolean; icon: ReactNode; label: string; badge?: number; href?: string; onClick: () => void }) {
+  const className = props.active ? "nav-link nav-link--active" : "nav-link";
+  const body = (
+    <>
       <span className="nav-link__icon">{props.icon}</span>
       <span className="nav-link__text">{props.label}</span>
       {props.badge ? <span className="nav-link__badge">{props.badge > 9 ? "9+" : props.badge}</span> : null}
-    </button>
+    </>
+  );
+  if (!props.href) {
+    return (
+      <button className={className} type="button" onClick={props.onClick}>
+        {body}
+      </button>
+    );
+  }
+  return (
+    <a
+      className={className}
+      href={props.href}
+      onClick={(event) => {
+        if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) {
+          return;
+        }
+        event.preventDefault();
+        props.onClick();
+      }}
+    >
+      {body}
+    </a>
   );
 }
 
@@ -660,6 +744,24 @@ function findBranch(items: NavNode[], id: string | null): NavBranch | null {
   }
   const hit = items.find((item) => item.kind === "branch" && item.id === id);
   return hit && hit.kind === "branch" ? hit : null;
+}
+
+function leafPages(sections: MenuSection[]): DeskPage[] {
+  const pages: DeskPage[] = [];
+  for (const section of sections) {
+    for (const item of section.items) {
+      if (item.kind === "leaf") {
+        pages.push(item.id);
+        continue;
+      }
+      for (const group of item.groups) {
+        for (const child of group.items) {
+          pages.push(child.id);
+        }
+      }
+    }
+  }
+  return pages;
 }
 
 function containsPage(items: NavNode[], page: DeskPage): boolean {
