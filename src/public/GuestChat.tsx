@@ -3,6 +3,7 @@ import { Button, Input } from "antd";
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { ApiError, api, toApiUrl, toWsUrl } from "../api.ts";
 import { formatStamp } from "../copy.ts";
+import { showReadMark, withRead } from "../readMark.ts";
 
 type Bubble = {
   id: string;
@@ -10,6 +11,7 @@ type Bubble = {
   body: string;
   created_at: string;
   image_url?: string;
+  read_at?: string | null;
 };
 
 type GuestSession = {
@@ -25,8 +27,49 @@ type GuestTicket = {
 };
 
 const STORAGE = "cskh.guest-chat";
+const LANG_STORAGE = "cskh.guest-lang";
 const stationCode = readStation();
-const GREETING = "Xin chào. Nhân viên sẽ trả lời bạn trong khung này.";
+
+type GuestLang = "vi" | "zh";
+
+const COPY = {
+  vi: {
+    title: "Liên hệ",
+    contact: "Liên hệ nhân viên",
+    greeting: "Xin chào. Nhân viên sẽ trả lời bạn trong khung này.",
+    name: "Tên của bạn",
+    nameError: "Nhập tên của bạn.",
+    start: "Bắt đầu chat",
+    placeholder: "Nhắn nhân viên",
+    connecting: "Đang nối…",
+    live: "Đang nối",
+    down: "Mất kết nối",
+    retry: "Nối lại",
+    send: "Gửi",
+    photo: "Gửi ảnh",
+    imageError: "Không gửi được ảnh",
+    connectError: "Không nối được chat",
+    read: "Đã đọc",
+  },
+  zh: {
+    title: "联系客服",
+    contact: "联系客服",
+    greeting: "您好。客服会在此窗口回复您。",
+    name: "您的姓名",
+    nameError: "请输入您的姓名。",
+    start: "开始聊天",
+    placeholder: "给客服发消息",
+    connecting: "连接中…",
+    live: "已连接",
+    down: "连接已断开",
+    retry: "重新连接",
+    send: "发送",
+    photo: "发送图片",
+    imageError: "图片发送失败",
+    connectError: "无法连接聊天",
+    read: "已读",
+  },
+} as const;
 
 export function GuestChat() {
   const saved = useRef(loadSession());
@@ -35,6 +78,7 @@ export function GuestChat() {
   const [text, setText] = useState("");
   const [status, setStatus] = useState<"form" | "connecting" | "live" | "down">(saved.current ? "connecting" : "form");
   const [error, setError] = useState<string | null>(null);
+  const [lang, setLang] = useState<GuestLang>(loadLang);
   const threadRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<WebSocket | null>(null);
   const pendingRef = useRef<string[]>([]);
@@ -62,12 +106,18 @@ export function GuestChat() {
       openSocket(issued.ticket);
     } catch (caught) {
       setStatus("down");
-      setError(caught instanceof ApiError ? caught.message : "Không nối được chat");
+      setError(caught instanceof ApiError ? caught.message : COPY[langRef.current].connectError);
     }
   }, []);
 
+  const langRef = useRef(lang);
+  langRef.current = lang;
+
   useEffect(() => {
-    document.title = stationCode ? `Liên hệ · ${stationCode}` : "Liên hệ · CSKH VIP";
+    document.title = stationCode ? `${COPY[lang].title} · ${stationCode}` : `${COPY[lang].title} · CSKH VIP`;
+  }, [lang]);
+
+  useEffect(() => {
     if (saved.current) {
       void connect(saved.current);
     }
@@ -108,6 +158,12 @@ export function GuestChat() {
           setMessages((current) => current.filter((item) => item.id !== sourceId));
         }
         setError(frame.message || "Chat từ chối tin");
+        return;
+      }
+      if (frame.type === "read" && frame.read_at && frame.message_ids && frame.message_ids.length > 0) {
+        const ids = frame.message_ids;
+        const readAt = frame.read_at;
+        setMessages((current) => withRead(current, ids, readAt));
         return;
       }
       if (frame.type === "message" && frame.message_id && frame.sender_type === "agent" && (frame.body || frame.image_url)) {
@@ -196,7 +252,7 @@ export function GuestChat() {
       setMessages((current) => [...current, { id, sender: "customer", body: caption, created_at: new Date().toISOString(), image_url: saved.url }]);
       writeText("");
     } catch (caught) {
-      setError(caught instanceof ApiError ? caught.message : "Không gửi được ảnh");
+      setError(caught instanceof ApiError ? caught.message : COPY[lang].imageError);
     }
   }
 
@@ -214,7 +270,7 @@ export function GuestChat() {
   function start() {
     const trimmed = name.trim();
     if (trimmed.length < 2) {
-      setError("Nhập tên của bạn.");
+      setError(COPY[lang].nameError);
       return;
     }
     void connect({ conversationId: saved.current?.conversationId ?? "", name: trimmed });
@@ -222,6 +278,12 @@ export function GuestChat() {
 
   const live = status === "live";
   const started = status !== "form";
+  const textCopy = COPY[lang];
+
+  function chooseLang(next: GuestLang) {
+    setLang(next);
+    localStorage.setItem(LANG_STORAGE, next);
+  }
 
   return (
     <div className="guest-page">
@@ -239,22 +301,31 @@ export function GuestChat() {
           ) : null}
           <div>
             <strong>{stationCode || "CSKH VIP"}</strong>
-            <p>{started ? statusLabel(status) : "Liên hệ nhân viên"}</p>
+            <p>{started ? statusLabel(status, lang) : textCopy.contact}</p>
+          </div>
+          <div className="guest-lang">
+            <button type="button" className={lang === "vi" ? "is-on" : undefined} onClick={() => chooseLang("vi")}>
+              VI
+            </button>
+            <button type="button" className={lang === "zh" ? "is-on" : undefined} onClick={() => chooseLang("zh")}>
+              中文
+            </button>
           </div>
         </header>
         {started ? (
           <>
             <div className="chat-thread" ref={threadRef}>
               <article className="chat-bubble chat-bubble--agent">
-                <p>{GREETING}</p>
+                <p>{textCopy.greeting}</p>
               </article>
-              {messages.map((message) => {
+              {messages.map((message, index) => {
                 const caption = message.image_url && (message.body === "Khách gửi ảnh." || message.body === "Đã gửi ảnh.") ? "" : message.body;
                 return (
                   <article key={message.id} className={message.sender === "customer" ? "chat-bubble chat-bubble--customer" : "chat-bubble chat-bubble--agent"}>
                     {message.image_url ? <img className="chat-photo" alt="" src={message.image_url} /> : null}
                     {caption ? <p>{caption}</p> : null}
                     <time>{formatStamp(message.created_at)}</time>
+                    {showReadMark(messages, index, (item) => item.sender === "customer") ? <span className="chat-read">{textCopy.read}</span> : null}
                   </article>
                 );
               })}
@@ -263,7 +334,7 @@ export function GuestChat() {
             {status === "down" ? (
               <div className="guest-retry">
                 <Button type="primary" onClick={() => saved.current && void connect(saved.current)}>
-                  Nối lại
+                  {textCopy.retry}
                 </Button>
               </div>
             ) : (
@@ -274,7 +345,7 @@ export function GuestChat() {
                   send();
                 }}
               >
-                <label className="chat-photo-send" title="Gửi ảnh" aria-label="Gửi ảnh">
+                <label className="chat-photo-send" title={textCopy.photo} aria-label={textCopy.photo}>
                   <PictureOutlined />
                   <input
                     ref={fileRef}
@@ -294,7 +365,7 @@ export function GuestChat() {
                   value={text}
                   disabled={!live}
                   autoSize={{ minRows: 1, maxRows: 4 }}
-                  placeholder={live ? "Nhắn nhân viên" : "Đang nối…"}
+                  placeholder={live ? textCopy.placeholder : textCopy.connecting}
                   onChange={(event) => writeText(event.target.value)}
                   onCompositionStart={() => {
                     composingRef.current = true;
@@ -306,7 +377,7 @@ export function GuestChat() {
                   onKeyDown={sendOnEnter}
                 />
                 <Button type="primary" htmlType="submit" disabled={!live || text.trim().length === 0}>
-                  Gửi
+                  {textCopy.send}
                 </Button>
               </form>
             )}
@@ -319,11 +390,11 @@ export function GuestChat() {
               start();
             }}
           >
-            <p>{GREETING}</p>
-            <Input value={name} maxLength={40} placeholder="Tên của bạn" onChange={(event) => setName(event.target.value)} />
+            <p>{textCopy.greeting}</p>
+            <Input value={name} maxLength={40} placeholder={textCopy.name} onChange={(event) => setName(event.target.value)} />
             {error ? <p className="chat-compose__error">{error}</p> : null}
             <Button type="primary" htmlType="submit">
-              Bắt đầu chat
+              {textCopy.start}
             </Button>
           </form>
         )}
@@ -332,14 +403,19 @@ export function GuestChat() {
   );
 }
 
-function statusLabel(status: "connecting" | "live" | "down"): string {
+function statusLabel(status: "connecting" | "live" | "down", lang: GuestLang): string {
+  const textCopy = COPY[lang];
   if (status === "live") {
-    return "Đang nối";
+    return textCopy.live;
   }
   if (status === "connecting") {
-    return "Đang nối…";
+    return textCopy.connecting;
   }
-  return "Mất kết nối";
+  return textCopy.down;
+}
+
+function loadLang(): GuestLang {
+  return localStorage.getItem(LANG_STORAGE) === "zh" ? "zh" : "vi";
 }
 
 function readStation(): string {
@@ -363,9 +439,9 @@ function loadSession(): GuestSession | null {
   }
 }
 
-function readFrame(raw: string): { type?: string; message_id?: string; sender_type?: string; body?: string; created_at?: string; message?: string; image_url?: string } | undefined {
+function readFrame(raw: string): { type?: string; message_id?: string; sender_type?: string; body?: string; created_at?: string; message?: string; image_url?: string; message_ids?: string[]; read_at?: string } | undefined {
   try {
-    const parsed = JSON.parse(raw) as { type?: string; message_id?: string; sender_type?: string; body?: string; created_at?: string; message?: string; image_url?: string };
+    const parsed = JSON.parse(raw) as { type?: string; message_id?: string; sender_type?: string; body?: string; created_at?: string; message?: string; image_url?: string; message_ids?: string[]; read_at?: string };
     return parsed && typeof parsed === "object" ? parsed : undefined;
   } catch {
     return undefined;

@@ -1,7 +1,9 @@
 import { useSyncExternalStore } from "react";
+import { withRead } from "../readMark.ts";
 import type { LiveChatMessage, LiveChatTask } from "./staffChat.ts";
+import { reportTaskRead } from "./inboxWatch.ts";
 
-export type DockMessage = { id: string; sender_type: string; body: string; created_at: string; has_image?: boolean };
+export type DockMessage = { id: string; sender_type: string; body: string; created_at: string; has_image?: boolean; read_at?: string | null };
 
 export type DockTask = {
   id: string;
@@ -167,6 +169,9 @@ export function applyDockLiveMessage(event: LiveChatMessage): void {
     ? window.task.messages
     : [...window.task.messages, { id: event.message_id, sender_type: event.sender_type, body: event.body, created_at: event.created_at, has_image: event.has_image }];
   const incoming = event.sender_type === "customer" && !exists;
+  if (incoming && window.expanded && document.hasFocus() && !document.hidden) {
+    reportTaskRead(event.task_id);
+  }
   const mine = focusedDockId === event.task_id;
   const next = snapshot.slice();
   next[index] = {
@@ -183,6 +188,14 @@ export function applyDockLiveMessage(event: LiveChatMessage): void {
     },
   };
   commit(next);
+}
+
+export function applyDockRead(taskId: string, messageIds: string[], readAt: string): void {
+  commit(
+    snapshot.map((window) =>
+      window.task.id === taskId ? { ...window, task: { ...window.task, messages: withRead(window.task.messages, messageIds, readAt) } } : window,
+    ),
+  );
 }
 
 export function applyDockLiveTask(event: LiveChatTask): void {

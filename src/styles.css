@@ -584,6 +584,43 @@ a {
   text-align: right;
 }
 
+.chat-bubble--bot {
+  align-self: flex-end;
+  border-bottom-right-radius: 4px;
+  background: #1e3a5f;
+  color: #e0f2fe;
+}
+
+.chat-who {
+  display: block;
+  margin-bottom: 2px;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.chat-bubble--bot .chat-who,
+.chat-bubble--bot time {
+  color: #bae6fd;
+  text-align: right;
+}
+
+.chat-read {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.chat-bubble--agent .chat-read {
+  color: #d1fae5;
+  text-align: right;
+}
+
+.chat-bubble--customer .chat-read {
+  color: #93c5fd;
+  text-align: left;
+}
+
 .chat-compose {
   display: flex;
   gap: 8px;
@@ -712,7 +749,31 @@ a {
 }
 
 .guest-card .embed-widget__head {
+  display: flex;
   flex-shrink: 0;
+  gap: 12px;
+  align-items: center;
+}
+
+.guest-lang {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.guest-lang button {
+  border: 1px solid rgba(240, 253, 244, 0.35);
+  border-radius: 999px;
+  background: transparent;
+  color: #f0fdf4;
+  font-size: 12px;
+  line-height: 1;
+  padding: 6px 8px;
+}
+
+.guest-lang button.is-on {
+  background: #f0fdf4;
+  color: #166534;
 }
 
 .guest-start {

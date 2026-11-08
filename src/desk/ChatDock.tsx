@@ -4,8 +4,9 @@ import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from
 import { ApiError, api } from "../api.ts";
 import { formatStamp } from "../copy.ts";
 import { ChatBody } from "./ChatBody.tsx";
-import { bindInboxBoard, markInboxRead, sendStaffReply, staffChatLive } from "./inboxWatch.ts";
-import { applyDockLiveMessage, applyDockLiveTask, closeDockChat, noteDockFocus, replaceDockTask, seedDockBubble, setDockDraft, setDockExpanded, useChatDock, type DockMessage, type DockTask } from "./chatDock.ts";
+import { bindInboxBoard, markInboxRead, reportTaskRead, sendStaffReply, staffChatLive } from "./inboxWatch.ts";
+import { applyDockLiveMessage, applyDockLiveTask, applyDockRead, closeDockChat, noteDockFocus, replaceDockTask, seedDockBubble, setDockDraft, setDockExpanded, useChatDock, type DockMessage, type DockTask } from "./chatDock.ts";
+import { showReadMark } from "../readMark.ts";
 
 const OPEN_STATUS = new Set(["ASSIGNED", "IN_PROGRESS", "WAITING_CUSTOMER"]);
 
@@ -88,6 +89,7 @@ export function ChatDock(props: {
         }
         applyDockLiveMessage(event);
       },
+      onRead: (event) => applyDockRead(event.task_id, event.message_ids, event.read_at),
       onTask: (event) => applyDockLiveTask(event),
       onRefresh: () => undefined,
     });
@@ -216,6 +218,7 @@ export function ChatDock(props: {
               onClick={() => {
                 setDockExpanded(chat.task.id, true);
                 markInboxRead(chat.task.id);
+                reportTaskRead(chat.task.id);
                 void refresh(chat.task.id);
               }}
             >
@@ -323,12 +326,14 @@ function DockThread(props: { taskId: string; messages: DockMessage[] }) {
   }, [last, props.messages.length]);
   return (
     <div className="chat-dock__thread" ref={ref}>
-      {props.messages.map((message) => {
-        const mine = message.sender_type !== "customer";
+      {props.messages.map((message, index) => {
+        const kind = message.sender_type === "customer" ? "customer" : message.sender_type === "bot" ? "bot" : "agent";
         return (
-          <article key={message.id} className={mine ? "chat-bubble chat-bubble--agent" : "chat-bubble chat-bubble--customer"}>
+          <article key={message.id} className={`chat-bubble chat-bubble--${kind}`}>
+            {kind === "bot" ? <span className="chat-who">Bot</span> : null}
             <ChatBody taskId={props.taskId} message={message} />
             <time>{message.created_at ? formatStamp(message.created_at) : ""}</time>
+            {showReadMark(props.messages, index, (item) => item.sender_type === "agent") ? <span className="chat-read">Đã đọc</span> : null}
           </article>
         );
       })}

@@ -17,6 +17,7 @@ type Snapshot = {
 type BoardHandlers = {
   onStatus: (status: "connecting" | "live" | "down") => void;
   onMessage: (message: LiveChatMessage) => void;
+  onRead: (event: { task_id: string; message_ids: string[]; read_at: string }) => void;
   onTask: (task: LiveChatTask) => void;
   onRefresh: () => void;
 };
@@ -86,6 +87,10 @@ export function setInboxFocus(visible: boolean, taskId: string | null): void {
   }
 }
 
+export function reportTaskRead(taskId: string): void {
+  void api(`/api/v1/tasks/${taskId}/read`, { method: "POST", body: {} }).catch(() => undefined);
+}
+
 export function markInboxRead(taskId: string): void {
   seenAt.set(taskId, Math.max(seenAt.get(taskId) ?? 0, Date.now()));
   saveSeen();
@@ -127,8 +132,16 @@ export function startInboxWatch(scope: "own" | "staff" | "team" = "own"): void {
     },
     onMessage: (event) => {
       noteCustomerMessage(event);
+      if (event.sender_type === "customer" && focusVisible && focusTaskId === event.task_id && document.hasFocus() && !document.hidden) {
+        reportTaskRead(event.task_id);
+      }
       for (const board of boards) {
         board.onMessage(event);
+      }
+    },
+    onRead: (event) => {
+      for (const board of boards) {
+        board.onRead(event);
       }
     },
     onTask: (event) => {

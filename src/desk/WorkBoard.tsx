@@ -8,7 +8,8 @@ import type { Staff } from "../types.ts";
 import { ErrorAlert } from "../ui.tsx";
 import { ChatBody } from "./ChatBody.tsx";
 import { openDockChat, rememberDockChat } from "./chatDock.ts";
-import { bindInboxBoard, markInboxRead, noteInboxRows, sendStaffReply, setInboxFocus, staffChatLive, useInboxUnread } from "./inboxWatch.ts";
+import { bindInboxBoard, markInboxRead, noteInboxRows, reportTaskRead, sendStaffReply, setInboxFocus, staffChatLive, useInboxUnread } from "./inboxWatch.ts";
+import { showReadMark, withRead } from "../readMark.ts";
 import type { LiveChatMessage } from "./staffChat.ts";
 
 type TaskStatus = "ASSIGNED" | "IN_PROGRESS" | "WAITING_CUSTOMER" | "COMPLETED" | "CANCELLED";
@@ -30,7 +31,7 @@ type TaskRow = {
 };
 
 type TaskDetail = TaskRow & {
-  messages: { id: string; sender_type: string; body: string; created_at: string; has_image?: boolean }[];
+  messages: { id: string; sender_type: string; body: string; created_at: string; has_image?: boolean; read_at?: string | null }[];
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -275,6 +276,7 @@ export function WorkBoard(props: {
       const result = await api<TaskDetail>(`/api/v1/tasks/${id}`);
       setDetail(result);
       markInboxRead(id);
+      reportTaskRead(id);
       if (!keepDraft) {
         writeReply("");
         setCareNote("");
@@ -594,6 +596,9 @@ export function WorkBoard(props: {
     return bindInboxBoard({
       onStatus: setLive,
       onMessage: (event) => applyLiveMessage(event),
+      onRead: (event) => {
+        setDetail((current) => (current && current.id === event.task_id ? { ...current, messages: withRead(current.messages, event.message_ids, event.read_at) } : current));
+      },
       onTask: () => {
         const view = listRef.current;
         void load(view.status, view.assigneeId).catch(() => undefined);
@@ -765,12 +770,15 @@ export function WorkBoard(props: {
                   </Space>
                 </header>
                 <div className="chat-thread" ref={threadRef}>
-                  {detail.messages.map((message) => {
-                    const mine = message.sender_type !== "customer";
+                  {detail.messages.map((message, index) => {
+                    const mine = message.sender_type === "agent";
+                    const kind = message.sender_type === "customer" ? "customer" : message.sender_type === "bot" ? "bot" : "agent";
                     return (
-                      <article key={message.id} className={mine ? "chat-bubble chat-bubble--agent" : "chat-bubble chat-bubble--customer"}>
+                      <article key={message.id} className={`chat-bubble chat-bubble--${kind}`}>
+                        {kind === "bot" ? <span className="chat-who">Bot</span> : null}
                         <ChatBody taskId={detail.id} message={message} />
                         <time>{message.created_at ? formatStamp(message.created_at) : ""}</time>
+                        {showReadMark(detail.messages, index, (item) => item.sender_type === "agent") && mine ? <span className="chat-read">Đã đọc</span> : null}
                       </article>
                     );
                   })}
@@ -849,8 +857,8 @@ export function WorkBoard(props: {
             </p>
             <div className="task-thread">
               {detail.messages.map((message) => (
-                <div key={message.id} className={message.sender_type === "agent" ? "task-line task-line--agent" : "task-line"}>
-                  <span>{message.sender_type === "customer" ? "Khách" : oversight ? detail.assignee_name || "Nhân viên" : "Bạn"}</span>
+                <div key={message.id} className={message.sender_type === "customer" ? "task-line" : "task-line task-line--agent"}>
+                  <span>{message.sender_type === "customer" ? "Khách" : message.sender_type === "bot" ? "Bot" : oversight ? detail.assignee_name || "Nhân viên" : "Bạn"}</span>
                   <ChatBody taskId={detail.id} message={message} />
                 </div>
               ))}

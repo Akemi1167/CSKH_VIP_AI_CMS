@@ -31,6 +31,7 @@ export type LiveChatTask = {
 type Handlers = {
   onStatus: (status: "connecting" | "live" | "down") => void;
   onMessage: (message: LiveChatMessage) => void;
+  onRead: (event: { task_id: string; message_ids: string[]; read_at: string }) => void;
   onTask: (task: LiveChatTask) => void;
 };
 
@@ -153,6 +154,10 @@ export class StaffChat {
       this.failPending(new Error(frame.message || "Không gửi được tin"));
       return;
     }
+    if (frame.type === "read" && frame.task_id && frame.read_at && frame.message_ids && frame.message_ids.length > 0) {
+      this.handlers.onRead({ task_id: frame.task_id, message_ids: frame.message_ids, read_at: frame.read_at });
+      return;
+    }
     if (frame.type === "message" && frame.message_id && frame.task_id && frame.body && frame.created_at) {
       this.handlers.onMessage({
         message_id: frame.message_id,
@@ -204,6 +209,8 @@ type Frame = {
   customer_ref?: string;
   channel?: string;
   message?: string;
+  message_ids?: string[];
+  read_at?: string;
 };
 
 function readFrame(raw: string): Frame | undefined {

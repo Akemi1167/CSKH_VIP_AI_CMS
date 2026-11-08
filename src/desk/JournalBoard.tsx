@@ -392,6 +392,10 @@ const AUDIT_FILTERS = [
   { value: "voice.test", label: "Gọi thử AI" },
   { value: "laaffic.sync", label: "Đồng bộ Laaffic" },
   { value: "settings.rate_limit", label: "Cập nhật IP không bị chặn" },
+  { value: "settings.voice_call", label: "Đổi thời lượng cuộc gọi" },
+  { value: "task.verify_claim", label: "Nhận hội thoại xác minh" },
+  { value: "task.verify_account", label: "Gắn tài khoản và chuyển đài" },
+  { value: "task.verify_reject", label: "Báo không thuộc danh sách khuyến mãi" },
   { value: "telegram.configure", label: "Cấu hình bot Telegram" },
 ];
 
@@ -583,6 +587,9 @@ function describeAudit(row: AuditEvent, names: Map<string, string>): string {
   }
   if (row.action === "settings.rate_limit") {
     return `Cập nhật danh sách IP không bị chặn, còn ${numberOf(summary.count)} địa chỉ.`;
+  }
+  if (row.action === "settings.voice_call") {
+    return `Đổi thời lượng cuộc gọi AI còn ${numberOf(summary.max_call_seconds)} giây.`;
   }
   if (row.action === "telegram.configure") {
     const username = text(summary.username);
@@ -894,6 +901,7 @@ const CONTEXT_LABELS: Record<string, string> = {
   sent: "Đã gửi",
   count: "Số lượng",
   idle_minutes: "Số phút im lặng",
+  max_call_seconds: "Số giây cuộc gọi",
   closed: "Hội thoại đã đóng",
   pulled: "Số dòng",
   username: "Tên đăng nhập",

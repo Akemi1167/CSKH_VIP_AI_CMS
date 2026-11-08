@@ -14,6 +14,7 @@ import { HomeBoard } from "./HomeBoard.tsx";
 import { DataBoard } from "./DataBoard.tsx";
 import { JournalBoard } from "./JournalBoard.tsx";
 import { QueueBoard } from "./QueueBoard.tsx";
+import { VerifyBoard } from "./VerifyBoard.tsx";
 import { RateLimitBoard } from "./RateLimitBoard.tsx";
 import { RewardBoard } from "./RewardBoard.tsx";
 import { EffectBoard } from "./EffectBoard.tsx";
@@ -23,6 +24,7 @@ import { StationBoard } from "./StationBoard.tsx";
 import { StationSmsBoard } from "./StationSmsBoard.tsx";
 import { ProviderHistoryBoard } from "./ProviderHistoryBoard.tsx";
 import { VoiceBoard } from "./VoiceBoard.tsx";
+import { VoiceCallBoard } from "./VoiceCallBoard.tsx";
 import { TelegramBoard } from "./TelegramBoard.tsx";
 import { WorkBoard } from "./WorkBoard.tsx";
 import { PasswordDialog } from "./PasswordDialog.tsx";
@@ -32,7 +34,7 @@ import { ChatDock } from "./ChatDock.tsx";
 import { MediaBoard } from "./MediaBoard.tsx";
 import { armAlertSound, askChatNotification, startInboxWatch, stopInboxWatch, useInboxUnread } from "./inboxWatch.ts";
 
-type DeskPage = "overview" | "inbox" | "contacts" | "tasks" | "history" | "personal" | "queue" | "schedule" | "staff" | "customers" | "warehouse" | "distribute" | "campaigns" | "shift" | "effect" | "rewards" | "journal" | "stations" | "media" | "stationSms" | "callTasks" | "voice" | "voiceReview" | "smsHistory" | "voiceHistory" | "rateLimit" | "chatIdle" | "embed" | "home" | "telegram";
+type DeskPage = "overview" | "inbox" | "contacts" | "tasks" | "history" | "personal" | "queue" | "schedule" | "staff" | "customers" | "warehouse" | "distribute" | "campaigns" | "shift" | "effect" | "rewards" | "journal" | "stations" | "media" | "stationSms" | "callTasks" | "voice" | "voiceReview" | "smsHistory" | "voiceHistory" | "rateLimit" | "chatIdle" | "voiceLimit" | "embed" | "home" | "telegram" | "verify";
 
 type NavLeaf = { kind: "leaf"; id: DeskPage; label: string; icon: ReactNode };
 type NavGroup = { label?: string; items: NavLeaf[] };
@@ -115,6 +117,9 @@ export function Desk(props: {
     if (canReadCustomers) {
       care.push({ kind: "leaf", id: "customers", label: "Hội viên VIP", icon: <UserOutlined /> });
     }
+    if (canReadAllTasks || canReadTeamTasks) {
+      care.push({ kind: "leaf", id: "verify", label: "Xác minh tài khoản", icon: <CheckSquareOutlined /> });
+    }
     if (canReadTasks) {
       care.push({ kind: "leaf", id: "inbox", label: "Hộp thư hỗ trợ", icon: <MailOutlined /> });
       care.push({ kind: "leaf", id: "contacts", label: "Cuộc gọi & liên hệ", icon: <PhoneOutlined /> });
@@ -140,6 +145,7 @@ export function Desk(props: {
     if (canReadSettings) {
       settings.push({ kind: "leaf", id: "rateLimit", label: "Không chặn IP", icon: <GlobalOutlined /> });
       settings.push({ kind: "leaf", id: "chatIdle", label: "Thời gian chat", icon: <ClockCircleOutlined /> });
+      settings.push({ kind: "leaf", id: "voiceLimit", label: "Thời lượng cuộc gọi", icon: <PhoneOutlined /> });
       settings.push({ kind: "leaf", id: "embed", label: "Chat nhúng", icon: <MessageOutlined /> });
       settings.push({ kind: "leaf", id: "home", label: "Trang chủ", icon: <LayoutOutlined /> });
     }
@@ -204,7 +210,7 @@ export function Desk(props: {
     }
     const query = keyword.trim().toLocaleLowerCase("vi");
     return { sections: filterSections(sections, query), query };
-  }, [canApproveRewards, canManageTelegram, canReadAudit, canReadCampaigns, canReadCustomers, canReadQueue, canReadSchedule, canReadSettings, canReadStaff, canReadTasks, canReportCampaigns, canReviewRecordings, keyword]);
+  }, [canApproveRewards, canManageTelegram, canReadAllTasks, canReadAudit, canReadCampaigns, canReadCustomers, canReadQueue, canReadSchedule, canReadSettings, canReadStaff, canReadTasks, canReadTeamTasks, canReportCampaigns, canReviewRecordings, keyword]);
 
   function openPage(next: DeskPage) {
     if (next === page) {
@@ -425,6 +431,9 @@ export function Desk(props: {
           {page === "personal" && (canReadCustomers || canReadTasks) ? (
             <PersonalReportBoard onUnauthorized={endSession} onMfaSetup={props.onMfaSetup} />
           ) : null}
+          {page === "verify" && (canReadAllTasks || canReadTeamTasks) ? (
+            <VerifyBoard onUnauthorized={endSession} onMfaSetup={props.onMfaSetup} />
+          ) : null}
           {page === "queue" && canReadQueue ? (
             <QueueBoard canAssign={canAssign} canListStaff={canReadStaff} onUnauthorized={endSession} onMfaSetup={props.onMfaSetup} />
           ) : null}
@@ -530,6 +539,9 @@ export function Desk(props: {
           ) : null}
           {page === "chatIdle" && canReadSettings ? (
             <ChatIdleBoard canWrite={canWriteSettings} onUnauthorized={endSession} onMfaSetup={props.onMfaSetup} />
+          ) : null}
+          {page === "voiceLimit" && canReadSettings ? (
+            <VoiceCallBoard canWrite={canWriteSettings} onUnauthorized={endSession} onMfaSetup={props.onMfaSetup} />
           ) : null}
           {page === "embed" && canReadSettings ? (
             <EmbedBoard onUnauthorized={endSession} onMfaSetup={props.onMfaSetup} />
