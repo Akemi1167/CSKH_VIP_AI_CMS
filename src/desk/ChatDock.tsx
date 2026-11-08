@@ -269,7 +269,7 @@ export function ChatDock(props: {
             {canHandle && nextStatuses.length > 0 ? (
               <div className="chat-dock__actions">
                 {nextStatuses.map((status) => (
-                  <Button key={status} size="small" loading={busyId === chat.task.id} onClick={() => void setStatus(chat.task.id, chat.task.version, status)}>
+                  <Button key={status} size="small" disabled={busyId === chat.task.id} onClick={() => void setStatus(chat.task.id, chat.task.version, status)}>
                     {STATUS_LABEL[status] ?? status}
                   </Button>
                 ))}

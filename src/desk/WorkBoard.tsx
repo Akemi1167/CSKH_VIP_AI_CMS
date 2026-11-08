@@ -772,23 +772,23 @@ export function WorkBoard(props: {
                     </Button>
                     {canHandle && open
                       ? nextStatuses.map((next) => (
-                          <Button key={next} size="small" loading={busy} onClick={() => void changeStatus(next)}>
+                          <Button key={next} size="small" disabled={busy} onClick={() => void changeStatus(next)}>
                             {STATUS_LABEL[next]}
                           </Button>
                         ))
                       : null}
                     {canHandle && open && props.canCancel ? (
-                      <Button size="small" danger loading={busy} onClick={() => void changeStatus("CANCELLED")}>
+                      <Button size="small" danger disabled={busy} onClick={() => void changeStatus("CANCELLED")}>
                         Hủy
                       </Button>
                     ) : null}
                     {canPull ? (
-                      <Button size="small" loading={busy} onClick={() => void takeBack()}>
+                      <Button size="small" disabled={busy} onClick={() => void takeBack()}>
                         Thu về
                       </Button>
                     ) : null}
                     {canMove ? (
-                      <Button size="small" loading={busy} onClick={() => void openTransfer()}>
+                      <Button size="small" disabled={busy} onClick={() => void openTransfer()}>
                         Chuyển
                       </Button>
                     ) : null}
@@ -908,12 +908,12 @@ export function WorkBoard(props: {
                     Gửi
                   </Button>
                   {nextStatuses.map((next) => (
-                    <Button key={next} loading={busy} onClick={() => void changeStatus(next)}>
+                    <Button key={next} disabled={busy} onClick={() => void changeStatus(next)}>
                       {STATUS_LABEL[next]}
                     </Button>
                   ))}
                   {props.canCancel ? (
-                    <Button danger loading={busy} onClick={() => void changeStatus("CANCELLED")}>
+                    <Button danger disabled={busy} onClick={() => void changeStatus("CANCELLED")}>
                       Hủy
                     </Button>
                   ) : null}
@@ -931,11 +931,11 @@ export function WorkBoard(props: {
             {canMove ? (
               <Space wrap style={{ marginTop: 12 }}>
                 {canPull ? (
-                  <Button loading={busy} onClick={() => void takeBack()}>
+                  <Button disabled={busy} onClick={() => void takeBack()}>
                     Thu về
                   </Button>
                 ) : null}
-                <Button loading={busy} onClick={() => void openTransfer()}>
+                <Button disabled={busy} onClick={() => void openTransfer()}>
                   Chuyển
                 </Button>
               </Space>
