@@ -3,7 +3,7 @@ import { Alert, Button, Form, Input, Modal, Segmented, Select, Table, Tag, Typog
 import type { TableColumnsType } from "antd";
 import { useCallback, useEffect, useState } from "react";
 import { ApiError, api } from "../api.ts";
-import { formatStamp } from "../copy.ts";
+import { careLabelName, formatStamp } from "../copy.ts";
 import type { ImportJob, Page, VipCustomer } from "../types.ts";
 import { ErrorAlert } from "../ui.tsx";
 import { MemberDrawer } from "./MemberDrawer.tsx";
@@ -15,9 +15,10 @@ type Filters = {
   status: StatusFilter;
   tier: string;
   site: string;
+  reach: "" | "cared" | "uncared" | "call_reached" | "call_missed";
 };
 
-const EMPTY_FILTERS: Filters = { q: "", status: "all", tier: "", site: "" };
+const EMPTY_FILTERS: Filters = { q: "", status: "all", tier: "", site: "", reach: "" };
 
 const IMPORT_ERRORS: Record<string, string> = {
   invalid_phone: "Số điện thoại không hợp lệ",
@@ -86,6 +87,9 @@ export function CustomerBoard(props: { canImport: boolean; canRevoke: boolean; c
       }
       if (nextFilters.site) {
         params.set("site", nextFilters.site);
+      }
+      if (nextFilters.reach) {
+        params.set("reach", nextFilters.reach);
       }
       if (nextCursor) {
         params.set("cursor", nextCursor);
@@ -216,6 +220,8 @@ export function CustomerBoard(props: { canImport: boolean; canRevoke: boolean; c
       width: 120,
       render: (status: string) => <Tag color={status === "active" ? "green" : "default"}>{status === "active" ? "Đang dùng" : "Đã khóa"}</Tag>,
     },
+    { title: "Chăm sóc", width: 150, render: (_, row) => careTag(row) },
+    { title: "Gọi", width: 140, render: (_, row) => callTag(row.call_reach) },
     { title: "Tạo lúc", dataIndex: "created_at", width: 160, render: (value: string) => formatStamp(value) },
   ];
 
@@ -226,7 +232,7 @@ export function CustomerBoard(props: { canImport: boolean; canRevoke: boolean; c
           <Typography.Title level={3} className="page-header__title">
             Hội viên VIP
           </Typography.Title>
-          <Typography.Text type="secondary">Danh sách khách VIP. Bấm một dòng để xem nhãn chăm sóc và đồng ý nhận tin.</Typography.Text>
+          <Typography.Text type="secondary">Danh sách khách VIP. Cột chăm sóc và cuộc gọi phân biệt khách đã được chăm với khách chưa gọi được.</Typography.Text>
         </div>
         {props.canImport ? (
           <div className="page-header__actions">
@@ -286,6 +292,18 @@ export function CustomerBoard(props: { canImport: boolean; canRevoke: boolean; c
           onChange={(event) => setDraft((current) => ({ ...current, tier: event.target.value }))}
           onPressEnter={() => setFilters(draft)}
           style={{ width: 140 }}
+        />
+        <Select
+          value={draft.reach || "all"}
+          style={{ width: 170 }}
+          options={[
+            { value: "all", label: "Mọi liên hệ" },
+            { value: "cared", label: "Đã chăm" },
+            { value: "uncared", label: "Chưa chăm" },
+            { value: "call_reached", label: "Đã gọi được" },
+            { value: "call_missed", label: "Chưa gọi được" },
+          ]}
+          onChange={(reach: Filters["reach"] | "all") => setDraft((current) => ({ ...current, reach: reach === "all" ? "" : reach }))}
         />
         <Segmented
           value={view}
@@ -367,6 +385,9 @@ export function CustomerBoard(props: { canImport: boolean; canRevoke: boolean; c
                 care_pool: "active",
                 owner_user_id: null,
                 owner_name: null,
+                cared: false,
+                care_label: null,
+                call_reach: "none",
                 created_at: row.created_at,
               }),
           })}
@@ -416,6 +437,27 @@ export function CustomerBoard(props: { canImport: boolean; canRevoke: boolean; c
       ) : null}
     </section>
   );
+}
+
+function careTag(row: VipCustomer) {
+  if (!row.cared) {
+    return <Tag>Chưa chăm</Tag>;
+  }
+  if (!row.care_label || row.care_label === "da_lien_he_lai" || row.care_label === "go_thanh_cong" || row.care_label === "go_dnc") {
+    return <Tag color="green">Đã chăm</Tag>;
+  }
+  const attention = row.care_label === "khong_phan_hoi" || row.care_label === "khach_tu_choi" || row.care_label === "dnc";
+  return <Tag color={attention ? "orange" : "green"}>{careLabelName(row.care_label)}</Tag>;
+}
+
+function callTag(reach: VipCustomer["call_reach"]) {
+  if (reach === "reached") {
+    return <Tag color="green">Đã gọi được</Tag>;
+  }
+  if (reach === "missed") {
+    return <Tag color="orange">Chưa gọi được</Tag>;
+  }
+  return <Tag>Chưa gọi</Tag>;
 }
 
 async function readJob(created: ImportJob): Promise<ImportJob> {

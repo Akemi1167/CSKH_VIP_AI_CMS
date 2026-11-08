@@ -97,6 +97,9 @@ export type VipCustomer = {
   care_pool: "active" | "kho_data" | "nuoi_sms";
   owner_user_id: string | null;
   owner_name: string | null;
+  cared: boolean;
+  care_label: string | null;
+  call_reach: "reached" | "missed" | "none";
   created_at: string;
 };
 
