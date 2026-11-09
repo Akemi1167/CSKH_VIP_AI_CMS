@@ -12,7 +12,7 @@ import { bindInboxBoard, markInboxRead, noteInboxRows, reportTaskRead, sendStaff
 import { showReadMark, withRead } from "../readMark.ts";
 import type { LiveChatMessage } from "./staffChat.ts";
 
-type TaskStatus = "ASSIGNED" | "IN_PROGRESS" | "WAITING_CUSTOMER" | "COMPLETED" | "CANCELLED";
+type TaskStatus = "QUEUED" | "ASSIGNED" | "IN_PROGRESS" | "WAITING_CUSTOMER" | "COMPLETED" | "CANCELLED";
 
 type TaskRow = {
   id: string;
@@ -37,6 +37,7 @@ type TaskDetail = TaskRow & {
 };
 
 const STATUS_LABEL: Record<string, string> = {
+  QUEUED: "Chưa giao",
   ASSIGNED: "Đã giao",
   IN_PROGRESS: "Đang xử lý",
   WAITING_CUSTOMER: "Chờ khách",
@@ -93,7 +94,7 @@ function shortTime(value: string | null | undefined): string {
 }
 
 function asStatus(value: string, fallback: TaskStatus): TaskStatus {
-  if (value === "ASSIGNED" || value === "IN_PROGRESS" || value === "WAITING_CUSTOMER" || value === "COMPLETED" || value === "CANCELLED") {
+  if (value === "QUEUED" || value === "ASSIGNED" || value === "IN_PROGRESS" || value === "WAITING_CUSTOMER" || value === "COMPLETED" || value === "CANCELLED") {
     return value;
   }
   return fallback;
@@ -479,7 +480,7 @@ export function WorkBoard(props: {
   async function openTransfer() {
     setTransferOpen(true);
     setUserId(undefined);
-    setReason("Chuyển việc");
+    setReason(detail?.status === "QUEUED" ? "Giao chăm sóc" : "Chuyển việc");
     if (props.scope === "team") {
       if (staff.length > 0) {
         return;
@@ -553,7 +554,7 @@ export function WorkBoard(props: {
     setError(null);
     setWarning(null);
     try {
-      const result = await api<AssignResult>(`/api/v1/tasks/${detail.id}/transfer`, {
+      const result = await api<AssignResult>(detail.status === "QUEUED" ? `/api/v1/admin/queues/${detail.id}/assign` : `/api/v1/tasks/${detail.id}/transfer`, {
         method: "POST",
         body: { version: detail.version, to_user_id: userId, reason_code: reason.trim() },
       });
@@ -594,6 +595,7 @@ export function WorkBoard(props: {
   const canHandle = Boolean(detail && props.canUpdate && (props.canManageAny || detail.assignee_user_id === props.selfId));
   const canReopen = Boolean(detail && props.canUpdate && detail.channel === "telegram" && detail.status === "COMPLETED");
   const canMove = Boolean(props.canTransfer && open && (props.scope === "team" || props.canListStaff));
+  const canGive = Boolean(detail?.status === "QUEUED" && props.canCancel && (props.scope === "team" || props.canListStaff));
   const canPull = Boolean(canMove && props.scope === "team" && detail && detail.assignee_user_id !== props.selfId);
 
   useEffect(() => {
@@ -691,6 +693,7 @@ export function WorkBoard(props: {
             onChange={setStatus}
             options={[
               ...(oversight ? [{ value: "all", label: "Mọi trạng thái" }] : [{ value: "open", label: "Đang mở" }]),
+              ...(oversight ? [{ value: "QUEUED", label: "Chưa giao" }] : []),
               { value: "ASSIGNED", label: "Đã giao" },
               { value: "IN_PROGRESS", label: "Đang xử lý" },
               { value: "WAITING_CUSTOMER", label: "Chờ khách" },
@@ -794,6 +797,11 @@ export function WorkBoard(props: {
                         Thu về
                       </Button>
                     ) : null}
+                    {canGive ? (
+                      <Button size="small" type="primary" disabled={busy} onClick={() => void openTransfer()}>
+                        Giao
+                      </Button>
+                    ) : null}
                     {canMove ? (
                       <Button size="small" disabled={busy} onClick={() => void openTransfer()}>
                         Chuyển
@@ -870,6 +878,8 @@ export function WorkBoard(props: {
                   </div>
                 ) : canPull ? (
                   <p className="chat-note">Hội thoại đang của nhân viên. Thu về nếu bạn muốn trả lời.</p>
+                ) : canGive ? (
+                  <p className="chat-note">Chưa có người nhận. Bấm Giao để đưa hội thoại cho nhân viên chăm sóc.</p>
                 ) : (
                   <p className="chat-closed">Hội thoại đã đóng.</p>
                 )}
@@ -936,6 +946,11 @@ export function WorkBoard(props: {
             ) : (
               <Tag>{STATUS_LABEL[detail.status] ?? detail.status}</Tag>
             )}
+            {canGive ? (
+              <Button style={{ marginTop: 12 }} disabled={busy} onClick={() => void openTransfer()}>
+                Giao nhân viên
+              </Button>
+            ) : null}
             {canMove ? (
               <Space wrap style={{ marginTop: 12 }}>
                 {canPull ? (
@@ -953,9 +968,9 @@ export function WorkBoard(props: {
       </Drawer>
       )}
       <Modal
-        title="Chuyển task"
+        title={detail?.status === "QUEUED" ? "Giao nhân viên" : "Chuyển task"}
         open={transferOpen}
-        okText="Chuyển"
+        okText={detail?.status === "QUEUED" ? "Giao" : "Chuyển"}
         confirmLoading={busy}
         okButtonProps={{ disabled: !userId || reason.trim().length === 0 }}
         onOk={() => void transfer()}

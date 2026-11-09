@@ -15,6 +15,7 @@ type QueueItem = {
   channel: string;
   campaign_name: string | null;
   last_message_body: string | null;
+  member?: { site?: string | null } | null;
 };
 
 type AssignResult = {
@@ -118,6 +119,7 @@ export function QueueBoard(props: { canAssign: boolean; canListStaff: boolean; o
 
   const columns: TableColumnsType<QueueItem> = [
     { title: "Khách", dataIndex: "customer_ref", ellipsis: true },
+    { title: "Đài", width: 110, render: (_, row) => row.member?.site || "—" },
     { title: "Kênh", width: 110, dataIndex: "channel", render: (value: string) => (value === "telegram" ? "Telegram" : "Web") },
     { title: "Chiến dịch", dataIndex: "campaign_name", ellipsis: true, render: (value: string | null) => value || "—" },
     { title: "Tin cuối", dataIndex: "last_message_body", ellipsis: true, render: (value: string | null) => value || "—" },

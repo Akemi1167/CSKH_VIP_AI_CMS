@@ -458,7 +458,7 @@ export function Desk(props: {
               heading="Hộp thư hỗ trợ"
               lead={
                 canReadAllTasks
-                  ? "Mọi hội thoại của tất cả đài. Chọn bên trái để xem và trả lời."
+                  ? "Mọi hội thoại của tất cả đài, kể cả đài chưa có nhân viên. Chat chưa giao hiện ở đây. Mở rồi bấm Giao để đưa cho người chăm sóc."
                   : canReadTeamTasks
                     ? "Hội thoại của nhân viên các đài bạn phụ trách. Có thể chuyển cho người khác hoặc thu về tự xử lý."
                     : "Hội thoại đang giao cho bạn. Mở cửa sổ để chăm nhiều khách cùng lúc, kể cả khi sang màn khác."
