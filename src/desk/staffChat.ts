@@ -18,6 +18,8 @@ export type LiveChatMessage = {
   created_at: string;
   customer_ref: string;
   channel: string;
+  client_ip?: string | null;
+  client_country?: string | null;
 };
 
 export type LiveChatTask = {
@@ -170,6 +172,8 @@ export class StaffChat {
         created_at: frame.created_at,
         customer_ref: frame.customer_ref ?? "",
         channel: frame.channel ?? "web_chat",
+        client_ip: frame.client_ip ?? null,
+        client_country: frame.client_country ?? null,
       });
       return;
     }
@@ -208,6 +212,8 @@ type Frame = {
   created_at?: string;
   customer_ref?: string;
   channel?: string;
+  client_ip?: string | null;
+  client_country?: string | null;
   message?: string;
   message_ids?: string[];
   read_at?: string;

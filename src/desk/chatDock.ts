@@ -13,6 +13,8 @@ export type DockTask = {
   channel: string;
   assignee_user_id?: string | null;
   assignee_name?: string | null;
+  client_ip?: string | null;
+  client_country?: string | null;
   member?: { game_account?: string | null; display_name?: string | null; site?: string | null } | null;
   messages: DockMessage[];
 };
@@ -92,6 +94,8 @@ export function seedDockBubble(event: LiveChatMessage): void {
         version: event.version,
         customer_ref: event.customer_ref || "Khách",
         channel: event.channel || "web_chat",
+        client_ip: event.client_ip,
+        client_country: event.client_country,
         messages: [{ id: event.message_id, sender_type: event.sender_type, body: event.body, created_at: event.created_at, has_image: event.has_image }],
       },
       expanded: false,
@@ -184,6 +188,8 @@ export function applyDockLiveMessage(event: LiveChatMessage): void {
       version: event.version || window.task.version,
       customer_ref: event.customer_ref || window.task.customer_ref,
       channel: event.channel || window.task.channel,
+      client_ip: event.client_ip || window.task.client_ip,
+      client_country: event.client_country || window.task.client_country,
       messages,
     },
   };

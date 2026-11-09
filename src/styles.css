@@ -483,7 +483,8 @@ a {
   font-weight: 600;
 }
 
-.chat-meta__who {
+.chat-meta__who,
+.chat-meta__place {
   color: #f4f7fb;
   font-weight: 600;
 }
@@ -1112,6 +1113,12 @@ a {
   color: #9aa3b5;
   font-size: 12px;
   line-height: 1.35;
+}
+
+.chat-dock__place {
+  display: block;
+  color: #f4f7fb;
+  font-weight: 600;
 }
 
 .chat-dock__tools {

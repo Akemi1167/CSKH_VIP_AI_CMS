@@ -43,6 +43,14 @@ function guestFacts(task: DockTask): string {
   return [site, channel, status].filter(Boolean).join(" · ");
 }
 
+function guestPlace(task: DockTask): string {
+  return [task.client_ip?.trim(), task.client_country?.trim()].filter((part) => Boolean(part)).join(" · ");
+}
+
+function guestWhere(task: DockTask): string {
+  return [guestFacts(task), guestPlace(task)].filter(Boolean).join(" · ");
+}
+
 function initial(name: string): string {
   return (name.trim().slice(0, 1) || "?").toUpperCase();
 }
@@ -228,7 +236,7 @@ export function ChatDock(props: {
               key={chat.task.id}
               type="button"
               className={chat.alert ? "chat-dock__bubble chat-dock__bubble--alert" : "chat-dock__bubble"}
-              title={chat.alert ? `Tin mới · ${guestFacts(chat.task)}` : guestFacts(chat.task)}
+              title={chat.alert ? `Tin mới · ${guestWhere(chat.task)}` : guestWhere(chat.task)}
               onClick={() => {
                 setDockExpanded(chat.task.id, true);
                 markInboxRead(chat.task.id);
@@ -253,7 +261,10 @@ export function ChatDock(props: {
                 </span>
                 <span>
                   <strong>{name}</strong>
-                  <small>{guestFacts(chat.task)}</small>
+                  <small>
+                    {guestFacts(chat.task)}
+                    {guestPlace(chat.task) ? <span className="chat-dock__place">{guestPlace(chat.task)}</span> : null}
+                  </small>
                   {chat.alert ? <em className="chat-dock__new">Tin mới</em> : null}
                 </span>
               </div>

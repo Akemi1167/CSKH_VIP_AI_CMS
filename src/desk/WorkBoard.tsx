@@ -28,6 +28,8 @@ type TaskRow = {
   first_response: { state: string; due_at: string | null };
   last_message: { body: string; sender_type: string; created_at: string | null } | null;
   member?: { site: string | null } | null;
+  client_ip?: string | null;
+  client_country?: string | null;
 };
 
 type TaskDetail = TaskRow & {
@@ -345,6 +347,8 @@ export function WorkBoard(props: {
               ...row,
               version: event.version || row.version,
               status: asStatus(event.task_status, row.status),
+              client_ip: event.client_ip || row.client_ip,
+              client_country: event.client_country || row.client_country,
               last_message: { body: event.body, sender_type: event.sender_type, created_at: event.created_at },
             }
           : row,
@@ -355,13 +359,15 @@ export function WorkBoard(props: {
         return current;
       }
       const statusNext = asStatus(event.task_status, current.status);
+      const place = { client_ip: event.client_ip || current.client_ip, client_country: event.client_country || current.client_country };
       if (current.messages.some((message) => message.id === event.message_id)) {
-        return { ...current, version: event.version || current.version, status: statusNext };
+        return { ...current, version: event.version || current.version, status: statusNext, ...place };
       }
       return {
         ...current,
         version: event.version || current.version,
         status: statusNext,
+        ...place,
         messages: [...current.messages, { id: event.message_id, sender_type: event.sender_type, body: event.body, created_at: event.created_at, has_image: event.has_image }],
       };
     });
@@ -576,6 +582,7 @@ export function WorkBoard(props: {
     ...(oversight ? [{ title: "Nhân viên", dataIndex: "assignee_name", width: 160, ellipsis: true, render: (value: string | null) => value || "—" } satisfies TableColumnsType<TaskRow>[number]] : []),
     ...(oversight ? [{ title: "Đài", width: 120, render: (_, row) => (row.member?.site ? <StationMark code={row.member.site} logos={logos} /> : "—") } satisfies TableColumnsType<TaskRow>[number]] : []),
     { title: "Kênh", dataIndex: "channel", width: 110, render: (value: string) => (value === "telegram" ? "Telegram" : "Web") },
+    { title: "Vị trí", width: 220, ellipsis: true, render: (_, row) => customerPlace(row.client_ip, row.client_country) || "—" },
     { title: "Tin cuối", ellipsis: true, render: (_, row) => row.last_message?.body || "—" },
     { title: "Trạng thái", dataIndex: "status", width: 130, render: (value: string) => STATUS_LABEL[value] ?? value },
     { title: "Hạn trả lời", width: 140, render: (_, row) => SLA_LABEL[row.first_response.state] ?? row.first_response.state },
@@ -729,7 +736,7 @@ export function WorkBoard(props: {
                         {pending ? <span className="chat-unread">{pending.count}</span> : <time>{shortTime(when)}</time>}
                       </span>
                       <span className="chat-list__preview">{pending?.body || row.last_message?.body || "Chưa có tin"}</span>
-                      <ChatFacts site={row.member?.site} channel={row.channel} assignee={row.assignee_name} status={row.status} logos={logos} oversight={oversight} />
+                      <ChatFacts site={row.member?.site} channel={row.channel} assignee={row.assignee_name} status={row.status} logos={logos} oversight={oversight} clientIp={row.client_ip} clientCountry={row.client_country} />
                     </span>
                   </button>
                   <button
@@ -763,7 +770,7 @@ export function WorkBoard(props: {
                     </span>
                     <div>
                     <strong>{detail.customer_ref}</strong>
-                    <ChatFacts site={detail.member?.site} channel={detail.channel} assignee={detail.assignee_name} status={detail.status} logos={logos} oversight={oversight} />
+                    <ChatFacts site={detail.member?.site} channel={detail.channel} assignee={detail.assignee_name} status={detail.status} logos={logos} oversight={oversight} clientIp={detail.client_ip} clientCountry={detail.client_country} />
                     </div>
                   </div>
                   <Space wrap>
@@ -884,6 +891,7 @@ export function WorkBoard(props: {
               {detail.member?.site ? <StationMark code={detail.member.site} logos={logos} /> : oversight ? "chưa gắn" : null}
               {detail.member?.site || oversight ? " · " : ""}
               {detail.channel === "telegram" ? "Telegram" : "Web"}
+              {customerPlace(detail.client_ip, detail.client_country) ? ` · ${customerPlace(detail.client_ip, detail.client_country)}` : ""}
               {detail.campaign_name ? ` · ${detail.campaign_name}` : ""}
               {oversight ? ` · ${detail.assignee_name ? `Đang chăm ${detail.assignee_name}` : "Chưa giao"}` : detail.assignee_name ? ` · ${detail.assignee_name}` : ""} · {STATUS_LABEL[detail.status] ?? detail.status}
             </p>
@@ -976,8 +984,22 @@ export function WorkBoard(props: {
   );
 }
 
-function ChatFacts(props: { site?: string | null; channel: string; assignee?: string | null; status: string; logos: Set<string>; oversight: boolean }) {
+function customerPlace(ip?: string | null, country?: string | null): string {
+  return [ip?.trim(), country?.trim()].filter((part) => Boolean(part)).join(" · ");
+}
+
+function ChatFacts(props: {
+  site?: string | null;
+  channel: string;
+  assignee?: string | null;
+  status: string;
+  logos: Set<string>;
+  oversight: boolean;
+  clientIp?: string | null;
+  clientCountry?: string | null;
+}) {
   const channel = props.channel === "telegram" ? "Telegram" : "Web";
+  const place = customerPlace(props.clientIp, props.clientCountry);
   return (
     <span className="chat-meta">
       <span className="chat-meta__station">
@@ -985,6 +1007,7 @@ function ChatFacts(props: { site?: string | null; channel: string; assignee?: st
         {props.site ? <StationMark code={props.site} logos={props.logos} /> : props.oversight ? "chưa gắn" : channel}
       </span>
       {props.oversight ? <span className="chat-meta__who">{props.assignee ? `Đang chăm ${props.assignee}` : "Chưa giao"}</span> : null}
+      {place ? <span className="chat-meta__place">{place}</span> : null}
       <span>
         {props.site || props.oversight ? `${channel} · ` : ""}
         {STATUS_LABEL[props.status] ?? props.status}
