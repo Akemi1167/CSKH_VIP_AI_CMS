@@ -41,7 +41,7 @@ export function PasswordDialog(props: { onClose: () => void; onChanged: () => vo
       props.onChanged();
     } catch (caught) {
       const apiError = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không kết nối được máy chủ", "");
-      if (apiError.status === 401 && apiError.message.includes("hiện tại")) {
+      if ((apiError.status === 401 || apiError.status === 403) && apiError.message.includes("hiện tại")) {
         setFields({ current_password: apiError.message });
         setError(null);
       } else {

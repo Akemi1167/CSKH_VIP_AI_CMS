@@ -185,17 +185,34 @@ export function AuthScreen(props: {
     setCopied(ok);
   }
 
+  async function logout() {
+    await api("/api/v1/auth/logout", { method: "POST" });
+  }
+
   async function leave() {
     setPending(true);
+    setError(null);
     try {
-      await api("/api/v1/auth/logout", { method: "POST" });
-      setCsrfToken("");
+      await logout();
     } catch (caught) {
-      if (!(caught instanceof ApiError) || (caught.status !== 401 && caught.status !== 0)) {
+      const error = caught instanceof ApiError ? caught : null;
+      if (error?.code === "csrf_invalid") {
+        try {
+          await api("/api/v1/auth/me");
+          await logout();
+        } catch (retry) {
+          const again = retry instanceof ApiError ? retry : null;
+          if (!again || (again.status !== 401 && again.status !== 0)) {
+            fail(retry);
+            return;
+          }
+        }
+      } else if (!error || (error.status !== 401 && error.status !== 0)) {
         fail(caught);
         return;
       }
     }
+    setCsrfToken("");
     props.onLeave();
   }
 
@@ -301,7 +318,7 @@ export function AuthScreen(props: {
             <Button type="primary" htmlType="submit" block size="large" loading={pending}>
               Tạo mã MFA
             </Button>
-            <Button disabled={pending} block style={{ marginTop: 8 }} onClick={() => void leave()}>
+            <Button htmlType="button" disabled={pending} block style={{ marginTop: 8 }} onClick={() => void leave()}>
               Đăng xuất
             </Button>
           </Form>
@@ -337,10 +354,10 @@ export function AuthScreen(props: {
               Bật MFA và vào bàn
             </Button>
             <Space style={{ width: "100%", marginTop: 8, justifyContent: "space-between" }}>
-              <Button disabled={pending} onClick={() => void startSetup()}>
+              <Button htmlType="button" disabled={pending} onClick={() => void startSetup()}>
                 Tạo mã mới
               </Button>
-              <Button disabled={pending} onClick={() => void leave()}>
+              <Button htmlType="button" disabled={pending} onClick={() => void leave()}>
                 Đăng xuất
               </Button>
             </Space>

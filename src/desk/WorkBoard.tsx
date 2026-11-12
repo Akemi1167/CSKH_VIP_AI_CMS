@@ -173,6 +173,7 @@ export function WorkBoard(props: {
   const [logos, setLogos] = useState<Set<string>>(new Set());
   const [live, setLive] = useState<"connecting" | "live" | "down">("down");
   const listRef = useRef({ status, assigneeId, ids: new Set<string>() });
+  const listFlight = useRef(false);
   listRef.current = { status, assigneeId, ids: new Set(items.map((row) => row.id)) };
   const unread = useInboxUnread();
   const detailRef = useRef<TaskDetail | null>(null);
@@ -220,6 +221,10 @@ export function WorkBoard(props: {
   }, []);
 
   const load = useCallback(async (nextStatus: string, nextAssignee: string) => {
+    if (listFlight.current) {
+      return;
+    }
+    listFlight.current = true;
     const params = new URLSearchParams();
     if (props.scope === "staff" || props.scope === "team") {
       params.set("scope", props.scope);
@@ -235,10 +240,14 @@ export function WorkBoard(props: {
       params.set("q", needle);
     }
     const queryText = params.toString();
-    const result = await api<{ items: TaskRow[]; total?: number }>(`/api/v1/tasks${queryText ? `?${queryText}` : ""}`);
-    setItems(result.items);
-    setTotal(typeof result.total === "number" ? result.total : result.items.length);
-    setError(null);
+    try {
+      const result = await api<{ items: TaskRow[]; total?: number }>(`/api/v1/tasks${queryText ? `?${queryText}` : ""}`);
+      setItems(result.items);
+      setTotal(typeof result.total === "number" ? result.total : result.items.length);
+      setError(null);
+    } finally {
+      listFlight.current = false;
+    }
   }, [props.scope]);
 
   useEffect(() => {

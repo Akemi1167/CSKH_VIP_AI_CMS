@@ -50,6 +50,7 @@ let chat: StaffChat | null = null;
 let status: "connecting" | "live" | "down" = "down";
 let watchScope: "own" | "staff" | "team" = "own";
 let catchUpTimer = 0;
+let catchUpFlight = false;
 let flashTimer = 0;
 let flashOn = false;
 let audio: AudioContext | null = null;
@@ -266,12 +267,18 @@ function absorb(items: TaskListItem[]): void {
 }
 
 async function catchUp(): Promise<void> {
+  if (catchUpFlight) {
+    return;
+  }
+  catchUpFlight = true;
   let result: { items: TaskListItem[] };
   try {
     const path = watchScope === "own" ? "/api/v1/tasks" : `/api/v1/tasks?scope=${watchScope}`;
     result = await api<{ items: TaskListItem[] }>(path);
   } catch {
     return;
+  } finally {
+    catchUpFlight = false;
   }
   const before = unread.size;
   absorb(result.items);
