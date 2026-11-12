@@ -57,6 +57,9 @@ let audio: AudioContext | null = null;
 let originalIcon = "";
 let focusVisible = false;
 let focusTaskId: string | null = null;
+let lastChime = 0;
+
+const RECENT_MS = 20_000;
 
 export function useInboxUnread(): Snapshot {
   return useSyncExternalStore(subscribeInbox, getInboxSnapshot, getInboxSnapshot);
@@ -209,7 +212,7 @@ function noteCustomerMessage(event: LiveChatMessage): void {
   seenAt.set(event.task_id, at);
   saveSeen();
   const looking = focusVisible && focusTaskId === event.task_id && document.hasFocus() && !document.hidden;
-  if (looking) {
+  if (looking || !isRecent(at)) {
     return;
   }
   const previous = unread.get(event.task_id);
@@ -232,13 +235,11 @@ function absorb(items: TaskListItem[]): void {
     const customer = row.last_message?.sender_type === "customer" && Boolean(row.last_message.created_at);
     if (stored === undefined) {
       seenAt.set(row.id, at);
-      if (!customer || Date.now() - at > 90_000) {
-        continue;
-      }
-    } else if (!customer || at <= stored) {
-      continue;
-    } else {
+    } else if (at > stored) {
       seenAt.set(row.id, at);
+    }
+    if (!customer || at <= (stored ?? 0) || !isRecent(at)) {
+      continue;
     }
     if (focusVisible && focusTaskId === row.id && document.hasFocus() && !document.hidden) {
       continue;
@@ -262,7 +263,7 @@ function absorb(items: TaskListItem[]): void {
     publish();
   }
   if (alert) {
-    alertStaff(alert.name, alert.body, alert.taskId);
+    alertStaff(alert.name, alert.body, alert.taskId, false);
   }
 }
 
@@ -289,7 +290,7 @@ async function catchUp(): Promise<void> {
   }
 }
 
-function alertStaff(name: string, body: string, taskId: string): void {
+function alertStaff(name: string, body: string, taskId: string, sound = true): void {
   const title = "Chat mới";
   const text = `${name}: ${body}`.slice(0, 140);
   if ("Notification" in window && Notification.permission === "granted" && (document.hidden || !focusVisible)) {
@@ -300,10 +301,21 @@ function alertStaff(name: string, body: string, taskId: string): void {
       notice.close();
     };
   }
-  ping();
+  if (sound) {
+    ping();
+  }
+}
+
+function isRecent(at: number): boolean {
+  return at > 0 && Date.now() - at <= RECENT_MS;
 }
 
 function ping(): void {
+  const now = Date.now();
+  if (now - lastChime < 3_000) {
+    return;
+  }
+  lastChime = now;
   const context = audio;
   if (!context) {
     return;
