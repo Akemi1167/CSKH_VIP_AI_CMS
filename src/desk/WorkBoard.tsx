@@ -110,6 +110,19 @@ function liveLabel(status: "connecting" | "live" | "down"): string {
   return "Chưa nối socket. Vẫn gửi được bằng API.";
 }
 
+function chatCount(shown: number, total: number, query: string): string {
+  if (query && total === 0) {
+    return "Không có hội thoại khớp.";
+  }
+  if (shown < total) {
+    return `Đang hiện ${shown} / ${total} hội thoại mới nhất.`;
+  }
+  if (query) {
+    return `${total} hội thoại khớp.`;
+  }
+  return `${total} hội thoại.`;
+}
+
 function chatInitial(name: string): string {
   const clean = name.replace(/^tg:/i, "").trim();
   return (clean.slice(0, 1) || "?").toUpperCase();
@@ -134,6 +147,11 @@ export function WorkBoard(props: {
   const threadRef = useRef<HTMLDivElement>(null);
   const [status, setStatus] = useState<string>(oversight ? "all" : "open");
   const [assigneeId, setAssigneeId] = useState("");
+  const [draft, setDraft] = useState("");
+  const [query, setQuery] = useState("");
+  const [total, setTotal] = useState(0);
+  const queryRef = useRef("");
+  queryRef.current = query;
   const [items, setItems] = useState<TaskRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<ApiError | null>(null);
@@ -212,9 +230,14 @@ export function WorkBoard(props: {
     if ((props.scope === "staff" || props.scope === "team") && nextAssignee) {
       params.set("assignee_id", nextAssignee);
     }
-    const query = params.toString();
-    const result = await api<{ items: TaskRow[] }>(`/api/v1/tasks${query ? `?${query}` : ""}`);
+    const needle = queryRef.current.trim();
+    if (needle) {
+      params.set("q", needle);
+    }
+    const queryText = params.toString();
+    const result = await api<{ items: TaskRow[]; total?: number }>(`/api/v1/tasks${queryText ? `?${queryText}` : ""}`);
     setItems(result.items);
+    setTotal(typeof result.total === "number" ? result.total : result.items.length);
     setError(null);
   }, [props.scope]);
 
@@ -239,7 +262,15 @@ export function WorkBoard(props: {
     return () => {
       ignore = true;
     };
-  }, [assigneeId, failAuth, load, status]);
+  }, [assigneeId, failAuth, load, query, status]);
+
+  useEffect(() => {
+    const next = draft.trim();
+    const timer = window.setTimeout(() => {
+      setQuery((current) => (current === next ? current : next));
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [draft]);
 
   useEffect(() => {
     if (props.scope !== "team" && (!oversight || !props.canListStaff)) {
@@ -675,6 +706,7 @@ export function WorkBoard(props: {
           </Typography.Title>
           <Typography.Text type="secondary">{props.lead}</Typography.Text>
           {chatLayout ? <p className="page-note">{liveLabel(live)}</p> : null}
+          {loading && items.length === 0 ? null : <p className="page-note">{chatCount(items.length, total, query)}</p>}
         </div>
         <Space>
           {oversight && (props.scope === "team" || props.canListStaff) ? (
@@ -701,6 +733,13 @@ export function WorkBoard(props: {
               { value: "CANCELLED", label: "Đã hủy" },
             ]}
           />
+          <Input
+            allowClear
+            value={draft}
+            placeholder="Tìm mã chat, IP, đài, tin"
+            style={{ width: 240 }}
+            onChange={(event) => setDraft(event.target.value)}
+          />
           <Button icon={<ReloadOutlined />} onClick={() => void load(status, assigneeId).catch((caught: unknown) => { const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không tải được task", ""); if (!failAuth(problem)) setError(problem); })}>
             Tải lại
           </Button>
@@ -721,7 +760,7 @@ export function WorkBoard(props: {
         <div className="chat-shell">
           <aside className="chat-list">
             {loading && items.length === 0 ? <p className="chat-empty">Đang tải hội thoại…</p> : null}
-            {!loading && items.length === 0 ? <p className="chat-empty">Chưa có hội thoại.</p> : null}
+            {!loading && items.length === 0 ? <p className="chat-empty">{query ? "Không có hội thoại khớp." : "Chưa có hội thoại."}</p> : null}
             {newestFirst(items).map((row) => {
               const when = row.last_message?.created_at || row.received_at;
               const pending = unread.byId.get(row.id);
