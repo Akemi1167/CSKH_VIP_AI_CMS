@@ -15,6 +15,9 @@ export function StaffEditor(props: {
   fieldErrors: FieldErrors;
   blockReason: string | null;
   endsOwnSession: boolean;
+  needsConfirm: boolean;
+  confirmPassword: string;
+  onConfirmPassword: (value: string) => void;
   saved: string | null;
   issuedPassword: string | null;
   focusToken: string;
@@ -248,6 +251,22 @@ export function StaffEditor(props: {
           ) : null}
         </div>
       </Form.Item>
+
+      {props.needsConfirm ? (
+        <Form.Item
+          label="Mật khẩu của bạn"
+          validateStatus={props.fieldErrors.current_password ? "error" : ""}
+          help={props.fieldErrors.current_password || "Phiên đăng nhập không đủ. Nhập mật khẩu bạn đang dùng để xác nhận."}
+        >
+          <Input.Password
+            autoComplete="current-password"
+            spellCheck={false}
+            disabled={!props.canWrite}
+            value={props.confirmPassword}
+            onChange={(event) => props.onConfirmPassword(event.target.value)}
+          />
+        </Form.Item>
+      ) : null}
 
       {props.endsOwnSession ? <p className="page-note">Lưu vai trò hoặc mật khẩu của chính bạn sẽ đăng xuất phiên này.</p> : null}
       {!props.canWrite ? <p className="page-note">Bạn xem được hồ sơ này. Sửa nhân sự cần quyền riêng.</p> : null}

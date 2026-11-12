@@ -22,7 +22,14 @@ import { StaffEditor } from "./StaffEditor.tsx";
 type Selection = { kind: "idle" } | { kind: "create" } | { kind: "edit"; id: string };
 type StatusFilter = "all" | "active" | "disabled";
 
-const KNOWN_FIELDS = ["username", "display_name", "password", "role_codes", "work_functions", "timezone", "status"];
+const KNOWN_FIELDS = ["username", "display_name", "password", "role_codes", "work_functions", "timezone", "status", "current_password"];
+
+function needsActorPassword(mode: "create" | "edit", patch: UpdateStaffBody | null): boolean {
+  if (mode === "create") {
+    return true;
+  }
+  return Boolean(patch && (patch.role_codes || patch.password || patch.status));
+}
 
 function careStations(draft: Draft): string[] {
   return draft.role_codes.includes("agent") ? draft.stations : [];
@@ -62,6 +69,8 @@ export function StaffBoard(props: {
   const [saving, setSaving] = useState(false);
   const [functionBusy, setFunctionBusy] = useState<string | null>(null);
   const [passwordFor, setPasswordFor] = useState<Staff | null>(null);
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [actorPassword, setActorPassword] = useState("");
   const [passwordValue, setPasswordValue] = useState("");
   const [passwordShown, setPasswordShown] = useState<string | null>(null);
   const [passwordCopied, setPasswordCopied] = useState(false);
@@ -157,6 +166,7 @@ export function StaffBoard(props: {
     setFieldErrors({});
     setFormError(null);
     setSaved(null);
+    setConfirmPassword("");
     if (next.kind === "create") {
       const created = emptyDraft();
       setDraft(created);
@@ -200,12 +210,16 @@ export function StaffBoard(props: {
     }
     const mode = selection.kind === "create" ? "create" : "edit";
     const errors = validateDraft(mode, draft);
+    const personId = selection.kind === "edit" ? selection.id : "";
+    const patch = mode === "edit" ? patchFromDraft(origin, draft) : null;
+    if (needsActorPassword(mode, patch) && !confirmPassword) {
+      errors.current_password = "Nhập mật khẩu hiện tại của bạn";
+    }
     setFieldErrors(errors);
     setFormError(null);
     if (Object.keys(errors).length > 0) {
       return;
     }
-    const personId = selection.kind === "edit" ? selection.id : "";
     const blocked = saveBlockReason({
       mode,
       draft,
@@ -225,6 +239,7 @@ export function StaffBoard(props: {
           role_codes: draft.role_codes,
           work_functions: draft.work_functions,
           timezone: draft.timezone,
+          current_password: confirmPassword,
         };
         const created = await api<Staff>("/api/v1/admin/staff", { method: "POST", body });
         const codes = careStations(draft);
@@ -245,9 +260,10 @@ export function StaffBoard(props: {
         setOrigin(cloneDraft(nextDraft));
         setPeople(items.length > 0 ? items : [withStations]);
         setFieldErrors({});
+        setConfirmPassword("");
         return;
       }
-      const body: UpdateStaffBody | null = patchFromDraft(origin, draft);
+      const body: UpdateStaffBody | null = patch;
       const codes = careStations(draft);
       const stationChange = !sameCodes(origin.stations, codes);
       if (!body && !stationChange) {
@@ -256,7 +272,8 @@ export function StaffBoard(props: {
       }
       let updated = people.find((person) => person.id === selection.id);
       if (body) {
-        updated = await api<Staff>(`/api/v1/admin/staff/${selection.id}`, { method: "PATCH", body });
+        const payload = needsActorPassword("edit", body) ? { ...body, current_password: confirmPassword } : body;
+        updated = await api<Staff>(`/api/v1/admin/staff/${selection.id}`, { method: "PATCH", body: payload });
       }
       if (!updated) {
         throw new ApiError(0, "network", "Không lưu được nhân viên", "");
@@ -280,6 +297,7 @@ export function StaffBoard(props: {
       setPeople(items);
       setSaved(body?.password || body?.role_codes || body?.status === "disabled" ? "Đã lưu. Phiên đăng nhập của người này đã đóng." : "Đã lưu.");
       setFieldErrors({});
+      setConfirmPassword("");
       if (updated.id === props.me.id) {
         props.onSelfUpdated({ ...props.me, display_name: updated.display_name, roles: updated.roles });
       }
@@ -321,6 +339,7 @@ export function StaffBoard(props: {
         })
       : null;
   const pendingPatch = origin && draft && selection.kind === "edit" ? patchFromDraft(origin, draft) : null;
+  const needsConfirm = needsActorPassword(selection.kind === "create" ? "create" : "edit", pendingPatch);
   const endsOwnSession = Boolean(
     selection.kind === "edit" && selection.id === props.me.id && pendingPatch && (pendingPatch.password || pendingPatch.role_codes),
   );
@@ -352,6 +371,7 @@ export function StaffBoard(props: {
   }
 
   function openPassword(person: Staff) {
+    setActorPassword("");
     setPasswordFor(person);
     setPasswordValue(generatePassword());
     setPasswordShown(null);
@@ -368,10 +388,17 @@ export function StaffBoard(props: {
       setFormError(new ApiError(400, "validation_error", problem, ""));
       return;
     }
+    if (!actorPassword) {
+      setFormError(new ApiError(400, "validation_error", "Nhập mật khẩu hiện tại của bạn", ""));
+      return;
+    }
     setSaving(true);
     setFormError(null);
     try {
-      await api<Staff>(`/api/v1/admin/staff/${passwordFor.id}`, { method: "PATCH", body: { password: passwordValue } });
+      await api<Staff>(`/api/v1/admin/staff/${passwordFor.id}`, {
+        method: "PATCH",
+        body: { password: passwordValue, current_password: actorPassword },
+      });
       if (passwordFor.id === props.me.id) {
         props.onSessionEnded("Đã đổi mật khẩu. Phiên của bạn đã đóng, hãy đăng nhập lại.");
         return;
@@ -391,10 +418,14 @@ export function StaffBoard(props: {
     if (!mfaFor) {
       return;
     }
+    if (!actorPassword) {
+      setFormError(new ApiError(400, "validation_error", "Nhập mật khẩu hiện tại của bạn", ""));
+      return;
+    }
     setSaving(true);
     setFormError(null);
     try {
-      await api(`/api/v1/admin/staff/${mfaFor.id}/mfa`, { method: "DELETE" });
+      await api(`/api/v1/admin/staff/${mfaFor.id}/mfa`, { method: "DELETE", body: { current_password: actorPassword } });
       if (mfaFor.id === props.me.id) {
         props.onSessionEnded("Đã gỡ MFA. Phiên của bạn đã đóng, hãy đăng nhập lại.");
         return;
@@ -502,6 +533,7 @@ export function StaffBoard(props: {
                     return;
                   }
                   setFormError(null);
+                  setActorPassword("");
                   setMfaFor(person);
                 }}
               >
@@ -590,7 +622,7 @@ export function StaffBoard(props: {
           }
         />
       ) : null}
-      {formError && !editorOpen ? <ErrorAlert error={formError} /> : null}
+      {formError && !editorOpen && !passwordFor && !mfaFor ? <ErrorAlert error={formError} /> : null}
 
       <div className="staff-table">
         <Table<Staff>
@@ -624,6 +656,7 @@ export function StaffBoard(props: {
           void savePassword();
         }}
       >
+        {formError ? <ErrorAlert error={formError} /> : null}
         {passwordShown ? (
           <p className="page-note">
             Mật khẩu mới chỉ hiện lúc này: <code className="secret-code">{passwordShown}</code>
@@ -634,7 +667,14 @@ export function StaffBoard(props: {
         ) : (
           <>
             <p className="page-note">Người này sẽ phải đăng nhập lại. Gửi mật khẩu cho họ, CMS không lưu lại.</p>
+            <p className="page-note">Mật khẩu mới</p>
             <Input.Password value={passwordValue} autoComplete="new-password" onChange={(event) => setPasswordValue(event.target.value)} />
+            <p className="page-note" style={{ marginTop: 12 }}>Mật khẩu của bạn</p>
+            <Input.Password
+              autoComplete="current-password"
+              value={actorPassword}
+              onChange={(event) => setActorPassword(event.target.value)}
+            />
             <button type="button" className="text-button" style={{ marginTop: 8 }} onClick={() => setPasswordValue(generatePassword())}>
               Tạo mật khẩu khác
             </button>
@@ -653,11 +693,14 @@ export function StaffBoard(props: {
         onCancel={() => setMfaFor(null)}
         onOk={() => void clearMfa()}
       >
+        {formError ? <ErrorAlert error={formError} /> : null}
         <p className="page-note">
           {mfaFor?.id === props.me.id
             ? "MFA của bạn sẽ bị gỡ và phiên này đóng."
             : "Người này đăng nhập bằng mật khẩu cho đến khi tự bật lại MFA. Phiên đang mở của họ sẽ đóng."}
         </p>
+        <p className="page-note">Mật khẩu của bạn</p>
+        <Input.Password autoComplete="current-password" value={actorPassword} onChange={(event) => setActorPassword(event.target.value)} />
       </Modal>
 
       <Modal
@@ -692,6 +735,9 @@ export function StaffBoard(props: {
             fieldErrors={fieldErrors}
             blockReason={blockReason}
             endsOwnSession={endsOwnSession}
+            needsConfirm={needsConfirm}
+            confirmPassword={confirmPassword}
+            onConfirmPassword={setConfirmPassword}
             saved={saved}
             issuedPassword={selection.kind === "edit" && issued?.id === selection.id ? issued.password : null}
             focusToken={selection.kind === "edit" ? selection.id : "create"}

@@ -89,7 +89,7 @@ export function RateLimitBoard(props: { canWrite: boolean; onUnauthorized: () =>
       setBaseline(result.ips);
       setSaved(true);
       setClientIp(result.client_ip);
-      setNotice("Đã lưu. Các địa chỉ này không bị giới hạn request nữa.");
+      setNotice("Đã lưu. Các địa chỉ này không bị giới hạn request và không bị chặn khi giả lập nhiều khách chat.");
     } catch (caught) {
       const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không lưu được danh sách IP", "");
       if (!failAuth(problem)) {
@@ -108,7 +108,7 @@ export function RateLimitBoard(props: { canWrite: boolean; onUnauthorized: () =>
             Không chặn IP
           </Typography.Title>
           <Typography.Text type="secondary">
-            Địa chỉ trong danh sách không bị giới hạn 120 request mỗi phút. Đăng nhập sai mật khẩu và mã MFA vẫn bị khóa.
+            Địa chỉ trong danh sách không bị giới hạn 120 request mỗi phút. Cùng địa chỉ mở được nhiều chat khách và gửi tin nhanh, dùng khi giả lập nhiều người. Đăng nhập sai mật khẩu và mã MFA vẫn bị khóa.
           </Typography.Text>
         </div>
         {props.canWrite ? (

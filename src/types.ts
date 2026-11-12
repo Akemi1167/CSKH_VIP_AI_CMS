@@ -49,6 +49,7 @@ export type UpdateStaffBody = {
   role_codes?: string[];
   work_functions?: string[];
   password?: string;
+  current_password?: string;
 };
 
 export type CreateStaffBody = {
@@ -58,6 +59,7 @@ export type CreateStaffBody = {
   role_codes: string[];
   work_functions: string[];
   timezone: string;
+  current_password: string;
 };
 
 export type FieldErrors = Record<string, string>;

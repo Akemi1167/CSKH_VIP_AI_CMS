@@ -41,44 +41,15 @@ export function AuthScreen(props: {
   const [fields, setFields] = useState<Record<string, string>>({});
   const [pending, setPending] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [setupAttempt, setSetupAttempt] = useState(0);
 
   useEffect(() => {
     setStep(props.start === "mfa_setup" ? "setup" : "credentials");
     setPending(false);
     setError(null);
     setCode("");
-  }, [props.start]);
-
-  useEffect(() => {
-    if (step !== "setup") {
-      return;
-    }
-    let ignore = false;
-    setPending(true);
-    setError(null);
     setSetup(null);
     setQr(null);
-    api<MfaSetup>("/api/v1/auth/mfa/setup", { method: "POST" })
-      .then((result) => {
-        if (!ignore) {
-          setSetup(result);
-        }
-      })
-      .catch((caught: unknown) => {
-        if (!ignore) {
-          setError(caught instanceof ApiError ? caught : new ApiError(0, "network", "Không tạo được mã MFA", ""));
-        }
-      })
-      .finally(() => {
-        if (!ignore) {
-          setPending(false);
-        }
-      });
-    return () => {
-      ignore = true;
-    };
-  }, [step, setupAttempt]);
+  }, [props.start]);
 
   useEffect(() => {
     if (!setup) {
@@ -111,6 +82,29 @@ export function AuthScreen(props: {
     setError(parsed.extra ? new ApiError(next.status, next.code, `${next.message} ${parsed.extra}`, next.requestId) : next);
     setFields(parsed.fields);
     setPending(false);
+  }
+
+  async function startSetup() {
+    if (!password) {
+      setFields({ password: "Nhập mật khẩu hiện tại" });
+      return;
+    }
+    setPending(true);
+    setError(null);
+    setFields({});
+    setSetup(null);
+    setQr(null);
+    try {
+      const result = await api<MfaSetup>("/api/v1/auth/mfa/setup", {
+        method: "POST",
+        body: { current_password: password },
+      });
+      setSetup(result);
+      setCode("");
+      setPending(false);
+    } catch (caught) {
+      fail(caught);
+    }
   }
 
   async function submitLogin() {
@@ -205,7 +199,7 @@ export function AuthScreen(props: {
     props.onLeave();
   }
 
-  const hint = step === "verify" ? "Mã 6 số từ ứng dụng xác thực. Mã sống 5 phút." : step === "setup" ? "Quét QR rồi nhập 6 số đầu tiên." : null;
+  const hint = step === "verify" ? "Mã 6 số từ ứng dụng xác thực. Mã sống 5 phút." : step === "setup" ? "Quản trị phải bật MFA. Nhập mật khẩu hiện tại rồi quét QR." : null;
   const badge = step === "verify" ? "2FA" : step === "setup" ? "MFA" : "CMS";
 
   return (
@@ -288,20 +282,41 @@ export function AuthScreen(props: {
           </Form>
         ) : null}
 
-        {step === "setup" ? (
+        {step === "setup" && !setup ? (
+          <Form layout="vertical" requiredMark={false} onFinish={() => void startSetup()}>
+            <p className="login-shell__hint" style={{ marginTop: 0, marginBottom: 12 }}>
+              Tài khoản quản trị chưa bật MFA thì chưa vào được CMS. Nhập mật khẩu đang dùng để tạo mã.
+            </p>
+            <Form.Item label="Mật khẩu hiện tại" validateStatus={fields.password ? "error" : ""} help={fields.password}>
+              <Input.Password
+                size="large"
+                autoComplete="current-password"
+                value={password}
+                onChange={(event) => {
+                  setPassword(event.target.value);
+                  setFields((current) => ({ ...current, password: "" }));
+                }}
+              />
+            </Form.Item>
+            <Button type="primary" htmlType="submit" block size="large" loading={pending}>
+              Tạo mã MFA
+            </Button>
+            <Button disabled={pending} block style={{ marginTop: 8 }} onClick={() => void leave()}>
+              Đăng xuất
+            </Button>
+          </Form>
+        ) : null}
+
+        {step === "setup" && setup ? (
           <Form layout="vertical" requiredMark={false} onFinish={() => void submitCode(code)}>
             <p className="login-shell__hint" style={{ marginTop: 0, marginBottom: 12 }}>
-              Quản trị cần mã này mỗi lần đăng nhập. Tải lại trang sẽ tạo mã mới.
+              Quản trị cần mã này mỗi lần đăng nhập. Tạo mã mới thì mã QR hiện tại hết hạn.
             </p>
             {qr ? <img className="qr-frame" src={qr} alt="Mã QR để thêm tài khoản vào ứng dụng xác thực" /> : null}
-            {setup ? (
-              <Space direction="vertical" style={{ width: "100%", marginBottom: 12 }}>
-                <code className="secret-code">{groupSecret(setup.secret)}</code>
-                <Button onClick={() => void copySecret()}>{copied ? "Đã chép" : "Chép chuỗi"}</Button>
-              </Space>
-            ) : (
-              <p className="login-shell__hint">{pending ? "Đang tạo mã" : "Chưa có mã"}</p>
-            )}
+            <Space direction="vertical" style={{ width: "100%", marginBottom: 12 }}>
+              <code className="secret-code">{groupSecret(setup.secret)}</code>
+              <Button onClick={() => void copySecret()}>{copied ? "Đã chép" : "Chép chuỗi"}</Button>
+            </Space>
             <Form.Item
               label="Mã 6 số"
               validateStatus={fields.code ? "error" : ""}
@@ -322,7 +337,7 @@ export function AuthScreen(props: {
               Bật MFA và vào bàn
             </Button>
             <Space style={{ width: "100%", marginTop: 8, justifyContent: "space-between" }}>
-              <Button disabled={pending} onClick={() => setSetupAttempt((value) => value + 1)}>
+              <Button disabled={pending} onClick={() => void startSetup()}>
                 Tạo mã mới
               </Button>
               <Button disabled={pending} onClick={() => void leave()}>

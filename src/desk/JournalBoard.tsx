@@ -353,6 +353,7 @@ const AUDIT_FILTERS = [
   { value: "auth.login", label: "Đăng nhập" },
   { value: "auth.logout", label: "Đăng xuất" },
   { value: "auth.password_change", label: "Đổi mật khẩu" },
+  { value: "auth.step_up", label: "Xác nhận mật khẩu" },
   { value: "auth.mfa_setup", label: "Bắt đầu bật MFA" },
   { value: "auth.mfa_confirm", label: "Bật MFA" },
   { value: "auth.mfa_verify", label: "Nhập mã MFA" },
@@ -599,6 +600,9 @@ function describeAudit(row: AuditEvent, names: Map<string, string>): string {
     const username = text(summary.username);
     const name = username ? ` @${username}` : "";
     return summary.status === "disabled" ? `Tắt bot Telegram${name}.` : `Cấu hình bot Telegram${name}.`;
+  }
+  if (row.action === "auth.step_up" && row.outcome === "failure") {
+    return "Mật khẩu xác nhận không đúng.";
   }
   if (row.action === "auth.login" && row.outcome === "failure") {
     const username = text(summary.username);
@@ -909,6 +913,7 @@ const CONTEXT_LABELS: Record<string, string> = {
   closed: "Hội thoại đã đóng",
   pulled: "Số dòng",
   username: "Tên đăng nhập",
+  ip: "Địa chỉ IP",
   game_account: "Tài khoản",
   site: "Hậu đài",
   status: "Trạng thái",
