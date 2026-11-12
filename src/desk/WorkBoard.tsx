@@ -80,6 +80,16 @@ function newestFirst(rows: TaskRow[]): TaskRow[] {
   });
 }
 
+function previewDetail(row: TaskRow): TaskDetail {
+  const last = row.last_message;
+  return {
+    ...row,
+    messages: last?.created_at
+      ? [{ id: `preview-${row.id}`, sender_type: last.sender_type, body: last.body, created_at: last.created_at }]
+      : [],
+  };
+}
+
 function shortTime(value: string | null | undefined): string {
   if (!value) {
     return "";
@@ -178,6 +188,22 @@ export function WorkBoard(props: {
   const unread = useInboxUnread();
   const detailRef = useRef<TaskDetail | null>(null);
   detailRef.current = detail;
+  const opened = useRef(new Map<string, TaskDetail>());
+  const openToken = useRef(0);
+  const [threadLoading, setThreadLoading] = useState<string | null>(null);
+
+  function rememberDetail(next: TaskDetail) {
+    const cache = opened.current;
+    cache.delete(next.id);
+    cache.set(next.id, next);
+    while (cache.size > 40) {
+      const oldest = cache.keys().next().value;
+      if (!oldest) {
+        break;
+      }
+      cache.delete(oldest);
+    }
+  }
 
   useEffect(() => {
     if (!chatLayout) {
@@ -314,20 +340,43 @@ export function WorkBoard(props: {
   }, []);
 
   async function openTask(id: string, keepDraft = false) {
+    const cached = opened.current.get(id);
+    if (!keepDraft && detailRef.current?.id === id && (cached?.messages.length ?? 0) > 0) {
+      markInboxRead(id);
+      return;
+    }
+    const token = ++openToken.current;
     setError(null);
+    const row = items.find((item) => item.id === id);
+    const known = cached ?? (row ? previewDetail(row) : null);
+    if (known) {
+      setDetail(known);
+    }
+    if (!keepDraft) {
+      writeReply("");
+      setCareNote("");
+    }
+    markInboxRead(id);
+    reportTaskRead(id);
+    setThreadLoading(cached?.messages.length ? null : id);
     try {
       const result = await api<TaskDetail>(`/api/v1/tasks/${id}`);
-      setDetail(result);
-      markInboxRead(id);
-      reportTaskRead(id);
-      if (!keepDraft) {
-        writeReply("");
-        setCareNote("");
+      if (token !== openToken.current) {
+        return;
       }
+      rememberDetail(result);
+      setDetail(result);
     } catch (caught) {
+      if (token !== openToken.current) {
+        return;
+      }
       const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không mở được task", "");
       if (!failAuth(problem)) {
         setError(problem);
+      }
+    } finally {
+      if (token === openToken.current) {
+        setThreadLoading(null);
       }
     }
   }
@@ -404,13 +453,15 @@ export function WorkBoard(props: {
       if (current.messages.some((message) => message.id === event.message_id)) {
         return { ...current, version: event.version || current.version, status: statusNext, ...place };
       }
-      return {
+      const next = {
         ...current,
         version: event.version || current.version,
         status: statusNext,
         ...place,
         messages: [...current.messages, { id: event.message_id, sender_type: event.sender_type, body: event.body, created_at: event.created_at, has_image: event.has_image }],
       };
+      rememberDetail(next);
+      return next;
     });
     if (!known) {
       const view = listRef.current;
@@ -691,7 +742,10 @@ export function WorkBoard(props: {
     const id = detail.id;
     const timer = window.setInterval(() => {
       void api<TaskDetail>(`/api/v1/tasks/${id}`)
-        .then((result) => setDetail((current) => (current?.id === id ? result : current)))
+        .then((result) => {
+          rememberDetail(result);
+          setDetail((current) => (current?.id === id ? result : current));
+        })
         .catch(() => undefined);
       void load(status, assigneeId).catch(() => undefined);
     }, 8000);
@@ -858,6 +912,7 @@ export function WorkBoard(props: {
                   </Space>
                 </header>
                 <div className="chat-thread" ref={threadRef}>
+                  {threadLoading === detail.id && detail.messages.length === 0 ? <p className="chat-empty">Đang tải tin…</p> : null}
                   {detail.messages.map((message, index) => {
                     const mine = message.sender_type === "agent";
                     const kind = message.sender_type === "customer" ? "customer" : message.sender_type === "bot" ? "bot" : "agent";
