@@ -783,6 +783,34 @@ a {
   color: #166534;
 }
 
+.cms-lang-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cms-lang {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.cms-lang button {
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font-size: 12px;
+  line-height: 1;
+  padding: 6px 8px;
+  cursor: pointer;
+}
+
+.cms-lang button.is-on {
+  background: #f0fdf4;
+  color: #166534;
+}
+
 .guest-start {
   display: flex;
   flex: 1;

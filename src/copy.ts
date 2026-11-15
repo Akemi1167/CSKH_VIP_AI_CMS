@@ -1,3 +1,4 @@
+import { deskLang, ROLE_LABEL } from "./desk/language.tsx";
 import type { Role } from "./types.ts";
 
 const PERMISSION_LABELS: Record<string, string> = {
@@ -49,7 +50,15 @@ export function permissionLabel(code: string): string {
 }
 
 export function roleName(code: string, roles?: Role[]): string {
-  return roles?.find((role) => role.code === code)?.name ?? ROLE_NAMES[code] ?? code;
+  const named = roles?.find((role) => role.code === code)?.name;
+  if (named) {
+    return named;
+  }
+  const labels = ROLE_LABEL[code];
+  if (labels) {
+    return labels[deskLang()];
+  }
+  return ROLE_NAMES[code] ?? code;
 }
 
 export function accessLabels(roleCodes: string[], catalog: Role[]): string[] {
@@ -68,7 +77,7 @@ export function formatStamp(value: string): string {
   if (Number.isNaN(date.getTime())) {
     return value;
   }
-  return new Intl.DateTimeFormat("vi-VN", {
+  return new Intl.DateTimeFormat(deskLang() === "zh" ? "zh-CN" : "vi-VN", {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",

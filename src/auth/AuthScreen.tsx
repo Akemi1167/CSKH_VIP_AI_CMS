@@ -1,4 +1,6 @@
-import { Alert, Button, Form, Input, Space } from "antd";
+import { Alert, Button, ConfigProvider, Form, Input, Space } from "antd";
+import zhCN from "antd/locale/zh_CN";
+import viVN from "antd/locale/vi_VN";
 import { LoginOutlined } from "@ant-design/icons";
 import { useEffect, useState, type ReactNode } from "react";
 import QRCode from "qrcode";
@@ -7,6 +9,7 @@ import { groupSecret } from "../draft.ts";
 import { copyText } from "../password.ts";
 import type { UserProfile } from "../types.ts";
 import { ErrorAlert } from "../ui.tsx";
+import { LangSwitch, LOGIN_TEXT, useDeskLang } from "../desk/language.tsx";
 import { UiFrame } from "../uiFrame.tsx";
 
 type Step = "credentials" | "verify" | "setup";
@@ -41,6 +44,7 @@ export function AuthScreen(props: {
   const [fields, setFields] = useState<Record<string, string>>({});
   const [pending, setPending] = useState(false);
   const [copied, setCopied] = useState(false);
+  const lang = useDeskLang();
 
   useEffect(() => {
     setStep(props.start === "mfa_setup" ? "setup" : "credentials");
@@ -77,7 +81,7 @@ export function AuthScreen(props: {
   }, [setup]);
 
   function fail(caught: unknown) {
-    const next = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không kết nối được máy chủ", "");
+    const next = caught instanceof ApiError ? caught : new ApiError(0, "network", LOGIN_TEXT.offline[lang], "");
     const parsed = fieldErrorsFrom(next, KNOWN);
     setError(parsed.extra ? new ApiError(next.status, next.code, `${next.message} ${parsed.extra}`, next.requestId) : next);
     setFields(parsed.fields);
@@ -86,7 +90,7 @@ export function AuthScreen(props: {
 
   async function startSetup() {
     if (!password) {
-      setFields({ password: "Nhập mật khẩu hiện tại" });
+      setFields({ password: LOGIN_TEXT.currentPasswordRequired[lang] });
       return;
     }
     setPending(true);
@@ -110,12 +114,12 @@ export function AuthScreen(props: {
   async function submitLogin() {
     const nextFields: Record<string, string> = {};
     if (!username.trim()) {
-      nextFields.username = "Nhập tên đăng nhập";
+      nextFields.username = LOGIN_TEXT.usernameRequired[lang];
     } else if (!/^[A-Za-z0-9._-]{3,64}$/.test(username.trim())) {
-      nextFields.username = "Tên đăng nhập từ 3 đến 64 ký tự: chữ, số, dấu chấm, gạch dưới hoặc gạch ngang";
+      nextFields.username = LOGIN_TEXT.usernameRule[lang];
     }
     if (!password) {
-      nextFields.password = "Nhập mật khẩu";
+      nextFields.password = LOGIN_TEXT.passwordRequired[lang];
     }
     setFields(nextFields);
     setError(null);
@@ -216,13 +220,16 @@ export function AuthScreen(props: {
     props.onLeave();
   }
 
-  const hint = step === "verify" ? "Mã 6 số từ ứng dụng xác thực. Mã sống 5 phút." : step === "setup" ? "Quản trị phải bật MFA. Nhập mật khẩu hiện tại rồi quét QR." : null;
+  const hint = step === "verify" ? LOGIN_TEXT.verifyHint[lang] : step === "setup" ? LOGIN_TEXT.setupHint[lang] : null;
   const badge = step === "verify" ? "2FA" : step === "setup" ? "MFA" : "CMS";
 
   return (
     <LoginFrame>
       <div className="login-shell__brand">
-        <strong>CSKH VIP</strong>
+        <div className="cms-lang-row">
+          <strong>CSKH VIP</strong>
+          <LangSwitch />
+        </div>
         {hint ? <p className="login-shell__hint">{hint}</p> : null}
       </div>
       <div className="login-form-card">
@@ -234,7 +241,7 @@ export function AuthScreen(props: {
 
         {step === "credentials" ? (
           <Form layout="vertical" requiredMark={false} onFinish={() => void submitLogin()}>
-            <Form.Item label="Tên đăng nhập" validateStatus={fields.username ? "error" : ""} help={fields.username}>
+            <Form.Item label={LOGIN_TEXT.username[lang]} validateStatus={fields.username ? "error" : ""} help={fields.username}>
               <Input
                 size="large"
                 autoComplete="username"
@@ -247,7 +254,7 @@ export function AuthScreen(props: {
                 }}
               />
             </Form.Item>
-            <Form.Item label="Mật khẩu" validateStatus={fields.password ? "error" : ""} help={fields.password}>
+            <Form.Item label={LOGIN_TEXT.password[lang]} validateStatus={fields.password ? "error" : ""} help={fields.password}>
               <Input.Password
                 size="large"
                 autoComplete="current-password"
@@ -259,14 +266,14 @@ export function AuthScreen(props: {
               />
             </Form.Item>
             <Button type="primary" htmlType="submit" block size="large" icon={<LoginOutlined />} loading={pending}>
-              Đăng nhập
+              {LOGIN_TEXT.login[lang]}
             </Button>
           </Form>
         ) : null}
 
         {step === "verify" ? (
           <Form layout="vertical" requiredMark={false} onFinish={() => void submitCode(code)}>
-            <Form.Item label="Mã xác thực" validateStatus={fields.code ? "error" : ""} help={fields.code || "Tải lại trang thì đăng nhập lại từ đầu."}>
+            <Form.Item label={LOGIN_TEXT.code[lang]} validateStatus={fields.code ? "error" : ""} help={fields.code || LOGIN_TEXT.codeHelp[lang]}>
               <Input
                 size="large"
                 autoFocus
@@ -280,7 +287,7 @@ export function AuthScreen(props: {
               />
             </Form.Item>
             <Button type="primary" htmlType="submit" block size="large" loading={pending} disabled={code.length !== 6}>
-              Xác nhận
+              {LOGIN_TEXT.confirm[lang]}
             </Button>
             <Button
               type="link"
@@ -294,7 +301,7 @@ export function AuthScreen(props: {
                 setPending(false);
               }}
             >
-              Dùng tài khoản khác
+              {LOGIN_TEXT.otherAccount[lang]}
             </Button>
           </Form>
         ) : null}
@@ -302,9 +309,9 @@ export function AuthScreen(props: {
         {step === "setup" && !setup ? (
           <Form layout="vertical" requiredMark={false} onFinish={() => void startSetup()}>
             <p className="login-shell__hint" style={{ marginTop: 0, marginBottom: 12 }}>
-              Tài khoản quản trị chưa bật MFA thì chưa vào được CMS. Nhập mật khẩu đang dùng để tạo mã.
+              {LOGIN_TEXT.setupIntro[lang]}
             </p>
-            <Form.Item label="Mật khẩu hiện tại" validateStatus={fields.password ? "error" : ""} help={fields.password}>
+            <Form.Item label={LOGIN_TEXT.currentPassword[lang]} validateStatus={fields.password ? "error" : ""} help={fields.password}>
               <Input.Password
                 size="large"
                 autoComplete="current-password"
@@ -316,10 +323,10 @@ export function AuthScreen(props: {
               />
             </Form.Item>
             <Button type="primary" htmlType="submit" block size="large" loading={pending}>
-              Tạo mã MFA
+              {LOGIN_TEXT.createMfa[lang]}
             </Button>
             <Button htmlType="button" disabled={pending} block style={{ marginTop: 8 }} onClick={() => void leave()}>
-              Đăng xuất
+              {LOGIN_TEXT.logout[lang]}
             </Button>
           </Form>
         ) : null}
@@ -327,17 +334,17 @@ export function AuthScreen(props: {
         {step === "setup" && setup ? (
           <Form layout="vertical" requiredMark={false} onFinish={() => void submitCode(code)}>
             <p className="login-shell__hint" style={{ marginTop: 0, marginBottom: 12 }}>
-              Quản trị cần mã này mỗi lần đăng nhập. Tạo mã mới thì mã QR hiện tại hết hạn.
+              {LOGIN_TEXT.setupNote[lang]}
             </p>
-            {qr ? <img className="qr-frame" src={qr} alt="Mã QR để thêm tài khoản vào ứng dụng xác thực" /> : null}
+            {qr ? <img className="qr-frame" src={qr} alt={LOGIN_TEXT.qrAlt[lang]} /> : null}
             <Space direction="vertical" style={{ width: "100%", marginBottom: 12 }}>
               <code className="secret-code">{groupSecret(setup.secret)}</code>
-              <Button onClick={() => void copySecret()}>{copied ? "Đã chép" : "Chép chuỗi"}</Button>
+              <Button onClick={() => void copySecret()}>{copied ? LOGIN_TEXT.copied[lang] : LOGIN_TEXT.copy[lang]}</Button>
             </Space>
             <Form.Item
-              label="Mã 6 số"
+              label={LOGIN_TEXT.sixDigits[lang]}
               validateStatus={fields.code ? "error" : ""}
-              help={fields.code || "Nếu không quét được, nhập chuỗi ở trên vào ứng dụng xác thực."}
+              help={fields.code || LOGIN_TEXT.manualCode[lang]}
             >
               <Input
                 size="large"
@@ -351,20 +358,20 @@ export function AuthScreen(props: {
               />
             </Form.Item>
             <Button type="primary" htmlType="submit" block size="large" loading={pending} disabled={!setup || code.length !== 6}>
-              Bật MFA và vào bàn
+              {LOGIN_TEXT.enable[lang]}
             </Button>
             <Space style={{ width: "100%", marginTop: 8, justifyContent: "space-between" }}>
               <Button htmlType="button" disabled={pending} onClick={() => void startSetup()}>
-                Tạo mã mới
+                {LOGIN_TEXT.newCode[lang]}
               </Button>
               <Button htmlType="button" disabled={pending} onClick={() => void leave()}>
-                Đăng xuất
+                {LOGIN_TEXT.logout[lang]}
               </Button>
             </Space>
           </Form>
         ) : null}
       </div>
-      <p className="login-shell__footer">Chỉ dành cho nhân sự CSKH VIP.</p>
+      <p className="login-shell__footer">{LOGIN_TEXT.staffOnly[lang]}</p>
       <p className="login-shell__footer" style={{ marginTop: 4 }}>
         © {new Date().getFullYear()} CSKH VIP CMS
       </p>
@@ -375,6 +382,7 @@ export function AuthScreen(props: {
 function LoginFrame(props: { children: ReactNode }) {
   return (
     <UiFrame>
+    <ConfigProvider locale={useDeskLang() === "zh" ? zhCN : viVN}>
     <div className="login-page">
       <div className="login-bg" aria-hidden>
         <div className="login-bg__grid" />
@@ -389,6 +397,7 @@ function LoginFrame(props: { children: ReactNode }) {
         <div className="login-shell">{props.children}</div>
       </div>
     </div>
+    </ConfigProvider>
     </UiFrame>
   );
 }

@@ -1,3 +1,5 @@
+import { pageLabel } from "./language.tsx";
+
 export type DeskPage =
   | "overview"
   | "inbox"
@@ -69,42 +71,6 @@ export const DESK_PATH: Record<DeskPage, string> = {
   telegram: "/telegram",
 };
 
-const DESK_LABEL: Record<DeskPage, string> = {
-  overview: "Tổng quan",
-  inbox: "Hộp thư hỗ trợ",
-  contacts: "Cuộc gọi & liên hệ",
-  tasks: "Nhiệm vụ",
-  history: "Lịch sử chăm sóc",
-  personal: "Báo cáo cá nhân",
-  verify: "Xác minh tài khoản",
-  queue: "Điều phối Ticket",
-  schedule: "Ca làm",
-  staff: "Quản lý nhân viên",
-  customers: "Hội viên VIP",
-  warehouse: "Kho Data tập trung",
-  distribute: "Phân bổ Data",
-  campaigns: "Chiến dịch",
-  shift: "Báo cáo ca",
-  effect: "Thống kê hiệu quả",
-  rewards: "Thưởng",
-  journal: "Nhật ký",
-  stations: "Hậu đài",
-  media: "Media",
-  stationSms: "Tin nhắn",
-  callTasks: "Task gọi nhóm",
-  voice: "Gọi thử",
-  voiceReview: "Chấm điểm cuộc gọi",
-  smsHistory: "Lịch sử tin nhắn",
-  voiceHistory: "Lịch sử cuộc gọi",
-  rateLimit: "Không chặn IP",
-  chatIdle: "Thời gian chat",
-  voiceLimit: "Thời lượng cuộc gọi",
-  hangupSms: "Tin sau cuộc gọi",
-  embed: "Chat nhúng",
-  home: "Trang chủ",
-  telegram: "Telegram",
-};
-
 const PATH_PAGE = new Map<string, DeskPage>(Object.entries(DESK_PATH).map(([page, path]) => [path, page as DeskPage]));
 
 export function deskPath(page: DeskPage): string {
@@ -129,5 +95,5 @@ export function rememberPage(page: DeskPage, mode: "push" | "replace"): void {
 }
 
 export function deskTitle(page: DeskPage): string {
-  return `${DESK_LABEL[page]} · CSKH VIP`;
+  return `${pageLabel(page)} · CSKH VIP`;
 }

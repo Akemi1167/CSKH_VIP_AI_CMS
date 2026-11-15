@@ -1,5 +1,7 @@
 import { AppstoreOutlined, AuditOutlined, BarChartOutlined, BookOutlined, CheckSquareOutlined, ClockCircleOutlined, CommentOutlined, FundOutlined, GiftOutlined, GlobalOutlined, HistoryOutlined, KeyOutlined, LayoutOutlined, LeftOutlined, LogoutOutlined, MailOutlined, MessageOutlined, PhoneOutlined, PictureOutlined, SearchOutlined, SendOutlined, SettingOutlined, ShareAltOutlined, ShopOutlined, TeamOutlined, UnorderedListOutlined, UserOutlined } from "@ant-design/icons";
-import { Button, Input, Modal, Space, Spin, Switch } from "antd";
+import { Button, ConfigProvider, Input, Modal, Space, Spin, Switch } from "antd";
+import zhCN from "antd/locale/zh_CN";
+import viVN from "antd/locale/vi_VN";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from "react";
 import { ApiError, api, probe, setCsrfToken } from "../api.ts";
 import { roleName } from "../copy.ts";
@@ -9,6 +11,7 @@ import { UiFrame } from "../uiFrame.tsx";
 import { ChatDock } from "./ChatDock.tsx";
 import { PasswordDialog } from "./PasswordDialog.tsx";
 import { armAlertSound, askChatNotification, setDeskChromeTitle, startInboxWatch, stopInboxWatch, useInboxUnread } from "./inboxWatch.ts";
+import { DESK_TEXT, LangSwitch, deskLang, pageLabel, useDeskLang } from "./language.tsx";
 import { deskPath, deskTitle, pageFromPath, rememberPage, type DeskPage } from "./routes.ts";
 
 function screen<P extends object>(load: () => Promise<ComponentType<P>>) {
@@ -94,6 +97,7 @@ export function Desk(props: {
   const canApproveRewards = profile.permissions.includes("rewards:approve");
   const [accepting, setAccepting] = useState(profile.accepting_work);
   const [acceptingBusy, setAcceptingBusy] = useState(false);
+  const lang = useDeskLang();
   const [page, setPage] = useState<DeskPage>(() => pageFromPath() ?? "overview");
   const [panelBranchId, setPanelBranchId] = useState<string | null>(null);
   const pageRef = useRef(page);
@@ -103,9 +107,9 @@ export function Desk(props: {
   const unread = useInboxUnread();
   const endSession = useCallback(
     (notice?: string) => {
-      props.onLoggedOut(notice ?? "Phiên đã hết. Đăng nhập lại.");
+      props.onLoggedOut(notice ?? DESK_TEXT.sessionEnded[lang]);
     },
-    [props.onLoggedOut],
+    [lang, props.onLoggedOut],
   );
   const onScheduleDirty = useCallback((dirty: boolean) => {
     dirtyRef.current = dirty;
@@ -133,7 +137,7 @@ export function Desk(props: {
   }, []);
   useEffect(() => {
     setDeskChromeTitle(deskTitle(page));
-  }, [page]);
+  }, [lang, page]);
   useEffect(() => {
     if (!canReadTasks) {
       return;
@@ -152,105 +156,105 @@ export function Desk(props: {
     };
   }, [canReadAllTasks, canReadTasks, canReadTeamTasks]);
   const menus = useMemo(() => {
-    const care: NavLeaf[] = [{ kind: "leaf", id: "overview", label: "Tổng quan", icon: <AppstoreOutlined /> }];
+    const care: NavLeaf[] = [{ kind: "leaf", id: "overview", label: pageLabel("overview"), icon: <AppstoreOutlined /> }];
     if (canReadCustomers) {
-      care.push({ kind: "leaf", id: "customers", label: "Hội viên VIP", icon: <UserOutlined /> });
+      care.push({ kind: "leaf", id: "customers", label: pageLabel("customers"), icon: <UserOutlined /> });
     }
     if (canReadAllTasks || canReadTeamTasks) {
-      care.push({ kind: "leaf", id: "verify", label: "Xác minh tài khoản", icon: <CheckSquareOutlined /> });
+      care.push({ kind: "leaf", id: "verify", label: pageLabel("verify"), icon: <CheckSquareOutlined /> });
     }
     if (canReadTasks) {
-      care.push({ kind: "leaf", id: "inbox", label: "Hộp thư hỗ trợ", icon: <MailOutlined /> });
-      care.push({ kind: "leaf", id: "contacts", label: "Cuộc gọi & liên hệ", icon: <PhoneOutlined /> });
-      care.push({ kind: "leaf", id: "tasks", label: "Nhiệm vụ", icon: <CheckSquareOutlined /> });
+      care.push({ kind: "leaf", id: "inbox", label: pageLabel("inbox"), icon: <MailOutlined /> });
+      care.push({ kind: "leaf", id: "contacts", label: pageLabel("contacts"), icon: <PhoneOutlined /> });
+      care.push({ kind: "leaf", id: "tasks", label: pageLabel("tasks"), icon: <CheckSquareOutlined /> });
     }
     if (canReadCustomers || canReadTasks) {
-      care.push({ kind: "leaf", id: "history", label: "Lịch sử chăm sóc", icon: <HistoryOutlined /> });
-      care.push({ kind: "leaf", id: "personal", label: "Báo cáo cá nhân", icon: <BarChartOutlined /> });
+      care.push({ kind: "leaf", id: "history", label: pageLabel("history"), icon: <HistoryOutlined /> });
+      care.push({ kind: "leaf", id: "personal", label: pageLabel("personal"), icon: <BarChartOutlined /> });
     }
     const settings: NavLeaf[] = [];
     const sms: NavLeaf[] = [];
     const voice: NavLeaf[] = [];
     if (canReadCampaigns) {
-      sms.push({ kind: "leaf", id: "stationSms", label: "Tin nhắn", icon: <CommentOutlined /> });
-      sms.push({ kind: "leaf", id: "smsHistory", label: "Lịch sử tin nhắn", icon: <HistoryOutlined /> });
-      voice.push({ kind: "leaf", id: "callTasks", label: "Task gọi nhóm", icon: <PhoneOutlined /> });
-      voice.push({ kind: "leaf", id: "voice", label: "Gọi thử", icon: <PhoneOutlined /> });
-      voice.push({ kind: "leaf", id: "voiceHistory", label: "Lịch sử cuộc gọi", icon: <HistoryOutlined /> });
+      sms.push({ kind: "leaf", id: "stationSms", label: pageLabel("stationSms"), icon: <CommentOutlined /> });
+      sms.push({ kind: "leaf", id: "smsHistory", label: pageLabel("smsHistory"), icon: <HistoryOutlined /> });
+      voice.push({ kind: "leaf", id: "callTasks", label: pageLabel("callTasks"), icon: <PhoneOutlined /> });
+      voice.push({ kind: "leaf", id: "voice", label: pageLabel("voice"), icon: <PhoneOutlined /> });
+      voice.push({ kind: "leaf", id: "voiceHistory", label: pageLabel("voiceHistory"), icon: <HistoryOutlined /> });
     }
     if (canReviewRecordings) {
-      voice.push({ kind: "leaf", id: "voiceReview", label: "Chấm điểm cuộc gọi", icon: <AuditOutlined /> });
+      voice.push({ kind: "leaf", id: "voiceReview", label: pageLabel("voiceReview"), icon: <AuditOutlined /> });
     }
     if (canReadSettings) {
-      settings.push({ kind: "leaf", id: "rateLimit", label: "Không chặn IP", icon: <GlobalOutlined /> });
-      settings.push({ kind: "leaf", id: "chatIdle", label: "Thời gian chat", icon: <ClockCircleOutlined /> });
-      settings.push({ kind: "leaf", id: "voiceLimit", label: "Thời lượng cuộc gọi", icon: <PhoneOutlined /> });
-      settings.push({ kind: "leaf", id: "hangupSms", label: "Tin sau cuộc gọi", icon: <CommentOutlined /> });
-      settings.push({ kind: "leaf", id: "embed", label: "Chat nhúng", icon: <MessageOutlined /> });
-      settings.push({ kind: "leaf", id: "home", label: "Trang chủ", icon: <LayoutOutlined /> });
+      settings.push({ kind: "leaf", id: "rateLimit", label: pageLabel("rateLimit"), icon: <GlobalOutlined /> });
+      settings.push({ kind: "leaf", id: "chatIdle", label: pageLabel("chatIdle"), icon: <ClockCircleOutlined /> });
+      settings.push({ kind: "leaf", id: "voiceLimit", label: pageLabel("voiceLimit"), icon: <PhoneOutlined /> });
+      settings.push({ kind: "leaf", id: "hangupSms", label: pageLabel("hangupSms"), icon: <CommentOutlined /> });
+      settings.push({ kind: "leaf", id: "embed", label: pageLabel("embed"), icon: <MessageOutlined /> });
+      settings.push({ kind: "leaf", id: "home", label: pageLabel("home"), icon: <LayoutOutlined /> });
     }
     if (canManageTelegram) {
-      settings.push({ kind: "leaf", id: "telegram", label: "Telegram", icon: <SendOutlined /> });
+      settings.push({ kind: "leaf", id: "telegram", label: pageLabel("telegram"), icon: <SendOutlined /> });
     }
     const extras: NavLeaf[] = [];
     if (canReadSchedule) {
-      extras.push({ kind: "leaf", id: "schedule", label: "Ca làm", icon: <ClockCircleOutlined /> });
+      extras.push({ kind: "leaf", id: "schedule", label: pageLabel("schedule"), icon: <ClockCircleOutlined /> });
     }
     if (canReadCampaigns) {
-      extras.push({ kind: "leaf", id: "campaigns", label: "Chiến dịch", icon: <MailOutlined /> });
+      extras.push({ kind: "leaf", id: "campaigns", label: pageLabel("campaigns"), icon: <MailOutlined /> });
     }
     if (canReportCampaigns) {
-      extras.push({ kind: "leaf", id: "shift", label: "Báo cáo ca", icon: <FundOutlined /> });
-      extras.push({ kind: "leaf", id: "effect", label: "Thống kê hiệu quả", icon: <FundOutlined /> });
+      extras.push({ kind: "leaf", id: "shift", label: pageLabel("shift"), icon: <FundOutlined /> });
+      extras.push({ kind: "leaf", id: "effect", label: pageLabel("effect"), icon: <FundOutlined /> });
     }
     if (canApproveRewards) {
-      extras.push({ kind: "leaf", id: "rewards", label: "Thưởng", icon: <GiftOutlined /> });
+      extras.push({ kind: "leaf", id: "rewards", label: pageLabel("rewards"), icon: <GiftOutlined /> });
     }
     const settingsGroups: NavGroup[] = [];
     if (settings.length > 0) {
-      settingsGroups.push({ label: "Hệ thống", items: settings });
+      settingsGroups.push({ label: DESK_TEXT.systemGroup[lang], items: settings });
     }
     if (extras.length > 0) {
-      settingsGroups.push({ label: "Khác", items: extras });
+      settingsGroups.push({ label: DESK_TEXT.otherGroup[lang], items: extras });
     }
-    const sections: MenuSection[] = [{ id: "operate", label: "Chăm sóc hội viên", items: care }];
+    const sections: MenuSection[] = [{ id: "operate", label: DESK_TEXT.operate[lang], items: care }];
     if (sms.length > 0) {
-      sections.push({ id: "sms", label: "Tin nhắn", items: sms });
+      sections.push({ id: "sms", label: DESK_TEXT.sms[lang], items: sms });
     }
     if (voice.length > 0) {
-      sections.push({ id: "voice", label: "Gọi AI", items: voice });
+      sections.push({ id: "voice", label: DESK_TEXT.voice[lang], items: voice });
     }
     if (settingsGroups.length > 0) {
       sections.push({
         id: "settings",
         label: "Cài đặt",
-        items: [{ kind: "branch", id: "settings", label: "Cài đặt", panelTitle: canReadSettings ? "Cài đặt hệ thống" : "Cài đặt", icon: <SettingOutlined />, groups: settingsGroups }],
+        items: [{ kind: "branch", id: "settings", label: DESK_TEXT.settings[lang], panelTitle: canReadSettings ? DESK_TEXT.settingsSystem[lang] : DESK_TEXT.settings[lang], icon: <SettingOutlined />, groups: settingsGroups }],
       });
     }
     const central: NavLeaf[] = [];
     if (canReadSettings) {
-      central.push({ kind: "leaf", id: "stations", label: "Hậu đài", icon: <ShopOutlined /> });
-      central.push({ kind: "leaf", id: "media", label: "Media", icon: <PictureOutlined /> });
+      central.push({ kind: "leaf", id: "stations", label: pageLabel("stations"), icon: <ShopOutlined /> });
+      central.push({ kind: "leaf", id: "media", label: pageLabel("media"), icon: <PictureOutlined /> });
     }
     if (canReadCustomers) {
-      central.push({ kind: "leaf", id: "warehouse", label: "Kho Data tập trung", icon: <BookOutlined /> });
-      central.push({ kind: "leaf", id: "distribute", label: "Phân bổ Data", icon: <ShareAltOutlined /> });
+      central.push({ kind: "leaf", id: "warehouse", label: pageLabel("warehouse"), icon: <BookOutlined /> });
+      central.push({ kind: "leaf", id: "distribute", label: pageLabel("distribute"), icon: <ShareAltOutlined /> });
     }
     if (canReadStaff) {
-      central.push({ kind: "leaf", id: "staff", label: "Quản lý nhân viên", icon: <TeamOutlined /> });
+      central.push({ kind: "leaf", id: "staff", label: pageLabel("staff"), icon: <TeamOutlined /> });
     }
     if (canReadQueue) {
-      central.push({ kind: "leaf", id: "queue", label: "Điều phối Ticket", icon: <UnorderedListOutlined /> });
+      central.push({ kind: "leaf", id: "queue", label: pageLabel("queue"), icon: <UnorderedListOutlined /> });
     }
     if (central.length > 0) {
-      sections.push({ id: "central", label: "Quản lý tập trung", items: central });
+      sections.push({ id: "central", label: DESK_TEXT.central[lang], items: central });
     }
     if (canReadAudit) {
-      sections.push({ id: "other", label: "Khác", items: [{ kind: "leaf", id: "journal", label: "Nhật ký", icon: <AuditOutlined /> }] });
+      sections.push({ id: "other", label: DESK_TEXT.other[lang], items: [{ kind: "leaf", id: "journal", label: pageLabel("journal"), icon: <AuditOutlined /> }] });
     }
-    const query = keyword.trim().toLocaleLowerCase("vi");
+    const query = keyword.trim().toLocaleLowerCase(lang === "zh" ? "zh-CN" : "vi");
     return { sections: filterSections(sections, query), query, allowed: leafPages(sections) };
-  }, [canApproveRewards, canManageTelegram, canReadAllTasks, canReadAudit, canReadCampaigns, canReadCustomers, canReadQueue, canReadSchedule, canReadSettings, canReadStaff, canReadTasks, canReadTeamTasks, canReportCampaigns, canReviewRecordings, keyword]);
+  }, [canApproveRewards, canManageTelegram, canReadAllTasks, canReadAudit, canReadCampaigns, canReadCustomers, canReadQueue, canReadSchedule, canReadSettings, canReadStaff, canReadTasks, canReadTeamTasks, canReportCampaigns, canReviewRecordings, keyword, lang]);
 
   function showPage(next: DeskPage, mode: "push" | "replace" = "push") {
     rememberPage(next, mode);
@@ -316,9 +320,9 @@ export function Desk(props: {
     panelBranchId,
   );
 
-  const healthText = health === "ok" ? "Hệ thống sẵn sàng" : health === "degraded" ? "API sống, dữ liệu chưa sẵn" : "Mất kết nối API";
+  const healthText = health === "ok" ? DESK_TEXT.ready[lang] : health === "degraded" ? DESK_TEXT.degraded[lang] : DESK_TEXT.offline[lang];
   const initial = (profile.display_name || profile.username || "C").charAt(0).toUpperCase();
-  const roleLine = useMemo(() => profile.roles.map((code) => roleName(code)).join(", "), [profile.roles]);
+  const roleLine = useMemo(() => profile.roles.map((code) => roleName(code)).join(", "), [lang, profile.roles]);
 
   useEffect(() => {
     let timer = 0;
@@ -356,9 +360,9 @@ export function Desk(props: {
       setAccepting(saved.accepting_work);
       setProfile((current) => ({ ...current, accepting_work: saved.accepting_work }));
     } catch (caught) {
-      const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không đổi được trạng thái nhận việc", "");
+      const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", DESK_TEXT.availabilityError[lang], "");
       if (problem.status === 401) {
-        props.onLoggedOut("Phiên đã hết. Đăng nhập lại.");
+        props.onLoggedOut(DESK_TEXT.sessionEnded[lang]);
         return;
       }
       if (problem.code === "mfa_setup_required") {
@@ -384,25 +388,29 @@ export function Desk(props: {
         props.onLoggedOut();
         return;
       }
-      setError(apiError ?? new ApiError(0, "network", "Không đăng xuất được", ""));
+      setError(apiError ?? new ApiError(0, "network", DESK_TEXT.logoutError[lang], ""));
       setLeaving(false);
     }
   }
 
   return (
     <UiFrame>
+    <ConfigProvider locale={lang === "zh" ? zhCN : viVN}>
     <div className="app-shell">
       <aside className="app-sidebar">
         <div className="app-sidebar__brand">
-          <strong className="brand-word">CSKH VIP</strong>
-          <p>Bảng điều khiển</p>
+          <div className="cms-lang-row">
+            <strong className="brand-word">CSKH VIP</strong>
+            <LangSwitch />
+          </div>
+          <p>{DESK_TEXT.console[lang]}</p>
           <p className="system-line">
             <span className={health === "ok" ? "system-dot" : `system-dot system-dot--${health}`} aria-hidden="true" />
             {healthText}
           </p>
         </div>
         <div className="app-sidebar__search">
-          <Input allowClear size="small" placeholder="Tìm menu" prefix={<SearchOutlined />} value={keyword} onChange={(event) => setKeyword(event.target.value)} />
+          <Input allowClear size="small" placeholder={DESK_TEXT.search[lang]} prefix={<SearchOutlined />} value={keyword} onChange={(event) => setKeyword(event.target.value)} />
         </div>
         <nav className="app-sidebar__nav">
           {menus.sections.map((section) => (
@@ -416,13 +424,13 @@ export function Desk(props: {
               <p className="sidebar-user__name">{profile.display_name}</p>
               <p className="sidebar-user__role">{roleLine || profile.username}</p>
               <p className="sidebar-user__role">
-                <Switch size="small" checked={accepting} loading={acceptingBusy} onChange={(checked) => void setAvailability(checked)} /> {accepting ? "Đang nhận việc" : "Đang nghỉ"}
+                <Switch size="small" checked={accepting} loading={acceptingBusy} onChange={(checked) => void setAvailability(checked)} /> {accepting ? DESK_TEXT.accepting[lang] : DESK_TEXT.paused[lang]}
               </p>
             </div>
-            <button type="button" className="sidebar-user__logout" title="Đổi mật khẩu" onClick={() => setPasswordOpen(true)}>
+            <button type="button" className="sidebar-user__logout" title={DESK_TEXT.password[lang]} onClick={() => setPasswordOpen(true)}>
               <KeyOutlined />
             </button>
-            <button type="button" className="sidebar-user__logout" title="Đăng xuất" disabled={leaving} onClick={() => void logout()}>
+            <button type="button" className="sidebar-user__logout" title={DESK_TEXT.logout[lang]} disabled={leaving} onClick={() => void logout()}>
               <LogoutOutlined />
             </button>
           </div>
@@ -446,8 +454,8 @@ export function Desk(props: {
           <div className={accepting ? "availability" : "availability availability--paused"}>
             <Switch checked={accepting} loading={acceptingBusy} onChange={(checked) => void setAvailability(checked)} />
             <div>
-              <strong>{accepting ? "Đang nhận việc" : "Đang nghỉ"}</strong>
-              <p>{accepting ? "Gạt tắt khi ăn cơm hoặc đi vệ sinh. Việc đang mở vẫn ở chỗ bạn." : "Việc mới chưa giao cho bạn. Gạt lại khi sẵn sàng nhận tiếp."}</p>
+              <strong>{accepting ? DESK_TEXT.accepting[lang] : DESK_TEXT.paused[lang]}</strong>
+              <p>{accepting ? DESK_TEXT.acceptingHint[lang] : DESK_TEXT.pausedHint[lang]}</p>
             </div>
           </div>
           <ErrorAlert error={error} />
@@ -457,13 +465,13 @@ export function Desk(props: {
           ) : null}
           {page === "inbox" && canReadTasks ? (
             <WorkBoard
-              heading="Hộp thư hỗ trợ"
+              heading={pageLabel("inbox")}
               lead={
                 canReadAllTasks
-                  ? "Mọi hội thoại của tất cả đài, kể cả đài chưa có nhân viên. Chat chưa giao hiện ở đây. Mở rồi bấm Giao để đưa cho người chăm sóc."
+                  ? DESK_TEXT.inboxLeadAll[lang]
                   : canReadTeamTasks
-                    ? "Hội thoại của nhân viên các đài bạn phụ trách. Có thể chuyển cho người khác hoặc thu về tự xử lý."
-                    : "Hội thoại đang giao cho bạn. Mở cửa sổ để chăm nhiều khách cùng lúc, kể cả khi sang màn khác."
+                    ? DESK_TEXT.inboxLeadTeam[lang]
+                    : DESK_TEXT.inboxLeadOwn[lang]
               }
               layout="chat"
               scope={canReadAllTasks ? "staff" : canReadTeamTasks ? "team" : "own"}
@@ -482,8 +490,8 @@ export function Desk(props: {
           ) : null}
           {page === "tasks" && canReadTasks ? (
             <WorkBoard
-              heading="Nhiệm vụ"
-              lead={canReadTeamTasks ? "Việc của nhân viên các đài bạn phụ trách." : "Việc đang giao. Bấm một dòng để cập nhật trạng thái hoặc chuyển người."}
+              heading={pageLabel("tasks")}
+              lead={canReadTeamTasks ? DESK_TEXT.tasksLeadTeam[lang] : DESK_TEXT.tasksLeadOwn[lang]}
               scope={canReadAllTasks ? "staff" : canReadTeamTasks ? "team" : "own"}
               canUpdate={canUpdateTasks}
               canManageAny={canReadAllTasks}
@@ -587,8 +595,8 @@ export function Desk(props: {
           {page === "smsHistory" && canReadCampaigns ? (
             <ProviderHistoryBoard
               channel="sms"
-              title="Lịch sử tin nhắn"
-              lead="Tin đã gửi qua Laaffic trong 7 ngày gần nhất."
+              title={pageLabel("smsHistory")}
+              lead={DESK_TEXT.smsHistoryLead[lang]}
               canSync={canLaunchCampaigns || canManageCampaigns}
               onUnauthorized={endSession}
               onMfaSetup={props.onMfaSetup}
@@ -597,8 +605,8 @@ export function Desk(props: {
           {page === "voiceHistory" && canReadCampaigns ? (
             <ProviderHistoryBoard
               channel="ai_voice"
-              title="Lịch sử cuộc gọi"
-              lead="Từng cuộc gọi AI trên Laaffic trong 7 ngày gần nhất. Danh sách tự cập nhật, không cần bấm đồng bộ."
+              title={pageLabel("voiceHistory")}
+              lead={DESK_TEXT.voiceHistoryLead[lang]}
               canSync={canLaunchCampaigns || canManageCampaigns}
               onUnauthorized={endSession}
               onMfaSetup={props.onMfaSetup}
@@ -629,12 +637,12 @@ export function Desk(props: {
         </div>
       </main>
       <Modal
-        title="Ca chưa lưu"
+        title={DESK_TEXT.unsavedTitle[lang]}
         open={pendingPage !== null}
         onCancel={() => setPendingPage(null)}
         footer={
           <Space>
-            <Button onClick={() => setPendingPage(null)}>Ở lại</Button>
+            <Button onClick={() => setPendingPage(null)}>{DESK_TEXT.stay[lang]}</Button>
             <Button
               danger
               onClick={() => {
@@ -646,15 +654,16 @@ export function Desk(props: {
                 setPendingPage(null);
               }}
             >
-              Bỏ ca đang sửa
+              {DESK_TEXT.discard[lang]}
             </Button>
           </Space>
         }
       >
-        Giờ bạn vừa chọn chưa được lưu.
+        {DESK_TEXT.unsavedBody[lang]}
       </Modal>
-      {passwordOpen ? <PasswordDialog onClose={() => setPasswordOpen(false)} onChanged={() => props.onLoggedOut("Đã đổi mật khẩu. Đăng nhập lại.")} /> : null}
+      {passwordOpen ? <PasswordDialog onClose={() => setPasswordOpen(false)} onChanged={() => props.onLoggedOut(DESK_TEXT.passwordChanged[lang])} /> : null}
     </div>
+    </ConfigProvider>
     </UiFrame>
   );
 }
@@ -688,7 +697,7 @@ function SubPanel(props: { branch: NavBranch; page: DeskPage; onOpen: (page: Des
     <aside className="nav-panel">
       <div className="nav-panel__head">
         <p className="nav-panel__title">{props.branch.panelTitle}</p>
-        <button type="button" className="nav-panel__close" title="Thu gọn" onClick={props.onClose}>
+        <button type="button" className="nav-panel__close" title={DESK_TEXT.collapse[deskLang()]} onClick={props.onClose}>
           <LeftOutlined />
         </button>
       </div>

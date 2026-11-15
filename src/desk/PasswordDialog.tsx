@@ -2,6 +2,7 @@ import { Form, Input, Modal } from "antd";
 import { useState } from "react";
 import { ApiError, api, fieldErrorsFrom, setCsrfToken } from "../api.ts";
 import { passwordProblem } from "../password.ts";
+import { PASSWORD_TEXT, useDeskLang } from "./language.tsx";
 import { ErrorAlert } from "../ui.tsx";
 
 export function PasswordDialog(props: { onClose: () => void; onChanged: () => void }) {
@@ -11,20 +12,21 @@ export function PasswordDialog(props: { onClose: () => void; onChanged: () => vo
   const [fields, setFields] = useState<Record<string, string>>({});
   const [error, setError] = useState<ApiError | null>(null);
   const [pending, setPending] = useState(false);
+  const lang = useDeskLang();
 
   async function submit() {
     const nextFields: Record<string, string> = {};
     if (!current) {
-      nextFields.current_password = "Nhập mật khẩu hiện tại";
+      nextFields.current_password = PASSWORD_TEXT.currentRequired[lang];
     }
     const problem = passwordProblem(next);
     if (problem) {
-      nextFields.new_password = problem;
+      nextFields.new_password = PASSWORD_TEXT.nextRule[lang];
     } else if (next === current) {
-      nextFields.new_password = "Mật khẩu mới phải khác mật khẩu hiện tại";
+      nextFields.new_password = PASSWORD_TEXT.different[lang];
     }
     if (again !== next) {
-      nextFields.again = "Mật khẩu nhập lại chưa khớp";
+      nextFields.again = PASSWORD_TEXT.mismatch[lang];
     }
     setFields(nextFields);
     setError(null);
@@ -40,7 +42,7 @@ export function PasswordDialog(props: { onClose: () => void; onChanged: () => vo
       setCsrfToken("");
       props.onChanged();
     } catch (caught) {
-      const apiError = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không kết nối được máy chủ", "");
+      const apiError = caught instanceof ApiError ? caught : new ApiError(0, "network", PASSWORD_TEXT.offline[lang], "");
       if ((apiError.status === 401 || apiError.status === 403) && apiError.message.includes("hiện tại")) {
         setFields({ current_password: apiError.message });
         setError(null);
@@ -55,10 +57,10 @@ export function PasswordDialog(props: { onClose: () => void; onChanged: () => vo
 
   return (
     <Modal
-      title="Đổi mật khẩu"
+      title={PASSWORD_TEXT.title[lang]}
       open
-      okText="Đổi và đăng xuất"
-      cancelText="Để sau"
+      okText={PASSWORD_TEXT.ok[lang]}
+      cancelText={PASSWORD_TEXT.later[lang]}
       confirmLoading={pending}
       maskClosable={!pending}
       closable={!pending}
@@ -66,17 +68,17 @@ export function PasswordDialog(props: { onClose: () => void; onChanged: () => vo
       okButtonProps={{ htmlType: "submit", form: "password-form" }}
     >
       <p className="page-note" style={{ marginTop: 0 }}>
-        Sau khi đổi, mọi phiên của bạn bị đăng xuất. Bạn đăng nhập lại bằng mật khẩu mới.
+        {PASSWORD_TEXT.note[lang]}
       </p>
       <ErrorAlert error={error} />
       <Form id="password-form" layout="vertical" requiredMark={false} onFinish={() => void submit()}>
-        <Form.Item label="Mật khẩu hiện tại" validateStatus={fields.current_password ? "error" : ""} help={fields.current_password}>
+        <Form.Item label={PASSWORD_TEXT.current[lang]} validateStatus={fields.current_password ? "error" : ""} help={fields.current_password}>
           <Input.Password autoFocus autoComplete="current-password" value={current} onChange={(event) => setCurrent(event.target.value)} />
         </Form.Item>
-        <Form.Item label="Mật khẩu mới" validateStatus={fields.new_password ? "error" : ""} help={fields.new_password || "Ít nhất 12 ký tự, có chữ và số."}>
+        <Form.Item label={PASSWORD_TEXT.next[lang]} validateStatus={fields.new_password ? "error" : ""} help={fields.new_password || PASSWORD_TEXT.nextHint[lang]}>
           <Input.Password autoComplete="new-password" value={next} onChange={(event) => setNext(event.target.value)} />
         </Form.Item>
-        <Form.Item label="Nhập lại mật khẩu mới" validateStatus={fields.again ? "error" : ""} help={fields.again}>
+        <Form.Item label={PASSWORD_TEXT.again[lang]} validateStatus={fields.again ? "error" : ""} help={fields.again}>
           <Input.Password autoComplete="new-password" value={again} onChange={(event) => setAgain(event.target.value)} />
         </Form.Item>
       </Form>

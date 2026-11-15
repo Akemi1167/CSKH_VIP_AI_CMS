@@ -1,5 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import { ApiError, api } from "./api.ts";
+import { useDeskLang } from "./desk/language.tsx";
 import type { Me, UserProfile } from "./types.ts";
 
 const AuthScreen = lazy(() => import("./auth/AuthScreen.tsx").then((module) => ({ default: module.AuthScreen })));
@@ -24,6 +25,7 @@ export function App() {
   const [bootError, setBootError] = useState<string | null>(null);
 
   const guestPage = isGuestPath();
+  const lang = useDeskLang();
 
   const refresh = useCallback(async () => {
     try {
@@ -50,8 +52,8 @@ export function App() {
     if (guestPage || phase === "desk" || phase === "loading") {
       return;
     }
-    document.title = "Đăng nhập · CSKH VIP";
-  }, [guestPage, phase]);
+    document.title = lang === "zh" ? "登录 · CSKH VIP" : "Đăng nhập · CSKH VIP";
+  }, [guestPage, lang, phase]);
 
   if (guestPage) {
     return (
