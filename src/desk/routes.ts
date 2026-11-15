@@ -27,6 +27,7 @@ export type DeskPage =
   | "rateLimit"
   | "chatIdle"
   | "voiceLimit"
+  | "hangupSms"
   | "embed"
   | "home"
   | "telegram"
@@ -62,6 +63,7 @@ export const DESK_PATH: Record<DeskPage, string> = {
   rateLimit: "/ip",
   chatIdle: "/thoi-gian-chat",
   voiceLimit: "/thoi-luong-goi",
+  hangupSms: "/tin-sau-goi",
   embed: "/chat-nhung",
   home: "/trang-chu",
   telegram: "/telegram",
@@ -97,6 +99,7 @@ const DESK_LABEL: Record<DeskPage, string> = {
   rateLimit: "Không chặn IP",
   chatIdle: "Thời gian chat",
   voiceLimit: "Thời lượng cuộc gọi",
+  hangupSms: "Tin sau cuộc gọi",
   embed: "Chat nhúng",
   home: "Trang chủ",
   telegram: "Telegram",

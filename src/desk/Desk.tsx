@@ -38,6 +38,7 @@ const StationSmsBoard = screen(() => import("./StationSmsBoard.tsx").then((modul
 const ProviderHistoryBoard = screen(() => import("./ProviderHistoryBoard.tsx").then((module) => module.ProviderHistoryBoard));
 const VoiceBoard = screen(() => import("./VoiceBoard.tsx").then((module) => module.VoiceBoard));
 const VoiceCallBoard = screen(() => import("./VoiceCallBoard.tsx").then((module) => module.VoiceCallBoard));
+const HangupSmsBoard = screen(() => import("./HangupSmsBoard.tsx").then((module) => module.HangupSmsBoard));
 const TelegramBoard = screen(() => import("./TelegramBoard.tsx").then((module) => module.TelegramBoard));
 const WorkBoard = screen(() => import("./WorkBoard.tsx").then((module) => module.WorkBoard));
 const ScheduleBoard = screen(() => import("./ScheduleBoard.tsx").then((module) => module.ScheduleBoard));
@@ -184,6 +185,7 @@ export function Desk(props: {
       settings.push({ kind: "leaf", id: "rateLimit", label: "Không chặn IP", icon: <GlobalOutlined /> });
       settings.push({ kind: "leaf", id: "chatIdle", label: "Thời gian chat", icon: <ClockCircleOutlined /> });
       settings.push({ kind: "leaf", id: "voiceLimit", label: "Thời lượng cuộc gọi", icon: <PhoneOutlined /> });
+      settings.push({ kind: "leaf", id: "hangupSms", label: "Tin sau cuộc gọi", icon: <CommentOutlined /> });
       settings.push({ kind: "leaf", id: "embed", label: "Chat nhúng", icon: <MessageOutlined /> });
       settings.push({ kind: "leaf", id: "home", label: "Trang chủ", icon: <LayoutOutlined /> });
     }
@@ -610,6 +612,9 @@ export function Desk(props: {
           ) : null}
           {page === "voiceLimit" && canReadSettings ? (
             <VoiceCallBoard canWrite={canWriteSettings} onUnauthorized={endSession} onMfaSetup={props.onMfaSetup} />
+          ) : null}
+          {page === "hangupSms" && canReadSettings ? (
+            <HangupSmsBoard canWrite={canWriteSettings} onUnauthorized={endSession} onMfaSetup={props.onMfaSetup} />
           ) : null}
           {page === "embed" && canReadSettings ? (
             <EmbedBoard onUnauthorized={endSession} onMfaSetup={props.onMfaSetup} />

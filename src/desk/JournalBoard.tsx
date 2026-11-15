@@ -395,6 +395,7 @@ const AUDIT_FILTERS = [
   { value: "laaffic.sync", label: "Đồng bộ Laaffic" },
   { value: "settings.rate_limit", label: "Cập nhật IP không bị chặn" },
   { value: "settings.voice_call", label: "Đổi thời lượng cuộc gọi" },
+  { value: "settings.hangup_sms", label: "Đổi tin sau cuộc gọi" },
   { value: "task.verify_claim", label: "Nhận hội thoại xác minh" },
   { value: "task.verify_account", label: "Gắn tài khoản và chuyển đài" },
   { value: "task.verify_reject", label: "Báo không thuộc danh sách khuyến mãi" },
@@ -595,6 +596,13 @@ function describeAudit(row: AuditEvent, names: Map<string, string>): string {
   }
   if (row.action === "settings.voice_call") {
     return `Đổi thời lượng cuộc gọi AI còn ${numberOf(summary.max_call_seconds)} giây.`;
+  }
+  if (row.action === "settings.hangup_sms") {
+    const length = numberOf(summary.content_length);
+    if (length === 0) {
+      return "Tắt tin nhắn sau cuộc gọi.";
+    }
+    return `Đổi tin nhắn sau cuộc gọi, nội dung ${length} ký tự và ${numberOf(summary.text_fields)} biến text.`;
   }
   if (row.action === "telegram.configure") {
     const username = text(summary.username);
