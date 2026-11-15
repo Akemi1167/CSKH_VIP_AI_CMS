@@ -26,6 +26,7 @@ type TaskRow = {
   note: string | null;
   assignee_user_id?: string | null;
   assignee_name?: string | null;
+  hold?: boolean;
   first_response: { state: string; due_at: string | null };
   last_message: { body: string; sender_type: string; created_at: string | null } | null;
   member?: { site: string | null } | null;
@@ -37,7 +38,10 @@ type TaskDetail = TaskRow & {
   messages: { id: string; sender_type: string; body: string; created_at: string; has_image?: boolean; read_at?: string | null }[];
 };
 
-function statusText(status: string, tr: (vi: string, zh: string) => string): string {
+function statusText(status: string, tr: (vi: string, zh: string) => string, hold?: boolean): string {
+  if (hold) {
+    return tr("Chờ xử lý", "待处理");
+  }
   switch (status) {
     case "QUEUED":
       return tr("Chưa giao", "未分配");
@@ -698,7 +702,7 @@ export function WorkBoard(props: {
     { title: tr("Kênh", "渠道"), dataIndex: "channel", width: 110, render: (value: string) => (value === "telegram" ? "Telegram" : "Web") },
     { title: tr("Vị trí", "位置"), width: 220, ellipsis: true, render: (_, row) => customerPlace(row.client_ip, row.client_country) || "—" },
     { title: tr("Tin cuối", "最后一条"), ellipsis: true, render: (_, row) => row.last_message?.body || "—" },
-    { title: tr("Trạng thái", "状态"), dataIndex: "status", width: 130, render: (value: string) => statusText(value, tr) },
+    { title: tr("Trạng thái", "状态"), dataIndex: "status", width: 130, render: (_value: string, row) => statusText(row.status, tr, row.hold) },
     { title: tr("Hạn trả lời", "回复时限"), width: 140, render: (_, row) => slaText(row.first_response.state, tr) },
     { title: tr("Nhận lúc", "接收时间"), dataIndex: "received_at", width: 160, render: (value: string) => formatStamp(value) },
   ];
@@ -863,7 +867,7 @@ export function WorkBoard(props: {
                         {pending ? <span className="chat-unread">{pending.count}</span> : <time>{shortTime(when)}</time>}
                       </span>
                       <span className="chat-list__preview">{pending?.body || row.last_message?.body || tr("Chưa có tin", "暂无消息")}</span>
-                      <ChatFacts site={row.member?.site} channel={row.channel} assignee={row.assignee_name} status={row.status} logos={logos} oversight={oversight} clientIp={row.client_ip} clientCountry={row.client_country} />
+                      <ChatFacts site={row.member?.site} channel={row.channel} assignee={row.assignee_name} status={row.status} hold={row.hold} logos={logos} oversight={oversight} clientIp={row.client_ip} clientCountry={row.client_country} />
                     </span>
                   </button>
                   <button
@@ -897,7 +901,7 @@ export function WorkBoard(props: {
                     </span>
                     <div>
                     <strong>{detail.customer_ref}</strong>
-                    <ChatFacts site={detail.member?.site} channel={detail.channel} assignee={detail.assignee_name} status={detail.status} logos={logos} oversight={oversight} clientIp={detail.client_ip} clientCountry={detail.client_country} />
+                    <ChatFacts site={detail.member?.site} channel={detail.channel} assignee={detail.assignee_name} status={detail.status} hold={detail.hold} logos={logos} oversight={oversight} clientIp={detail.client_ip} clientCountry={detail.client_country} />
                     </div>
                   </div>
                   <Space wrap>
@@ -1028,7 +1032,7 @@ export function WorkBoard(props: {
               {detail.channel === "telegram" ? "Telegram" : "Web"}
               {customerPlace(detail.client_ip, detail.client_country) ? ` · ${customerPlace(detail.client_ip, detail.client_country)}` : ""}
               {detail.campaign_name ? ` · ${detail.campaign_name}` : ""}
-              {oversight ? ` · ${detail.assignee_name ? tr(`Đang chăm ${detail.assignee_name}`, `由 ${detail.assignee_name} 负责`) : tr("Chưa giao", "未分配")}` : detail.assignee_name ? ` · ${detail.assignee_name}` : ""} · {statusText(detail.status, tr)}
+              {oversight ? ` · ${detail.assignee_name ? tr(`Đang chăm ${detail.assignee_name}`, `由 ${detail.assignee_name} 负责`) : tr("Chưa giao", "未分配")}` : detail.assignee_name ? ` · ${detail.assignee_name}` : ""} · {statusText(detail.status, tr, detail.hold)}
             </p>
             <div className="task-thread">
               {detail.messages.map((message) => (
@@ -1069,7 +1073,7 @@ export function WorkBoard(props: {
             ) : open && !canHandle ? (
               <p className="page-note">{tr("Hội thoại đang của nhân viên. Thu về nếu bạn muốn trả lời.", "会话目前由员工负责。如需回复请先收回。")}</p>
             ) : (
-              <Tag>{statusText(detail.status, tr)}</Tag>
+              <Tag>{statusText(detail.status, tr, detail.hold)}</Tag>
             )}
             {canGive ? (
               <Button style={{ marginTop: 12 }} disabled={busy} onClick={() => void openTransfer()}>
@@ -1133,6 +1137,7 @@ function ChatFacts(props: {
   channel: string;
   assignee?: string | null;
   status: string;
+  hold?: boolean;
   logos: Set<string>;
   oversight: boolean;
   clientIp?: string | null;
@@ -1151,7 +1156,7 @@ function ChatFacts(props: {
       {place ? <span className="chat-meta__place">{place}</span> : null}
       <span>
         {props.site || props.oversight ? `${channel} · ` : ""}
-        {statusText(props.status, tr)}
+        {statusText(props.status, tr, props.hold)}
       </span>
     </span>
   );

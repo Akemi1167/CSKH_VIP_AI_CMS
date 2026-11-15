@@ -381,6 +381,7 @@ const AUDIT_FILTERS: { value: string; vi: string; zh: string }[] = [
   { value: "campaign.create", vi: "Tạo chiến dịch", zh: "创建活动" },
   { value: "campaign.call_list", vi: "Gắn danh sách gọi", zh: "添加呼叫名单" },
   { value: "voice.review", vi: "Chấm điểm cuộc gọi", zh: "通话评分" },
+  { value: "message.review", vi: "Chấm điểm tin bot", zh: "机器人消息评分" },
   { value: "campaign.launch", vi: "Chạy chiến dịch", zh: "启动活动" },
   { value: "campaign.pause", vi: "Tạm dừng chiến dịch", zh: "暂停活动" },
   { value: "campaign.resume", vi: "Chạy tiếp chiến dịch", zh: "继续活动" },
@@ -395,6 +396,7 @@ const AUDIT_FILTERS: { value: string; vi: string; zh: string }[] = [
   { value: "customers.pool", vi: "Chuyển kho chăm sóc", zh: "转移关怀库" },
   { value: "rewards.approve", vi: "Duyệt thưởng", zh: "审批奖励" },
   { value: "rewards.revoke", vi: "Gỡ duyệt thưởng", zh: "取消奖励审批" },
+  { value: "rewards.rules", vi: "Sửa điều kiện thưởng", zh: "修改奖励条件" },
   { value: "stations.sms", vi: "Sửa mẫu tin theo đài", zh: "按站点修改消息模板" },
   { value: "sms.test", vi: "Gửi thử SMS", zh: "试发 SMS" },
   { value: "voice.test", vi: "Gọi thử AI", zh: "试呼 AI" },
@@ -550,6 +552,10 @@ function describeAudit(row: AuditEvent, names: Map<string, string>, tr: Tr): str
     const score = numberOf(summary.score);
     return tr(`Chấm ${score} điểm cho một cuộc gọi.`, `为一通通话打了 ${score} 分。`);
   }
+  if (row.action === "message.review") {
+    const score = numberOf(summary.score);
+    return tr(`Chấm ${score} điểm cho một tin bot.`, `为一条机器人消息打了 ${score} 分。`);
+  }
   if (row.action === "campaign.call_list") {
     const listed = numberOf(summary.listed);
     const missing = numberOf(summary.missing);
@@ -581,6 +587,10 @@ function describeAudit(row: AuditEvent, names: Map<string, string>, tr: Tr): str
   if (row.action === "rewards.approve") {
     const period = text(summary.period);
     return period ? tr(`Duyệt thưởng kỳ ${period}.`, `审批 ${period} 期奖励。`) : tr("Duyệt thưởng.", "审批奖励。");
+  }
+  if (row.action === "rewards.rules") {
+    const count = numberOf(summary.count);
+    return tr(`Lưu ${count} điều kiện thưởng.`, `保存了 ${count} 条奖励条件。`);
   }
   if (row.action === "rewards.revoke") {
     const period = text(summary.period);
@@ -688,6 +698,11 @@ function describeLog(row: SystemLog, tr: Tr): string {
       partsVi.push(`trả ${released} task về hàng chờ`);
       partsZh.push(`将 ${released} 个任务退回队列`);
     }
+    const held = numberOf(context.held);
+    if (held > 0) {
+      partsVi.push(`đưa ${held} task vào chờ xử lý`);
+      partsZh.push(`将 ${held} 个任务标为待处理`);
+    }
     return partsVi.length > 0 ? tr(`Đã ${partsVi.join(" và ")}.`, `已${partsZh.join("，并")}。`) : tr("Đã chạy vòng giao task.", "已执行一轮任务分配。");
   }
   if (row.event === "campaign.webhook") {
@@ -718,6 +733,10 @@ function describeLog(row: SystemLog, tr: Tr): string {
   }
   if (row.event === "care.stale") {
     const count = numberOf(context.count);
+    const moved = numberOf(context.moved);
+    if (moved > 0) {
+      return tr(`Đã chuyển ${moved} hội viên quá 15 ngày vào kho data.`, `已将 ${moved} 名超过 15 天未联系的会员转入数据集中库。`);
+    }
     return tr(`Có ${count} hội viên quá 15 ngày chưa liên hệ.`, `有 ${count} 名会员超过 15 天未联系。`);
   }
   if (row.event === "telegram.delivered") {

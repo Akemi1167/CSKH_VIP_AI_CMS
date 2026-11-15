@@ -80,7 +80,7 @@ const PAGE_LABEL: Record<DeskPage, { vi: string; zh: string }> = {
   stationSms: { vi: "Tin nhắn", zh: "短信" },
   callTasks: { vi: "Task gọi nhóm", zh: "群呼任务" },
   voice: { vi: "Gọi thử", zh: "试呼" },
-  voiceReview: { vi: "Chấm điểm cuộc gọi", zh: "通话评分" },
+  voiceReview: { vi: "Chấm điểm", zh: "评分" },
   smsHistory: { vi: "Lịch sử tin nhắn", zh: "短信记录" },
   voiceHistory: { vi: "Lịch sử cuộc gọi", zh: "通话记录" },
   rateLimit: { vi: "Không chặn IP", zh: "不限制IP" },

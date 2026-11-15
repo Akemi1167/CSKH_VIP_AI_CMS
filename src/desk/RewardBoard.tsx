@@ -38,6 +38,8 @@ export function RewardBoard(props: { canReadCustomers: boolean; onUnauthorized: 
   const [matches, setMatches] = useState<VipCustomer[]>([]);
   const [customerId, setCustomerId] = useState<string | undefined>();
   const [busy, setBusy] = useState(false);
+  const [rules, setRules] = useState<Array<{ title: string; detail: string }>>([]);
+  const [rulesBusy, setRulesBusy] = useState(false);
 
   const failAuth = useCallback(
     (caught: ApiError) => {
@@ -64,10 +66,15 @@ export function RewardBoard(props: { canReadCustomers: boolean; onUnauthorized: 
     setError(null);
   }, []);
 
+  const loadRules = useCallback(async () => {
+    const result = await api<{ items: Array<{ title: string; detail: string }> }>("/api/v1/rewards/rules");
+    setRules(result.items.map((rule) => ({ title: rule.title, detail: rule.detail })));
+  }, []);
+
   useEffect(() => {
     let ignore = false;
     setLoading(true);
-    load(applied)
+    Promise.all([load(applied), loadRules()])
       .catch((caught: unknown) => {
         if (ignore) {
           return;
@@ -85,7 +92,7 @@ export function RewardBoard(props: { canReadCustomers: boolean; onUnauthorized: 
     return () => {
       ignore = true;
     };
-  }, [applied, failAuth, load]);
+  }, [applied, failAuth, load, loadRules]);
 
   async function search() {
     const q = query.trim();
@@ -146,6 +153,25 @@ export function RewardBoard(props: { canReadCustomers: boolean; onUnauthorized: 
     }
   }
 
+  async function saveRules() {
+    const next = rules.map((rule) => ({ title: rule.title.trim(), detail: rule.detail.trim() })).filter((rule) => rule.title.length > 0 || rule.detail.length > 0);
+    setRulesBusy(true);
+    setNotice(null);
+    setError(null);
+    try {
+      const saved = await api<{ items: Array<{ title: string; detail: string }> }>("/api/v1/rewards/rules", { method: "PUT", body: { rules: next } });
+      setRules(saved.items.map((rule) => ({ title: rule.title, detail: rule.detail })));
+      setNotice(tr("Đã lưu điều kiện thưởng.", "已保存奖励条件。"));
+    } catch (caught) {
+      const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", tr("Không lưu được điều kiện", "无法保存条件"), "");
+      if (!failAuth(problem)) {
+        setError(problem);
+      }
+    } finally {
+      setRulesBusy(false);
+    }
+  }
+
   const columns: TableColumnsType<Grant> = [
     { title: tr("Tài khoản", "账号"), ellipsis: true, render: (_, row) => row.game_account || row.customer_ref },
     { title: tr("Trang", "站点"), dataIndex: "site", width: 110, render: (site: string | null) => site || "—" },
@@ -176,14 +202,43 @@ export function RewardBoard(props: { canReadCustomers: boolean; onUnauthorized: 
           <Typography.Title level={3} className="page-header__title">
             {tr("Thưởng", "奖励")}
           </Typography.Title>
-          <Typography.Text type="secondary">{tr("Mỗi hội viên một lần duyệt trong tháng. Chỉ duyệt khi nhãn thành công còn hiệu lực.", "每位会员每月只能审批一次。仅当成功标签仍有效时才能审批。")}</Typography.Text>
+          <Typography.Text type="secondary">{tr("Gắn nhãn Thành công tạo lần duyệt của tháng hiện tại nếu tháng đó chưa có. Mỗi hội viên một lần duyệt trong tháng.", "标记成功会为当前月份创建审批，若该月已有则不重复。每位会员每月只能审批一次。")}</Typography.Text>
         </div>
-        <Button icon={<ReloadOutlined />} onClick={() => void load(applied).catch((caught: unknown) => { const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", tr("Không tải được thưởng", "无法加载奖励"), ""); if (!failAuth(problem)) setError(problem); })}>
+        <Button icon={<ReloadOutlined />} onClick={() => void Promise.all([load(applied), loadRules()]).catch((caught: unknown) => { const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", tr("Không tải được thưởng", "无法加载奖励"), ""); if (!failAuth(problem)) setError(problem); })}>
           {tr("Tải lại", "刷新")}
         </Button>
       </div>
       {error ? <ErrorAlert error={error} /> : null}
       {notice ? <Typography.Paragraph type="success">{notice}</Typography.Paragraph> : null}
+      <Typography.Title level={5}>{tr("Điều kiện thưởng", "奖励条件")}</Typography.Title>
+      <Typography.Paragraph type="secondary">{tr("Bảng để CSVIP đối chiếu. Để trống cho đến khi nhập điều kiện đã công bố.", "供 CSVIP 对照的表。在录入已公布的条件之前保持空白。")}</Typography.Paragraph>
+      {rules.map((rule, index) => (
+        <div className="filter-bar" key={index}>
+          <div className="filter-bar__fields">
+            <Input
+              value={rule.title}
+              maxLength={80}
+              placeholder={tr("Tên điều kiện", "条件名称")}
+              style={{ width: 220 }}
+              onChange={(event) => setRules((current) => current.map((item, itemIndex) => (itemIndex === index ? { ...item, title: event.target.value } : item)))}
+            />
+            <Input
+              value={rule.detail}
+              maxLength={500}
+              placeholder={tr("Nội dung", "内容")}
+              style={{ width: 420 }}
+              onChange={(event) => setRules((current) => current.map((item, itemIndex) => (itemIndex === index ? { ...item, detail: event.target.value } : item)))}
+            />
+            <Button onClick={() => setRules((current) => current.filter((_, itemIndex) => itemIndex !== index))}>{tr("Xóa", "删除")}</Button>
+          </div>
+        </div>
+      ))}
+      <div className="filter-bar">
+        <div className="filter-bar__fields">
+          <Button disabled={rules.length >= 20} onClick={() => setRules((current) => [...current, { title: "", detail: "" }])}>{tr("Thêm dòng", "添加一行")}</Button>
+          <Button type="primary" loading={rulesBusy} onClick={() => void saveRules()}>{tr("Lưu điều kiện", "保存条件")}</Button>
+        </div>
+      </div>
       <div className="filter-bar">
         <div className="filter-bar__fields">
           <Input value={period} maxLength={7} placeholder="2026-10" style={{ width: 120 }} onChange={(event) => setPeriod(event.target.value)} onPressEnter={() => setApplied(period.trim())} />
