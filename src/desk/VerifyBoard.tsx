@@ -11,7 +11,7 @@ type VerifyItem = {
   version: number;
   received_at: string;
   channel: string;
-  reason: "account_unknown" | "account_forgotten";
+  reason: "account_unknown" | "account_forgotten" | "web_direct";
   attempted_account: string | null;
   last_message_body: string | null;
 };
@@ -19,6 +19,7 @@ type VerifyItem = {
 const REASON: Record<VerifyItem["reason"], string> = {
   account_unknown: "Sai tên",
   account_forgotten: "Không nhớ tài khoản",
+  web_direct: "Chat web không có link",
 };
 
 export function VerifyBoard(props: { onUnauthorized: () => void; onMfaSetup: () => void }) {
@@ -93,7 +94,7 @@ export function VerifyBoard(props: { onUnauthorized: () => void; onMfaSetup: () 
   }
 
   const columns: TableColumnsType<VerifyItem> = [
-    { title: "Lý do", width: 170, dataIndex: "reason", render: (value: VerifyItem["reason"]) => REASON[value] },
+    { title: "Lý do", width: 210, dataIndex: "reason", render: (value: VerifyItem["reason"]) => REASON[value] },
     { title: "Tên đã nhập", dataIndex: "attempted_account", render: (value: string | null) => value || "—" },
     { title: "Tin khách", dataIndex: "last_message_body", ellipsis: true, render: (value: string | null) => value || "—" },
     { title: "Kênh", width: 110, dataIndex: "channel", render: (value: string) => (value === "telegram" ? "Telegram" : "Web") },

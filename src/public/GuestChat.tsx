@@ -18,6 +18,7 @@ type Bubble = {
 type GuestSession = {
   conversationId: string;
   name: string;
+  invite?: string;
 };
 
 type GuestTicket = {
@@ -97,9 +98,13 @@ export function GuestChat() {
     try {
       const issued = await api<GuestTicket>("/api/v1/chat/guest", {
         method: "POST",
-        body: { name: session.name, conversation_id: session.conversationId || undefined },
+        body: {
+          name: session.name,
+          conversation_id: session.conversationId || undefined,
+          invite: session.invite || undefined,
+        },
       });
-      const next = { conversationId: issued.conversation_id, name: session.name };
+      const next = { conversationId: issued.conversation_id, name: session.name, invite: session.invite };
       saved.current = next;
       localStorage.setItem(STORAGE, JSON.stringify(next));
       uploadTokenRef.current = issued.upload_token;
@@ -274,7 +279,7 @@ export function GuestChat() {
       setError(COPY[lang].nameError);
       return;
     }
-    void connect({ conversationId: saved.current?.conversationId ?? "", name: trimmed });
+    void connect({ conversationId: saved.current?.conversationId ?? "", name: trimmed, invite: saved.current?.invite || readInvite() });
   }
 
   const live = status === "live";
@@ -426,6 +431,11 @@ function readStation(): string {
   return /^[A-Z0-9]{2,16}$/.test(value) ? value : "";
 }
 
+function readInvite(): string {
+  const value = new URLSearchParams(window.location.search).get("c")?.trim() ?? "";
+  return value.length >= 8 && value.length <= 128 ? value : "";
+}
+
 function loadSession(): GuestSession | null {
   try {
     const raw = localStorage.getItem(STORAGE);
@@ -436,7 +446,8 @@ function loadSession(): GuestSession | null {
     if (typeof parsed.name !== "string" || typeof parsed.conversationId !== "string" || parsed.name.trim().length < 2) {
       return null;
     }
-    return { name: parsed.name.trim(), conversationId: parsed.conversationId };
+    const invite = typeof parsed.invite === "string" && parsed.invite.length >= 8 ? parsed.invite : readInvite();
+    return { name: parsed.name.trim(), conversationId: parsed.conversationId, ...(invite ? { invite } : {}) };
   } catch {
     return null;
   }
