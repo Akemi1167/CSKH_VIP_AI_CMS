@@ -5,6 +5,7 @@ import { ApiError, api } from "../api.ts";
 import { formatStamp } from "../copy.ts";
 import type { Page, VipCustomer } from "../types.ts";
 import { ErrorAlert } from "../ui.tsx";
+import { useTr } from "./language.tsx";
 
 type StationStaff = { id: string; display_name: string };
 
@@ -14,6 +15,7 @@ export function DataBoard(props: {
   onUnauthorized: () => void;
   onMfaSetup: () => void;
 }) {
+  const tr = useTr();
   const [site, setSite] = useState("");
   const [stations, setStations] = useState<string[]>([]);
   const [staffBySite, setStaffBySite] = useState<Record<string, StationStaff[]>>({});
@@ -87,7 +89,7 @@ export function DataBoard(props: {
         if (ignore) {
           return;
         }
-        const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không tải được kho data", "");
+        const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", tr("Không tải được kho data", "无法加载数据集中库"), "");
         if (!failAuth(problem)) {
           setError(problem);
         }
@@ -114,11 +116,11 @@ export function DataBoard(props: {
         await api(`/api/v1/vip-customers/${id}/care-pool`, { method: "PUT", body: { pool: "active" } });
         await api(`/api/v1/vip-customers/${id}/owner`, { method: "PUT", body: { user_id: ownerId } });
       }
-      setNotice(`Đã phân bổ ${selected.length} hội viên.`);
+      setNotice(tr(`Đã phân bổ ${selected.length} hội viên.`, `已分配 ${selected.length} 名会员。`));
       setOwnerId(undefined);
       await load(site);
     } catch (caught) {
-      const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không phân bổ được data", "");
+      const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", tr("Không phân bổ được data", "无法分配数据"), "");
       if (!failAuth(problem)) {
         setError(problem);
       }
@@ -129,11 +131,11 @@ export function DataBoard(props: {
   }
 
   const columns: TableColumnsType<VipCustomer> = [
-    { title: "Tài khoản", ellipsis: true, render: (_, row) => row.game_account || row.display_name },
-    { title: "Số", dataIndex: "phone_mask", width: 140 },
+    { title: tr("Tài khoản", "账号"), ellipsis: true, render: (_, row) => row.game_account || row.display_name },
+    { title: tr("Số", "号码"), dataIndex: "phone_mask", width: 140 },
     { title: "VIP", dataIndex: "tier", width: 100, render: (tier: string | null) => (tier ? tier.toUpperCase() : "—") },
-    { title: "Trang", dataIndex: "site", width: 110, render: (value: string | null) => value || "—" },
-    { title: "Tạo lúc", dataIndex: "created_at", width: 160, render: (value: string) => formatStamp(value) },
+    { title: tr("Trang", "站点"), dataIndex: "site", width: 110, render: (value: string | null) => value || "—" },
+    { title: tr("Tạo lúc", "创建时间"), dataIndex: "created_at", width: 160, render: (value: string) => formatStamp(value) },
   ];
   const agents = site ? (staffBySite[site] ?? []) : [];
 
@@ -142,12 +144,12 @@ export function DataBoard(props: {
       <div className="page-header">
         <div>
           <Typography.Title level={3} className="page-header__title">
-            {props.mode === "warehouse" ? "Kho Data tập trung" : "Phân bổ Data"}
+            {props.mode === "warehouse" ? tr("Kho Data tập trung", "数据集中库") : tr("Phân bổ Data", "数据分配")}
           </Typography.Title>
           <Typography.Text type="secondary">
             {props.mode === "warehouse"
-              ? "Hội viên đang ở kho data, chưa có người giữ."
-              : "Chọn hội viên trong kho, rồi giao cho nhân viên của đúng hậu đài. Sau khi giao, hội viên về đang chăm sóc."}
+              ? tr("Hội viên đang ở kho data, chưa có người giữ.", "会员在数据集中库里，还没有负责人。")
+              : tr("Chọn hội viên trong kho, rồi giao cho nhân viên của đúng hậu đài. Sau khi giao, hội viên về đang chăm sóc.", "从库中选择会员，分配给对应站点的员工。分配后，会员进入关怀中。")}
           </Typography.Text>
         </div>
       </div>
@@ -156,7 +158,7 @@ export function DataBoard(props: {
           <Select
             value={site || "all"}
             style={{ width: 160 }}
-            options={[{ value: "all", label: "Mọi trang" }, ...stations.map((code) => ({ value: code, label: code }))]}
+            options={[{ value: "all", label: tr("Mọi trang", "全部站点") }, ...stations.map((code) => ({ value: code, label: code }))]}
             onChange={(value: string) => {
               setSite(value === "all" ? "" : value);
               setOwnerId(undefined);
@@ -167,7 +169,7 @@ export function DataBoard(props: {
               <Select
                 showSearch
                 optionFilterProp="label"
-                placeholder="Nhân viên nhận"
+                placeholder={tr("Nhân viên nhận", "接收员工")}
                 style={{ width: 220 }}
                 value={ownerId}
                 disabled={!site}
@@ -175,7 +177,7 @@ export function DataBoard(props: {
                 onChange={setOwnerId}
               />
               <Button type="primary" loading={busy} disabled={!ownerId || selected.length === 0} onClick={() => void assign()}>
-                Phân bổ {selected.length > 0 ? selected.length : ""}
+                {tr("Phân bổ", "分配")} {selected.length > 0 ? selected.length : ""}
               </Button>
             </>
           ) : null}
@@ -183,7 +185,7 @@ export function DataBoard(props: {
       </div>
       {error ? <ErrorAlert error={error} /> : null}
       {notice ? <Typography.Paragraph type="success">{notice}</Typography.Paragraph> : null}
-      {props.mode === "assign" && props.canWrite && !site ? <p className="page-note">Chọn một trang trước khi phân bổ.</p> : null}
+      {props.mode === "assign" && props.canWrite && !site ? <p className="page-note">{tr("Chọn một trang trước khi phân bổ.", "请先选择站点再分配。")}</p> : null}
       <Table
         rowKey="id"
         size="middle"
@@ -191,7 +193,7 @@ export function DataBoard(props: {
         columns={columns}
         dataSource={items}
         pagination={false}
-        locale={{ emptyText: loading ? " " : "Kho data trống." }}
+        locale={{ emptyText: loading ? " " : tr("Kho data trống.", "数据集中库是空的。") }}
         rowSelection={
           props.mode === "assign" && props.canWrite
             ? { selectedRowKeys: selected, onChange: (keys) => setSelected(keys.map(String)) }

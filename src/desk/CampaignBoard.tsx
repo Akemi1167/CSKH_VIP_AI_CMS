@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, api, toApiUrl } from "../api.ts";
 import { formatStamp } from "../copy.ts";
 import { LaafficWebhooks } from "./LaafficWebhooks.tsx";
+import { useTr } from "./language.tsx";
 import { TestVoice } from "./VoiceBoard.tsx";
 import { ErrorAlert } from "../ui.tsx";
 
@@ -29,68 +30,92 @@ type Audience = { eligible: number; missing_consent: number; recent_send: number
 
 type CallRow = { game_account: string | null; status: string; attempts: number; updated_at: string };
 
-function callResult(row: CallRow): string {
+type Tr = (vi: string, zh: string) => string;
+
+function callResult(row: CallRow, tr: Tr): string {
   if (row.status === "DELIVERED") {
-    return "Đã kết nối";
+    return tr("Đã kết nối", "已接通");
   }
   if (row.status === "FAILED") {
-    return "Không kết nối";
+    return tr("Không kết nối", "未接通");
   }
   if (row.status === "QUEUED" && row.attempts > 0) {
-    return "Chờ gọi lại";
+    return tr("Chờ gọi lại", "待重呼");
   }
   if (row.status === "PROVIDER_ACCEPTED" || row.status === "SUBMITTED") {
-    return "Đang gọi";
+    return tr("Đang gọi", "呼叫中");
   }
   if (row.status === "QUEUED") {
-    return "Đang chờ";
+    return tr("Đang chờ", "等待中");
   }
   if (row.status === "UNKNOWN") {
-    return "Chưa rõ";
+    return tr("Chưa rõ", "未知");
   }
   return row.status;
 }
 
-function countLabel(channel: Channel, status: string): string {
+function countLabel(channel: Channel, status: string, tr: Tr): string {
   if (channel === "ai_voice") {
     if (status === "DELIVERED") {
-      return "Đã kết nối";
+      return tr("Đã kết nối", "已接通");
     }
     if (status === "FAILED") {
-      return "Không kết nối";
+      return tr("Không kết nối", "未接通");
     }
     if (status === "PROVIDER_ACCEPTED" || status === "SUBMITTED") {
-      return "Đang gọi";
+      return tr("Đang gọi", "呼叫中");
     }
   }
-  return COUNT_LABEL[status] ?? status;
+  return countText(status, tr);
 }
 
-function channelLabel(channel: Channel): string {
+function channelLabel(channel: Channel, tr: Tr): string {
   if (channel === "sms") {
     return "SMS";
   }
   if (channel === "telegram") {
     return "Telegram";
   }
-  return "Gọi AI";
+  return tr("Gọi AI", "AI呼叫");
 }
 
-const STATUS_LABEL: Record<string, string> = {
-  DRAFT: "Nháp",
-  RUNNING: "Đang chạy",
-  PAUSED: "Tạm dừng",
-  COMPLETED: "Xong",
-};
+function campaignStatusText(status: string, tr: Tr): string {
+  if (status === "DRAFT") {
+    return tr("Nháp", "草稿");
+  }
+  if (status === "RUNNING") {
+    return tr("Đang chạy", "进行中");
+  }
+  if (status === "PAUSED") {
+    return tr("Tạm dừng", "已暂停");
+  }
+  if (status === "COMPLETED") {
+    return tr("Xong", "已完成");
+  }
+  return status;
+}
 
-const COUNT_LABEL: Record<string, string> = {
-  QUEUED: "Đang chờ",
-  SUBMITTED: "Đã gửi",
-  PROVIDER_ACCEPTED: "Nhà mạng nhận",
-  DELIVERED: "Đã tới",
-  FAILED: "Lỗi",
-  UNKNOWN: "Chưa rõ",
-};
+function countText(status: string, tr: Tr): string {
+  if (status === "QUEUED") {
+    return tr("Đang chờ", "等待中");
+  }
+  if (status === "SUBMITTED") {
+    return tr("Đã gửi", "已提交");
+  }
+  if (status === "PROVIDER_ACCEPTED") {
+    return tr("Nhà mạng nhận", "运营商已接收");
+  }
+  if (status === "DELIVERED") {
+    return tr("Đã tới", "已送达");
+  }
+  if (status === "FAILED") {
+    return tr("Lỗi", "失败");
+  }
+  if (status === "UNKNOWN") {
+    return tr("Chưa rõ", "未知");
+  }
+  return status;
+}
 
 export function CampaignBoard(props: {
   voiceTasks?: boolean;
@@ -103,6 +128,7 @@ export function CampaignBoard(props: {
   onUnauthorized: () => void;
   onMfaSetup: () => void;
 }) {
+  const tr = useTr();
   const [status, setStatus] = useState<string>("all");
   const [items, setItems] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
@@ -174,7 +200,7 @@ export function CampaignBoard(props: {
         if (ignore) {
           return;
         }
-        const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không tải được chiến dịch", "");
+        const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", tr("Không tải được chiến dịch", "无法加载活动"), "");
         if (!failAuth(problem)) {
           setError(problem);
         }
@@ -211,7 +237,7 @@ export function CampaignBoard(props: {
     try {
       setAudience(await api<Audience>(`/api/v1/campaigns/${selected.id}/validate`, { method: "POST", body: {} }));
     } catch (caught) {
-      catchProblem(caught, "Không đếm được người nhận");
+      catchProblem(caught, tr("Không đếm được người nhận", "无法统计接收人数"));
     } finally {
       setBusy(false);
     }
@@ -232,7 +258,7 @@ export function CampaignBoard(props: {
       setCareNote("");
       await refreshSelected(selected.id);
     } catch (caught) {
-      catchProblem(caught, "Không chạy được chiến dịch");
+      catchProblem(caught, tr("Không chạy được chiến dịch", "无法开始活动"));
     } finally {
       setBusy(false);
     }
@@ -248,7 +274,7 @@ export function CampaignBoard(props: {
       await api(`/api/v1/campaigns/${selected.id}/${to}`, { method: "POST", body: {} });
       await refreshSelected(selected.id);
     } catch (caught) {
-      catchProblem(caught, "Không đổi được trạng thái");
+      catchProblem(caught, tr("Không đổi được trạng thái", "无法更改状态"));
     } finally {
       setBusy(false);
     }
@@ -265,7 +291,7 @@ export function CampaignBoard(props: {
       setCounts(result.counts);
       setPeople(result.items);
     } catch (caught) {
-      catchProblem(caught, "Không tải được kết quả");
+      catchProblem(caught, tr("Không tải được kết quả", "无法加载结果"));
     } finally {
       setBusy(false);
     }
@@ -286,11 +312,11 @@ export function CampaignBoard(props: {
         method: "POST",
         body: { accounts, max_attempts: Number(attemptChoice) },
       });
-      setListNote(result.missing > 0 ? `Đã gắn ${result.listed}. Không thấy ${result.missing}.` : `Đã gắn ${result.listed}.`);
+      setListNote(result.missing > 0 ? tr(`Đã gắn ${result.listed}. Không thấy ${result.missing}.`, `已绑定 ${result.listed}。未找到 ${result.missing}。`) : tr(`Đã gắn ${result.listed}.`, `已绑定 ${result.listed}。`));
       setAudience(null);
       await refreshSelected(selected.id);
     } catch (caught) {
-      catchProblem(caught, "Không gắn được danh sách");
+      catchProblem(caught, tr("Không gắn được danh sách", "无法绑定名单"));
     } finally {
       setBusy(false);
     }
@@ -299,31 +325,31 @@ export function CampaignBoard(props: {
   async function create() {
     const name = draft.name.trim();
     if (name.length < 2) {
-      setError(new ApiError(400, "validation_error", "Tên cần từ 2 ký tự", ""));
+      setError(new ApiError(400, "validation_error", tr("Tên cần từ 2 ký tự", "名称至少 2 个字符"), ""));
       return;
     }
     if (!/^[A-Za-z0-9]{2,16}$/.test(draft.site)) {
-      setError(new ApiError(400, "validation_error", "Chọn đài nhận tin", ""));
+      setError(new ApiError(400, "validation_error", tr("Chọn đài nhận tin", "请选择接收站点"), ""));
       return;
     }
     if (draft.channel === "telegram" && draft.body.trim().length === 0) {
-      setError(new ApiError(400, "validation_error", "Telegram cần nội dung", ""));
+      setError(new ApiError(400, "validation_error", tr("Telegram cần nội dung", "Telegram 需要填写内容"), ""));
       return;
     }
     if (draft.channel === "sms" && draft.body.includes("{link}") && draft.destinationUrl.trim().length === 0) {
-      setError(new ApiError(400, "validation_error", "Nội dung có {link} thì cần link đích", ""));
+      setError(new ApiError(400, "validation_error", tr("Nội dung có {link} thì cần link đích", "内容包含 {link} 时需要目标链接"), ""));
       return;
     }
     if (draft.channel === "ai_voice" && !/^\d{1,12}$/.test(draft.agentId.trim())) {
-      setError(new ApiError(400, "validation_error", "Cần mã agent Laaffic", ""));
+      setError(new ApiError(400, "validation_error", tr("Cần mã agent Laaffic", "请填写 Laaffic 坐席编号"), ""));
       return;
     }
     if (draft.channel === "ai_voice" && draft.dimensionId.trim().length > 0 && !/^\d{1,12}$/.test(draft.dimensionId.trim())) {
-      setError(new ApiError(400, "validation_error", "Mã chiều chỉ gồm số", ""));
+      setError(new ApiError(400, "validation_error", tr("Mã chiều chỉ gồm số", "维度编号只能是数字"), ""));
       return;
     }
     if (draft.channel === "ai_voice" && !["1", "2", "3", "4", "5"].includes(draft.maxAttempts)) {
-      setError(new ApiError(400, "validation_error", "Số lần gọi từ 1 đến 5", ""));
+      setError(new ApiError(400, "validation_error", tr("Số lần gọi từ 1 đến 5", "呼叫次数为 1 到 5"), ""));
       return;
     }
     setBusy(true);
@@ -346,7 +372,7 @@ export function CampaignBoard(props: {
       await load(status);
       return created;
     } catch (caught) {
-      catchProblem(caught, "Không tạo được chiến dịch");
+      catchProblem(caught, tr("Không tạo được chiến dịch", "无法创建活动"));
       return null;
     } finally {
       setBusy(false);
@@ -362,7 +388,7 @@ export function CampaignBoard(props: {
         headers: { "x-request-id": crypto.randomUUID() },
       });
       if (!response.ok) {
-        throw new ApiError(response.status, "download_failed", "Không tải được file mẫu", "");
+        throw new ApiError(response.status, "download_failed", tr("Không tải được file mẫu", "无法下载模板"), "");
       }
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
@@ -372,7 +398,7 @@ export function CampaignBoard(props: {
       link.click();
       URL.revokeObjectURL(url);
     } catch (caught) {
-      catchProblem(caught, "Không tải được file mẫu");
+      catchProblem(caught, tr("Không tải được file mẫu", "无法下载模板"));
     } finally {
       setReadingFile(false);
     }
@@ -381,11 +407,11 @@ export function CampaignBoard(props: {
   async function readRosterFile(file: File) {
     const name = file.name.toLowerCase();
     if (!name.endsWith(".csv") && !name.endsWith(".xlsx")) {
-      setError(new ApiError(400, "validation_error", "Chỉ nhận file .csv hoặc .xlsx", ""));
+      setError(new ApiError(400, "validation_error", tr("Chỉ nhận file .csv hoặc .xlsx", "只接受 .csv 或 .xlsx 文件"), ""));
       return;
     }
     if (file.size === 0 || file.size > 1_048_576) {
-      setError(new ApiError(400, "validation_error", file.size === 0 ? "File trống" : "File vượt 1 MB", ""));
+      setError(new ApiError(400, "validation_error", file.size === 0 ? tr("File trống", "文件为空") : tr("File vượt 1 MB", "文件超过 1 MB"), ""));
       return;
     }
     const body = new FormData();
@@ -399,9 +425,9 @@ export function CampaignBoard(props: {
       });
       setCallList(result.rows.map((row) => [row.account, row.phone, row.tier, row.site].join("\t")).join("\n"));
       setSkips([]);
-      setListNote(`Đã đọc ${result.rows.length} dòng từ file. Kiểm tra rồi tạo task.`);
+      setListNote(tr(`Đã đọc ${result.rows.length} dòng từ file. Kiểm tra rồi tạo task.`, `已从文件读取 ${result.rows.length} 行。请检查后创建任务。`));
     } catch (caught) {
-      catchProblem(caught, "Không đọc được file");
+      catchProblem(caught, tr("Không đọc được file", "无法读取文件"));
     } finally {
       setReadingFile(false);
     }
@@ -410,18 +436,18 @@ export function CampaignBoard(props: {
   async function createTask() {
     const name = draft.name.trim();
     if (name.length < 2) {
-      setError(new ApiError(400, "validation_error", "Tên cần từ 2 ký tự", ""));
+      setError(new ApiError(400, "validation_error", tr("Tên cần từ 2 ký tự", "名称至少 2 个字符"), ""));
       return;
     }
     if (!/^\d{1,12}$/.test(draft.agentId.trim())) {
-      setError(new ApiError(400, "validation_error", "Cần mã agent Laaffic", ""));
+      setError(new ApiError(400, "validation_error", tr("Cần mã agent Laaffic", "请填写 Laaffic 坐席编号"), ""));
       return;
     }
     if (draft.dimensionId.trim().length > 0 && !/^\d{1,12}$/.test(draft.dimensionId.trim())) {
-      setError(new ApiError(400, "validation_error", "Mã chiều chỉ gồm số", ""));
+      setError(new ApiError(400, "validation_error", tr("Mã chiều chỉ gồm số", "维度编号只能是数字"), ""));
       return;
     }
-    const parsed = parseRoster(callList);
+    const parsed = parseRoster(callList, tr);
     if (parsed.error) {
       setError(new ApiError(400, "validation_error", parsed.error, ""));
       return;
@@ -446,8 +472,8 @@ export function CampaignBoard(props: {
       setSkips(result.skipped);
       setListNote(
         taskCount > 0
-          ? `Đã tạo ${result.created_customers} hội viên mới, dùng lại ${result.reused_customers}, tạo ${taskCount} task. Bấm dòng task rồi chạy.`
-          : "Chưa tạo được task. Kiểm tra các dòng bị bỏ.",
+          ? tr(`Đã tạo ${result.created_customers} hội viên mới, dùng lại ${result.reused_customers}, tạo ${taskCount} task. Bấm dòng task rồi chạy.`, `已新建 ${result.created_customers} 名会员，复用 ${result.reused_customers} 名，创建 ${taskCount} 个任务。点任务行后开始。`)
+          : tr("Chưa tạo được task. Kiểm tra các dòng bị bỏ.", "还没能创建任务。请检查被跳过的行。"),
       );
       if (taskCount > 0) {
         setCallList("");
@@ -455,20 +481,20 @@ export function CampaignBoard(props: {
       }
       await load(status);
     } catch (caught) {
-      catchProblem(caught, "Không tạo được danh sách gọi");
+      catchProblem(caught, tr("Không tạo được danh sách gọi", "无法创建呼叫名单"));
     } finally {
       setBusy(false);
     }
   }
 
   const columns: TableColumnsType<Campaign> = [
-    { title: "Tên", dataIndex: "name", ellipsis: true },
-    { title: "Đài", dataIndex: "site", width: 100, render: (value: string | null) => value || "—" },
+    { title: tr("Tên", "名称"), dataIndex: "name", ellipsis: true },
+    { title: tr("Đài", "站点"), dataIndex: "site", width: 100, render: (value: string | null) => value || "—" },
     props.voiceTasks
-      ? { title: "Số lần", dataIndex: "max_attempts", width: 90 }
-      : { title: "Kênh", width: 120, dataIndex: "channel", render: (value: Channel) => channelLabel(value) },
-    { title: "Trạng thái", width: 130, dataIndex: "status", render: (value: string) => STATUS_LABEL[value] ?? value },
-    { title: "Tạo lúc", width: 160, dataIndex: "created_at", render: (value: string) => formatStamp(value) },
+      ? { title: tr("Số lần", "次数"), dataIndex: "max_attempts", width: 90 }
+      : { title: tr("Kênh", "渠道"), width: 120, dataIndex: "channel", render: (value: Channel) => channelLabel(value, tr) },
+    { title: tr("Trạng thái", "状态"), width: 130, dataIndex: "status", render: (value: string) => campaignStatusText(value, tr) },
+    { title: tr("Tạo lúc", "创建时间"), width: 160, dataIndex: "created_at", render: (value: string) => formatStamp(value) },
   ];
 
   return (
@@ -476,12 +502,12 @@ export function CampaignBoard(props: {
       <div className="page-header">
         <div>
           <Typography.Title level={3} className="page-header__title">
-            {props.voiceTasks ? "Task gọi nhóm" : "Chiến dịch"}
+            {props.voiceTasks ? tr("Task gọi nhóm", "群呼任务") : tr("Chiến dịch", "活动")}
           </Typography.Title>
           <Typography.Text type="secondary">
             {props.voiceTasks
-              ? "Nhập tài khoản, số điện thoại, cấp VIP và đài. Hệ thống tạo hội viên VIP rồi tạo task gọi từ đúng danh sách đó."
-              : "SMS hoặc cuộc gọi AI cho hội viên đã đồng ý kênh đó."}
+              ? tr("Nhập tài khoản, số điện thoại, cấp VIP và đài. Hệ thống tạo hội viên VIP rồi tạo task gọi từ đúng danh sách đó.", "填写账号、电话、VIP 等级和站点。系统会创建 VIP 会员，并按该名单创建呼叫任务。")
+              : tr("SMS hoặc cuộc gọi AI cho hội viên đã đồng ý kênh đó.", "向已同意该渠道的会员发送短信或发起 AI 呼叫。")}
           </Typography.Text>
         </div>
         <Space>
@@ -490,19 +516,19 @@ export function CampaignBoard(props: {
             style={{ width: 150 }}
             onChange={setStatus}
             options={[
-              { value: "all", label: "Mọi trạng thái" },
-              { value: "DRAFT", label: "Nháp" },
-              { value: "RUNNING", label: "Đang chạy" },
-              { value: "PAUSED", label: "Tạm dừng" },
-              { value: "COMPLETED", label: "Xong" },
+              { value: "all", label: tr("Mọi trạng thái", "全部状态") },
+              { value: "DRAFT", label: tr("Nháp", "草稿") },
+              { value: "RUNNING", label: tr("Đang chạy", "进行中") },
+              { value: "PAUSED", label: tr("Tạm dừng", "已暂停") },
+              { value: "COMPLETED", label: tr("Xong", "已完成") },
             ]}
           />
-          <Button icon={<ReloadOutlined />} onClick={() => void load(status).catch((caught: unknown) => catchProblem(caught, "Không tải được chiến dịch"))}>
-            Tải lại
+          <Button icon={<ReloadOutlined />} onClick={() => void load(status).catch((caught: unknown) => catchProblem(caught, tr("Không tải được chiến dịch", "无法加载活动")))}>
+            {tr("Tải lại", "刷新")}
           </Button>
           {props.canCreate && !props.voiceTasks ? (
             <Button type="primary" icon={<PlusOutlined />} onClick={() => { setSelected(null); setCreateOpen(true); }}>
-              Tạo nháp
+              {tr("Tạo nháp", "创建草稿")}
             </Button>
           ) : null}
         </Space>
@@ -510,25 +536,25 @@ export function CampaignBoard(props: {
       {error ? <ErrorAlert error={error} /> : null}
       {props.voiceTasks && props.canCreate && props.canImport ? (
         <Form className="shift-form" layout="vertical" requiredMark={false} style={{ maxWidth: 720, marginBottom: 16 }} onFinish={() => void createTask()}>
-          <Form.Item label="Tên task">
+          <Form.Item label={tr("Tên task", "任务名称")}>
             <Input value={draft.name} maxLength={80} onChange={(event) => setDraft({ ...draft, name: event.target.value })} />
           </Form.Item>
-          <Form.Item label="Mã agent Laaffic" help="Cuộc gọi được ghi âm.">
+          <Form.Item label={tr("Mã agent Laaffic", "Laaffic 坐席编号")} help={tr("Cuộc gọi được ghi âm.", "通话会录音。")}>
             <Input value={draft.agentId} inputMode="numeric" onChange={(event) => setDraft({ ...draft, agentId: event.target.value })} />
           </Form.Item>
-          <Form.Item label="Mã chiều" help="Để trống nếu agent không dùng chiều.">
+          <Form.Item label={tr("Mã chiều", "维度编号")} help={tr("Để trống nếu agent không dùng chiều.", "坐席不用维度时留空。")}>
             <Input value={draft.dimensionId} inputMode="numeric" onChange={(event) => setDraft({ ...draft, dimensionId: event.target.value })} />
           </Form.Item>
-          <Form.Item label="Số lần gọi" help="Kể cả lần đầu. Chưa kết nối thì gọi lại sau 15 phút.">
+          <Form.Item label={tr("Số lần gọi", "呼叫次数")} help={tr("Kể cả lần đầu. Chưa kết nối thì gọi lại sau 15 phút.", "含首次。未接通则 15 分钟后重呼。")}>
             <Select value={draft.maxAttempts} onChange={(value) => setDraft({ ...draft, maxAttempts: value })} options={["1", "2", "3", "4", "5"].map((value) => ({ value, label: value }))} />
           </Form.Item>
-          <Form.Item label="Danh sách hội viên" help="Tải file mẫu, điền hội viên, rồi nhập lại. Tiêu đề có tiếng Việt và tiếng Trung. Xóa hai dòng màu kem trước khi tải lên.">
+          <Form.Item label={tr("Danh sách hội viên", "会员名单")} help={tr("Tải file mẫu, điền hội viên, rồi nhập lại. Tiêu đề có tiếng Việt và tiếng Trung. Xóa hai dòng màu kem trước khi tải lên.", "下载模板，填写会员后再导入。表头包含越南语和中文。上传前请删除两行米色示例。")}>
             <div className="roster-file">
               <Button htmlType="button" icon={<DownloadOutlined />} disabled={busy || readingFile} onClick={() => void downloadTemplate()}>
-                Tải file mẫu
+                {tr("Tải file mẫu", "下载模板")}
               </Button>
               <Button htmlType="button" icon={<UploadOutlined />} loading={readingFile} disabled={busy} onClick={() => rosterFileRef.current?.click()}>
-                Nhập Excel / CSV
+                {tr("Nhập Excel / CSV", "导入 Excel / CSV")}
               </Button>
               <input
                 ref={rosterFileRef}
@@ -546,7 +572,7 @@ export function CampaignBoard(props: {
             <Input.TextArea rows={8} value={callList} placeholder={"vipuser01\t0901234567\tVIP1\tJ88"} onChange={(event) => setCallList(event.target.value)} />
           </Form.Item>
           <Button type="primary" htmlType="submit" loading={busy} disabled={callList.trim().length === 0 || draft.name.trim().length < 2 || draft.agentId.trim().length === 0}>
-            Nhập danh sách và tạo task
+            {tr("Nhập danh sách và tạo task", "导入名单并创建任务")}
           </Button>
         </Form>
       ) : null}
@@ -555,7 +581,10 @@ export function CampaignBoard(props: {
         <ul className="import-errors">
           {skips.slice(0, 8).map((item) => (
             <li key={`${item.line}-${item.reason}`}>
-              Dòng {item.line}: {item.reason}
+              {tr("Dòng ", "第")}
+              {item.line}
+              {tr(": ", "行：")}
+              {item.reason}
             </li>
           ))}
         </ul>
@@ -569,7 +598,7 @@ export function CampaignBoard(props: {
         columns={columns}
         dataSource={items}
         pagination={false}
-        locale={{ emptyText: props.voiceTasks ? "Chưa có task gọi." : "Chưa có chiến dịch." }}
+        locale={{ emptyText: props.voiceTasks ? tr("Chưa có task gọi.", "还没有呼叫任务。") : tr("Chưa có chiến dịch.", "还没有活动。") }}
         onRow={(row) => ({
           onClick: () => {
             setCreateOpen(false);
@@ -586,16 +615,16 @@ export function CampaignBoard(props: {
           },
         })}
       />
-      <Drawer title={selected?.name ?? "Chiến dịch"} open={selected !== null || createOpen} width={560} onClose={() => { setSelected(null); setCreateOpen(false); }}>
+      <Drawer title={selected?.name ?? tr("Chiến dịch", "活动")} open={selected !== null || createOpen} width={560} onClose={() => { setSelected(null); setCreateOpen(false); }}>
         {createOpen ? (
           <Form layout="vertical" requiredMark={false} onFinish={() => void create()}>
-            <Form.Item label="Tên">
+            <Form.Item label={tr("Tên", "名称")}>
               <Input value={draft.name} maxLength={80} onChange={(event) => setDraft({ ...draft, name: event.target.value })} />
             </Form.Item>
-            <Form.Item label="Kênh">
-              <Select value={draft.channel} onChange={(channel) => setDraft({ ...draft, channel })} options={[{ value: "sms", label: "SMS" }, { value: "telegram", label: "Telegram" }, { value: "ai_voice", label: "Gọi AI" }]} />
+            <Form.Item label={tr("Kênh", "渠道")}>
+              <Select value={draft.channel} onChange={(channel) => setDraft({ ...draft, channel })} options={[{ value: "sms", label: "SMS" }, { value: "telegram", label: "Telegram" }, { value: "ai_voice", label: tr("Gọi AI", "AI呼叫") }]} />
             </Form.Item>
-            <Form.Item label="Đài">
+            <Form.Item label={tr("Đài", "站点")}>
               <Select
                 showSearch
                 placeholder="J88"
@@ -606,63 +635,71 @@ export function CampaignBoard(props: {
             </Form.Item>
             {draft.channel === "sms" ? (
               <>
-                <Form.Item label="Nội dung" help="Để trống thì dùng mẫu tin của đài. Dùng {link} nếu cần gắn mã chiến dịch.">
+                <Form.Item label={tr("Nội dung", "内容")} help={tr("Để trống thì dùng mẫu tin của đài. Dùng {link} nếu cần gắn mã chiến dịch.", "留空则使用站点短信模板。需要插入活动码时使用 {link}。")}>
                   <Input.TextArea rows={4} value={draft.body} maxLength={1024} onChange={(event) => setDraft({ ...draft, body: event.target.value })} />
                 </Form.Item>
-                <Form.Item label="Link đích">
+                <Form.Item label={tr("Link đích", "目标链接")}>
                   <Input value={draft.destinationUrl} placeholder="https://" onChange={(event) => setDraft({ ...draft, destinationUrl: event.target.value })} />
                 </Form.Item>
               </>
             ) : draft.channel === "telegram" ? (
-              <Form.Item label="Nội dung" help="Gửi cho hội viên đã đồng ý Telegram và đang có hội thoại với bot. Không gồm kho data và người bị chặn.">
+              <Form.Item label={tr("Nội dung", "内容")} help={tr("Gửi cho hội viên đã đồng ý Telegram và đang có hội thoại với bot. Không gồm kho data và người bị chặn.", "发送给已同意 Telegram 且正在与机器人对话的会员。不含数据集中库和被屏蔽的人。")}>
                 <Input.TextArea rows={4} value={draft.body} maxLength={1024} onChange={(event) => setDraft({ ...draft, body: event.target.value })} />
               </Form.Item>
             ) : (
               <>
-                <Form.Item label="Mã agent Laaffic" help="Lấy trên màn hình agent của Laaffic. Cuộc gọi được ghi âm.">
+                <Form.Item label={tr("Mã agent Laaffic", "Laaffic 坐席编号")} help={tr("Lấy trên màn hình agent của Laaffic. Cuộc gọi được ghi âm.", "在 Laaffic 的坐席页面获取。通话会录音。")}>
                   <Input value={draft.agentId} inputMode="numeric" onChange={(event) => setDraft({ ...draft, agentId: event.target.value })} />
                 </Form.Item>
-                <Form.Item label="Mã chiều" help="Để trống nếu agent không dùng chiều.">
+                <Form.Item label={tr("Mã chiều", "维度编号")} help={tr("Để trống nếu agent không dùng chiều.", "坐席不用维度时留空。")}>
                   <Input value={draft.dimensionId} inputMode="numeric" onChange={(event) => setDraft({ ...draft, dimensionId: event.target.value })} />
                 </Form.Item>
-                <Form.Item label="Số lần gọi" help="Kể cả lần đầu. Chưa kết nối thì gọi lại sau 15 phút.">
+                <Form.Item label={tr("Số lần gọi", "呼叫次数")} help={tr("Kể cả lần đầu. Chưa kết nối thì gọi lại sau 15 phút.", "含首次。未接通则 15 分钟后重呼。")}>
                   <Select value={draft.maxAttempts} onChange={(value) => setDraft({ ...draft, maxAttempts: value })} options={["1", "2", "3", "4", "5"].map((value) => ({ value, label: value }))} />
                 </Form.Item>
               </>
             )}
             <Button type="primary" htmlType="submit" loading={busy}>
-              Lưu nháp
+              {tr("Lưu nháp", "保存草稿")}
             </Button>
           </Form>
         ) : selected ? (
           <>
             <p className="page-note">
               {selected.site ? `${selected.site} · ` : ""}
-              {channelLabel(selected.channel)} · {STATUS_LABEL[selected.status] ?? selected.status}
+              {channelLabel(selected.channel, tr)} · {campaignStatusText(selected.status, tr)}
             </p>
             {selected.channel === "telegram" ? (
-              <p className="page-note">Hỏi thăm qua bot. Chỉ hội viên đã đồng ý Telegram, có hội thoại, không thuộc kho data và không bị chặn.</p>
+              <p className="page-note">{tr("Hỏi thăm qua bot. Chỉ hội viên đã đồng ý Telegram, có hội thoại, không thuộc kho data và không bị chặn.", "通过机器人问候。仅限已同意 Telegram、有对话、不属于数据集中库且未被屏蔽的会员。")}</p>
             ) : null}
             {selected.channel === "ai_voice" ? (
               <p className="page-note">
-                Agent {selected.agent_id || "—"}
-                {selected.dimension_id ? ` · chiều ${selected.dimension_id}` : ""}. Gọi tối đa {selected.max_attempts || 1} lần. Ghi âm bật, nghe lại ở lịch sử cuộc gọi khi Laaffic báo về. Chỉ gọi hội viên đã đồng ý, không gồm kho data và nuôi SMS.
+                {tr("Agent ", "坐席 ")}
+                {selected.agent_id || "—"}
+                {selected.dimension_id ? tr(` · chiều ${selected.dimension_id}`, ` · 维度 ${selected.dimension_id}`) : ""}
+                {tr(". Gọi tối đa ", "。最多呼叫 ")}
+                {selected.max_attempts || 1}
+                {tr(" lần. Ghi âm bật, nghe lại ở lịch sử cuộc gọi khi Laaffic báo về. Chỉ gọi hội viên đã đồng ý, không gồm kho data và nuôi SMS.", " 次。已开启录音，Laaffic 回传后可在通话记录中回听。只呼叫已同意的会员，不含数据集中库和短信养号。")}
               </p>
             ) : null}
             {selected.body ? <p>{selected.body}</p> : null}
             {audience ? (
               <p className="page-note">
-                {audience.listed > 0 ? `Danh sách ${audience.listed}. ` : selected.channel === "ai_voice" ? "Chưa gắn danh sách. " : ""}
-                Đủ điều kiện {audience.eligible}. Thiếu đồng ý {audience.missing_consent}.
-                {selected.channel === "sms" ? ` Gửi SMS gần đây ${audience.recent_send}.` : ""}
+                {audience.listed > 0 ? tr(`Danh sách ${audience.listed}. `, `名单 ${audience.listed}。`) : selected.channel === "ai_voice" ? tr("Chưa gắn danh sách. ", "尚未绑定名单。") : ""}
+                {tr("Đủ điều kiện ", "符合条件 ")}
+                {audience.eligible}
+                {tr(". Thiếu đồng ý ", "。未同意 ")}
+                {audience.missing_consent}
+                {tr(".", "。")}
+                {selected.channel === "sms" ? tr(` Gửi SMS gần đây ${audience.recent_send}.`, ` 近期已发短信 ${audience.recent_send}。`) : ""}
               </p>
             ) : null}
             {listNote ? <p className="page-note">{listNote}</p> : null}
             {counts ? (
               <p className="page-note">
                 {Object.entries(counts)
-                  .map(([key, value]) => `${countLabel(selected.channel, key)} ${value}`)
-                  .join(" · ") || "Chưa có lượt gửi."}
+                  .map(([key, value]) => `${countLabel(selected.channel, key, tr)} ${value}`)
+                  .join(" · ") || tr("Chưa có lượt gửi.", "还没有发送记录。")}
               </p>
             ) : null}
             {people ? (
@@ -672,57 +709,57 @@ export function CampaignBoard(props: {
                 rowKey={(row) => `${row.game_account ?? "member"}-${row.status}-${row.updated_at}`}
                 pagination={false}
                 dataSource={people}
-                locale={{ emptyText: "Chưa có lượt gọi." }}
+                locale={{ emptyText: tr("Chưa có lượt gọi.", "还没有呼叫记录。") }}
                 columns={[
-                  { title: "Tài khoản", render: (_, row) => row.game_account || "Hội viên" },
-                  { title: "Kết quả", render: (_, row) => callResult(row) },
-                  { title: "Lần", dataIndex: "attempts", width: 70 },
+                  { title: tr("Tài khoản", "账号"), render: (_, row) => row.game_account || tr("Hội viên", "会员") },
+                  { title: tr("Kết quả", "结果"), render: (_, row) => callResult(row, tr) },
+                  { title: tr("Lần", "次数"), dataIndex: "attempts", width: 70 },
                 ]}
               />
             ) : null}
             {selected.channel === "ai_voice" && selected.status === "DRAFT" && props.canCreate ? (
               <Form layout="vertical" style={{ marginTop: 16 }} requiredMark={false} onFinish={() => void attachList()}>
-                <Form.Item label="Số lần gọi" help="Kể cả lần đầu. Chưa kết nối thì gọi lại sau 15 phút, đến hết số lần.">
+                <Form.Item label={tr("Số lần gọi", "呼叫次数")} help={tr("Kể cả lần đầu. Chưa kết nối thì gọi lại sau 15 phút, đến hết số lần.", "含首次。未接通则 15 分钟后重呼，直到用完次数。")}>
                   <Select value={attemptChoice} onChange={setAttemptChoice} options={["1", "2", "3", "4", "5"].map((value) => ({ value, label: value }))} />
                 </Form.Item>
-                <Form.Item label="Danh sách cần gọi" help="Mỗi dòng một tài khoản game hoặc số điện thoại đã có trong hội viên của đài. Tối đa 500 dòng. Kho data, nuôi SMS và người chưa đồng ý sẽ không được gọi.">
+                <Form.Item label={tr("Danh sách cần gọi", "待呼名单")} help={tr("Mỗi dòng một tài khoản game hoặc số điện thoại đã có trong hội viên của đài. Tối đa 500 dòng. Kho data, nuôi SMS và người chưa đồng ý sẽ không được gọi.", "每行一个已在该站点会员中的游戏账号或电话号码。最多 500 行。数据集中库、短信养号和未同意的人不会被呼叫。")}>
                   <Input.TextArea rows={6} value={callList} onChange={(event) => setCallList(event.target.value)} />
                 </Form.Item>
                 <Button htmlType="submit" loading={busy} disabled={callList.trim().length === 0}>
-                  Gắn danh sách
+                  {tr("Gắn danh sách", "绑定名单")}
                 </Button>
               </Form>
             ) : null}
             <Space wrap>
               {props.canValidate && selected.status === "DRAFT" ? (
                 <Button loading={busy} onClick={() => void validate()}>
-                  Đếm người nhận
+                  {tr("Đếm người nhận", "统计接收人数")}
                 </Button>
               ) : null}
               {props.canReport ? (
                 <Button loading={busy} onClick={() => void loadResults()}>
-                  Xem kết quả
+                  {tr("Xem kết quả", "查看结果")}
                 </Button>
               ) : null}
               {props.canManage && selected.status === "RUNNING" ? (
                 <Button loading={busy} onClick={() => void setRunning("pause")}>
-                  Tạm dừng
+                  {tr("Tạm dừng", "暂停")}
                 </Button>
               ) : null}
               {props.canManage && selected.status === "PAUSED" ? (
                 <Button loading={busy} onClick={() => void setRunning("resume")}>
-                  Chạy tiếp
+                  {tr("Chạy tiếp", "继续")}
                 </Button>
               ) : null}
             </Space>
             {props.canLaunch && selected.status === "DRAFT" ? (
               <Form layout="vertical" style={{ marginTop: 16 }} requiredMark={false} onFinish={() => void launch()}>
-                {selected.channel === "ai_voice" ? <p className="page-note">Cần gắn danh sách trước khi chạy.</p> : null}
-                <Form.Item label="Ghi chú lần chạm">
+                {selected.channel === "ai_voice" ? <p className="page-note">{tr("Cần gắn danh sách trước khi chạy.", "开始前需要先绑定名单。")}</p> : null}
+                <Form.Item label={tr("Ghi chú lần chạm", "本次触达备注")}>
                   <Input value={careNote} maxLength={200} onChange={(event) => setCareNote(event.target.value)} />
                 </Form.Item>
                 <Button type="primary" htmlType="submit" loading={busy} disabled={careNote.trim().length === 0}>
-                  Chạy chiến dịch
+                  {tr("Chạy chiến dịch", "开始活动")}
                 </Button>
               </Form>
             ) : null}
@@ -733,7 +770,7 @@ export function CampaignBoard(props: {
   );
 }
 
-function parseRoster(text: string): { rows: { line: number; account: string; phone: string; tier: string; site: string }[]; error?: string } {
+function parseRoster(text: string, tr: Tr): { rows: { line: number; account: string; phone: string; tier: string; site: string }[]; error?: string } {
   const lines = text.split(/\r?\n/);
   const rows: { line: number; account: string; phone: string; tier: string; site: string }[] = [];
   let skippedHeader = false;
@@ -748,15 +785,15 @@ function parseRoster(text: string): { rows: { line: number; account: string; pho
       continue;
     }
     if (fields.length !== 4 || fields.some((field) => field.length === 0)) {
-      return { rows: [], error: `Dòng ${index + 1} cần 4 cột: tài khoản, số điện thoại, cấp VIP, đài` };
+      return { rows: [], error: tr(`Dòng ${index + 1} cần 4 cột: tài khoản, số điện thoại, cấp VIP, đài`, `第 ${index + 1} 行需要 4 列：账号、电话、VIP 等级、站点`) };
     }
     rows.push({ line: index + 1, account: fields[0] ?? "", phone: fields[1] ?? "", tier: fields[2] ?? "", site: fields[3] ?? "" });
   }
   if (rows.length === 0) {
-    return { rows: [], error: "Danh sách trống" };
+    return { rows: [], error: tr("Danh sách trống", "名单为空") };
   }
   if (rows.length > 500) {
-    return { rows: [], error: "Danh sách tối đa 500 dòng" };
+    return { rows: [], error: tr("Danh sách tối đa 500 dòng", "名单最多 500 行") };
   }
   return { rows };
 }

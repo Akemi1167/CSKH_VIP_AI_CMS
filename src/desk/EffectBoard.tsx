@@ -5,10 +5,12 @@ import dayjs from "dayjs";
 import { useCallback, useEffect, useState } from "react";
 import { ApiError, api } from "../api.ts";
 import { ErrorAlert } from "../ui.tsx";
+import { useTr } from "./language.tsx";
 
 type Row = { site: string; touched: number; connected: number; success: number };
 
 export function EffectBoard(props: { onUnauthorized: () => void; onMfaSetup: () => void }) {
+  const tr = useTr();
   const [range, setRange] = useState<[Dayjs, Dayjs]>([dayjs().subtract(6, "day"), dayjs()]);
   const [items, setItems] = useState<Row[]>([]);
   const [loading, setLoading] = useState(false);
@@ -48,7 +50,7 @@ export function EffectBoard(props: { onUnauthorized: () => void; onMfaSetup: () 
         if (ignore) {
           return;
         }
-        const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không tải được thống kê", "");
+        const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", tr("Không tải được thống kê", "无法加载统计"), "");
         if (!failAuth(problem)) {
           setError(problem);
         }
@@ -64,10 +66,10 @@ export function EffectBoard(props: { onUnauthorized: () => void; onMfaSetup: () 
   }, [failAuth, load, range]);
 
   const columns: TableColumnsType<Row> = [
-    { title: "Đài", dataIndex: "site", width: 120 },
-    { title: "Đã liên hệ", dataIndex: "touched", width: 130 },
-    { title: "Khách trả lời", dataIndex: "connected", width: 140 },
-    { title: "Thành công", dataIndex: "success", width: 130 },
+    { title: tr("Đài", "站点"), dataIndex: "site", width: 120 },
+    { title: tr("Đã liên hệ", "已联系"), dataIndex: "touched", width: 130 },
+    { title: tr("Khách trả lời", "客户回复"), dataIndex: "connected", width: 140 },
+    { title: tr("Thành công", "成功"), dataIndex: "success", width: 130 },
   ];
 
   return (
@@ -75,9 +77,9 @@ export function EffectBoard(props: { onUnauthorized: () => void; onMfaSetup: () 
       <div className="page-header">
         <div>
           <Typography.Title level={3} className="page-header__title">
-            Thống kê hiệu quả
+            {tr("Thống kê hiệu quả", "效果统计")}
           </Typography.Title>
-          <Typography.Text type="secondary">Đã liên hệ, khách trả lời và nhãn thành công theo đài, giờ Việt Nam. Tối đa 31 ngày.</Typography.Text>
+          <Typography.Text type="secondary">{tr("Đã liên hệ, khách trả lời và nhãn thành công theo đài, giờ Việt Nam. Tối đa 31 ngày.", "按站点统计已联系、客户回复和成功标签，时间为越南时间。最多 31 天。")}</Typography.Text>
         </div>
       </div>
       <div className="filter-bar">
@@ -91,16 +93,16 @@ export function EffectBoard(props: { onUnauthorized: () => void; onMfaSetup: () 
           }}
         />
         <Button loading={loading} onClick={() => void load(range).catch((caught: unknown) => {
-          const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không tải được thống kê", "");
+          const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", tr("Không tải được thống kê", "无法加载统计"), "");
           if (!failAuth(problem)) {
             setError(problem);
           }
         })}>
-          Tải lại
+          {tr("Tải lại", "刷新")}
         </Button>
       </div>
       {error ? <ErrorAlert error={error} /> : null}
-      <Table rowKey="site" size="middle" loading={loading} columns={columns} dataSource={items} pagination={false} locale={{ emptyText: "Chưa có đài đang mở." }} />
+      <Table rowKey="site" size="middle" loading={loading} columns={columns} dataSource={items} pagination={false} locale={{ emptyText: tr("Chưa có đài đang mở.", "没有开放中的站点。") }} />
     </section>
   );
 }

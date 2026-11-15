@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { ApiError, api } from "../api.ts";
 import { formatStamp } from "../copy.ts";
 import { ErrorAlert } from "../ui.tsx";
+import { useTr } from "./language.tsx";
 
 type MediaItem = {
   id: string;
@@ -20,6 +21,7 @@ type MediaPage = {
 };
 
 export function MediaBoard(props: { canWrite: boolean; onUnauthorized: () => void; onMfaSetup: () => void }) {
+  const tr = useTr();
   const [items, setItems] = useState<MediaItem[]>([]);
   const [next, setNext] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -56,7 +58,7 @@ export function MediaBoard(props: { canWrite: boolean; onUnauthorized: () => voi
         if (ignore) {
           return;
         }
-        const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không tải được ảnh", "");
+        const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", tr("Không tải được ảnh", "无法加载图片"), "");
         if (!failAuth(problem)) {
           setError(problem);
         }
@@ -81,7 +83,7 @@ export function MediaBoard(props: { canWrite: boolean; onUnauthorized: () => voi
       setItems((current) => [...current, ...result.items]);
       setNext(result.next);
     } catch (caught) {
-      const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không tải thêm được ảnh", "");
+      const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", tr("Không tải thêm được ảnh", "无法加载更多图片"), "");
       if (!failAuth(problem)) {
         setError(problem);
       }
@@ -92,17 +94,17 @@ export function MediaBoard(props: { canWrite: boolean; onUnauthorized: () => voi
 
   function remove(item: MediaItem) {
     Modal.confirm({
-      title: "Xóa ảnh này?",
-      content: "Ảnh sẽ mất khỏi kho và khỏi hội thoại.",
-      okText: "Xóa",
-      cancelText: "Để lại",
+      title: tr("Xóa ảnh này?", "删除这张图片？"),
+      content: tr("Ảnh sẽ mất khỏi kho và khỏi hội thoại.", "图片会从库和会话中移除。"),
+      okText: tr("Xóa", "删除"),
+      cancelText: tr("Để lại", "保留"),
       okButtonProps: { danger: true },
       onOk: async () => {
         try {
           await api(`/api/v1/media/${item.id}`, { method: "DELETE" });
           setItems((current) => current.filter((row) => row.id !== item.id));
         } catch (caught) {
-          const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không xóa được ảnh", "");
+          const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", tr("Không xóa được ảnh", "无法删除图片"), "");
           if (!failAuth(problem)) {
             setError(problem);
           }
@@ -116,25 +118,25 @@ export function MediaBoard(props: { canWrite: boolean; onUnauthorized: () => voi
       <div className="page-header">
         <div>
           <Typography.Title level={3} className="page-header__title">
-            Media
+            {tr("Media", "素材")}
           </Typography.Title>
-          <Typography.Text type="secondary">Ảnh khách và nhân viên gửi trong chat, lưu trên kho S3.</Typography.Text>
+          <Typography.Text type="secondary">{tr("Ảnh khách và nhân viên gửi trong chat, lưu trên kho S3.", "客户和员工在聊天中发送的图片，保存在 S3。")}</Typography.Text>
         </div>
       </div>
       {error ? <ErrorAlert error={error} /> : null}
-      {loading ? <Typography.Text type="secondary">Đang tải…</Typography.Text> : null}
-      {!loading && items.length === 0 ? <Typography.Text type="secondary">Chưa có ảnh.</Typography.Text> : null}
+      {loading ? <Typography.Text type="secondary">{tr("Đang tải…", "加载中…")}</Typography.Text> : null}
+      {!loading && items.length === 0 ? <Typography.Text type="secondary">{tr("Chưa có ảnh.", "还没有图片。")}</Typography.Text> : null}
       <div className="media-grid">
         {items.map((item) => (
           <article key={item.id} className="media-card">
-            {item.url ? <img src={item.url} alt="" /> : <div className="media-card__missing">Không có đường dẫn</div>}
+            {item.url ? <img src={item.url} alt="" /> : <div className="media-card__missing">{tr("Không có đường dẫn", "没有链接")}</div>}
             <div className="media-card__meta">
               <strong>{item.source_label}</strong>
               <span>{formatStamp(item.created_at)}</span>
               <span>{formatSize(item.size_bytes)}</span>
               {props.canWrite ? (
                 <Button size="small" danger onClick={() => remove(item)}>
-                  Xóa
+                  {tr("Xóa", "删除")}
                 </Button>
               ) : null}
             </div>
@@ -143,7 +145,7 @@ export function MediaBoard(props: { canWrite: boolean; onUnauthorized: () => voi
       </div>
       {next ? (
         <Button loading={loadingMore} onClick={() => void loadMore()}>
-          Xem thêm
+          {tr("Xem thêm", "查看更多")}
         </Button>
       ) : null}
     </section>

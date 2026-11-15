@@ -37,6 +37,11 @@ export function useDeskLang(): DeskLang {
   return lang;
 }
 
+export function useTr(): (vi: string, zh: string) => string {
+  const lang = useDeskLang();
+  return (vi, zh) => (lang === "zh" ? zh : vi);
+}
+
 export function LangSwitch() {
   const lang = useDeskLang();
   return (

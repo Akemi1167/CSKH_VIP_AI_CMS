@@ -3,6 +3,7 @@ import { Button, Input, Modal, Select, Space, Table, Tag, Tooltip, Typography } 
 import type { TableColumnsType } from "antd";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, api, fieldErrorsFrom } from "../api.ts";
+import { useTr } from "./language.tsx";
 import { roleName, statusLabel } from "../copy.ts";
 import { copyText, generatePassword, passwordProblem } from "../password.ts";
 import {
@@ -52,6 +53,9 @@ export function StaffBoard(props: {
   onSessionEnded: (notice: string) => void;
   onSelfUpdated: (user: UserProfile) => void;
 }) {
+  const tr = useTr();
+  const trRef = useRef(tr);
+  trRef.current = tr;
   const searchRef = useRef<HTMLInputElement>(null);
   const [people, setPeople] = useState<Staff[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
@@ -101,7 +105,7 @@ export function StaffBoard(props: {
       api<{ items: Role[] }>("/api/v1/admin/roles"),
     ]);
     if (staffResult.status === "rejected") {
-      const error = staffResult.reason instanceof ApiError ? staffResult.reason : new ApiError(0, "network", "Không tải được nhân sự", "");
+      const error = staffResult.reason instanceof ApiError ? staffResult.reason : new ApiError(0, "network", trRef.current("Không tải được nhân sự", "无法加载员工"), "");
       if (!failAuth(error)) {
         setLoadError(error);
       }
@@ -213,7 +217,7 @@ export function StaffBoard(props: {
     const personId = selection.kind === "edit" ? selection.id : "";
     const patch = mode === "edit" ? patchFromDraft(origin, draft) : null;
     if (needsActorPassword(mode, patch) && !confirmPassword) {
-      errors.current_password = "Nhập mật khẩu hiện tại của bạn";
+      errors.current_password = tr("Nhập mật khẩu hiện tại của bạn", "请输入你的当前密码");
     }
     setFieldErrors(errors);
     setFormError(null);
@@ -253,7 +257,7 @@ export function StaffBoard(props: {
         setQuery("");
         setFilter("all");
         setIssued({ id: withStations.id, password: draft.password });
-        setSaved("Đã tạo nhân viên.");
+        setSaved(tr("Đã tạo nhân viên.", "已添加员工。"));
         const nextDraft = draftFromStaff(withStations);
         setSelection({ kind: "edit", id: created.id });
         setDraft(nextDraft);
@@ -267,7 +271,7 @@ export function StaffBoard(props: {
       const codes = careStations(draft);
       const stationChange = !sameCodes(origin.stations, codes);
       if (!body && !stationChange) {
-        setSaved("Không có gì để lưu.");
+        setSaved(tr("Không có gì để lưu.", "没有可保存的内容。"));
         return;
       }
       let updated = people.find((person) => person.id === selection.id);
@@ -276,7 +280,7 @@ export function StaffBoard(props: {
         updated = await api<Staff>(`/api/v1/admin/staff/${selection.id}`, { method: "PATCH", body: payload });
       }
       if (!updated) {
-        throw new ApiError(0, "network", "Không lưu được nhân viên", "");
+        throw new ApiError(0, "network", tr("Không lưu được nhân viên", "无法保存员工"), "");
       }
       if (stationChange) {
         const savedStations = await api<{ stations: string[] }>(`/api/v1/admin/staff/${selection.id}/stations`, {
@@ -287,7 +291,7 @@ export function StaffBoard(props: {
       }
       const endsSelf = selection.id === props.me.id && Boolean(body?.role_codes || body?.password);
       if (endsSelf) {
-        props.onSessionEnded("Đã lưu. Phiên của bạn đã đóng, hãy đăng nhập lại.");
+        props.onSessionEnded(tr("Đã lưu. Phiên của bạn đã đóng, hãy đăng nhập lại.", "已保存。你的会话已关闭，请重新登录。"));
         return;
       }
       const items = await refresh();
@@ -295,7 +299,7 @@ export function StaffBoard(props: {
       setDraft(nextDraft);
       setOrigin(cloneDraft(nextDraft));
       setPeople(items);
-      setSaved(body?.password || body?.role_codes || body?.status === "disabled" ? "Đã lưu. Phiên đăng nhập của người này đã đóng." : "Đã lưu.");
+      setSaved(body?.password || body?.role_codes || body?.status === "disabled" ? tr("Đã lưu. Phiên đăng nhập của người này đã đóng.", "已保存。此人的登录会话已关闭。") : tr("Đã lưu.", "已保存。"));
       setFieldErrors({});
       setConfirmPassword("");
       if (updated.id === props.me.id) {
@@ -305,7 +309,7 @@ export function StaffBoard(props: {
         setIssued({ id: updated.id, password: body.password });
       }
     } catch (caught) {
-      const error = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không kết nối được máy chủ", "");
+      const error = caught instanceof ApiError ? caught : new ApiError(0, "network", tr("Không kết nối được máy chủ", "无法连接服务器"), "");
       if (failAuth(error)) {
         return;
       }
@@ -361,7 +365,7 @@ export function StaffBoard(props: {
         setOrigin({ ...origin, work_functions: [...updated.work_functions] });
       }
     } catch (caught) {
-      const error = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không đổi được chức năng", "");
+      const error = caught instanceof ApiError ? caught : new ApiError(0, "network", tr("Không đổi được chức năng", "无法更改职能"), "");
       if (!failAuth(error)) {
         setFormError(error);
       }
@@ -389,7 +393,7 @@ export function StaffBoard(props: {
       return;
     }
     if (!actorPassword) {
-      setFormError(new ApiError(400, "validation_error", "Nhập mật khẩu hiện tại của bạn", ""));
+      setFormError(new ApiError(400, "validation_error", tr("Nhập mật khẩu hiện tại của bạn", "请输入你的当前密码"), ""));
       return;
     }
     setSaving(true);
@@ -400,12 +404,12 @@ export function StaffBoard(props: {
         body: { password: passwordValue, current_password: actorPassword },
       });
       if (passwordFor.id === props.me.id) {
-        props.onSessionEnded("Đã đổi mật khẩu. Phiên của bạn đã đóng, hãy đăng nhập lại.");
+        props.onSessionEnded(tr("Đã đổi mật khẩu. Phiên của bạn đã đóng, hãy đăng nhập lại.", "已修改密码。你的会话已关闭，请重新登录。"));
         return;
       }
       setPasswordShown(passwordValue);
     } catch (caught) {
-      const error = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không đổi được mật khẩu", "");
+      const error = caught instanceof ApiError ? caught : new ApiError(0, "network", tr("Không đổi được mật khẩu", "无法修改密码"), "");
       if (!failAuth(error)) {
         setFormError(error);
       }
@@ -419,7 +423,7 @@ export function StaffBoard(props: {
       return;
     }
     if (!actorPassword) {
-      setFormError(new ApiError(400, "validation_error", "Nhập mật khẩu hiện tại của bạn", ""));
+      setFormError(new ApiError(400, "validation_error", tr("Nhập mật khẩu hiện tại của bạn", "请输入你的当前密码"), ""));
       return;
     }
     setSaving(true);
@@ -427,13 +431,13 @@ export function StaffBoard(props: {
     try {
       await api(`/api/v1/admin/staff/${mfaFor.id}/mfa`, { method: "DELETE", body: { current_password: actorPassword } });
       if (mfaFor.id === props.me.id) {
-        props.onSessionEnded("Đã gỡ MFA. Phiên của bạn đã đóng, hãy đăng nhập lại.");
+        props.onSessionEnded(tr("Đã gỡ MFA. Phiên của bạn đã đóng, hãy đăng nhập lại.", "已解除 MFA。你的会话已关闭，请重新登录。"));
         return;
       }
       setPeople((rows) => rows.map((row) => (row.id === mfaFor.id ? { ...row, mfa_enabled: false } : row)));
       setMfaFor(null);
     } catch (caught) {
-      const error = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không gỡ được MFA", "");
+      const error = caught instanceof ApiError ? caught : new ApiError(0, "network", tr("Không gỡ được MFA", "无法解除 MFA"), "");
       if (!failAuth(error)) {
         setFormError(error);
       }
@@ -444,7 +448,7 @@ export function StaffBoard(props: {
 
   const columns: TableColumnsType<Staff> = [
     {
-      title: "Nhân viên",
+      title: tr("Nhân viên", "员工"),
       dataIndex: "display_name",
       render: (value: string, person) => (
         <Space direction="vertical" size={0}>
@@ -456,23 +460,23 @@ export function StaffBoard(props: {
       ),
     },
     {
-      title: "Vai trò",
+      title: tr("Vai trò", "角色"),
       dataIndex: "roles",
       render: (codes: string[]) => (
         <Space size={4} wrap>
           {(codes.length > 0 ? codes : ["none"]).map((code) => (
-            <Tag key={code}>{code === "none" ? "Chưa có vai trò" : roleName(code, roles)}</Tag>
+            <Tag key={code}>{code === "none" ? tr("Chưa có vai trò", "暂无角色") : roleName(code, roles)}</Tag>
           ))}
         </Space>
       ),
     },
     {
-      title: "Đài",
+      title: tr("Đài", "站点"),
       dataIndex: "stations",
       render: (codes: string[] | undefined, person) =>
         person.roles.includes("agent") ? (
           <Space size={4} wrap>
-            {(codes ?? []).length === 0 ? <Typography.Text type="secondary">Chưa gắn</Typography.Text> : null}
+            {(codes ?? []).length === 0 ? <Typography.Text type="secondary">{tr("Chưa gắn", "未分配")}</Typography.Text> : null}
             {(codes ?? []).map((code) => (
               <Tag key={code}>{code}</Tag>
             ))}
@@ -482,7 +486,7 @@ export function StaffBoard(props: {
         ),
     },
     {
-      title: "Trạng thái",
+      title: tr("Trạng thái", "状态"),
       dataIndex: "status",
       width: 120,
       render: (status: string) => <Tag color={status === "active" ? "success" : "default"}>{statusLabel(status)}</Tag>,
@@ -498,7 +502,7 @@ export function StaffBoard(props: {
         const telegramOn = functions.includes("telegram");
         return (
           <span className="row-actions" onClick={(event) => event.stopPropagation()}>
-            <Tooltip title={chatOn ? "Đang nhận chat website" : "Không nhận chat website"}>
+            <Tooltip title={chatOn ? tr("Đang nhận chat website", "正在接收网站聊天") : tr("Không nhận chat website", "不接收网站聊天")}>
               <button
                 type="button"
                 className={chatOn ? "is-on" : undefined}
@@ -508,7 +512,7 @@ export function StaffBoard(props: {
                 <MessageOutlined />
               </button>
             </Tooltip>
-            <Tooltip title={telegramOn ? "Đang nhận Telegram" : "Không nhận Telegram"}>
+            <Tooltip title={telegramOn ? tr("Đang nhận Telegram", "正在接收 Telegram") : tr("Không nhận Telegram", "不接收 Telegram")}>
               <button
                 type="button"
                 className={telegramOn ? "is-on" : undefined}
@@ -518,12 +522,12 @@ export function StaffBoard(props: {
                 <SendOutlined />
               </button>
             </Tooltip>
-            <Tooltip title="Đổi mật khẩu">
+            <Tooltip title={tr("Đổi mật khẩu", "修改密码")}>
               <button type="button" className="is-key" disabled={!props.canWrite} onClick={() => openPassword(person)}>
                 <KeyOutlined />
               </button>
             </Tooltip>
-            <Tooltip title={person.mfa_enabled ? "MFA đang bật. Bấm để gỡ" : "Chưa bật MFA"}>
+            <Tooltip title={person.mfa_enabled ? tr("MFA đang bật. Bấm để gỡ", "MFA 已开启。点击解除") : tr("Chưa bật MFA", "未开启 MFA")}>
               <button
                 type="button"
                 className={person.mfa_enabled ? "is-mfa" : person.roles.includes("admin") ? "is-warn" : undefined}
@@ -540,7 +544,7 @@ export function StaffBoard(props: {
                 <SafetyCertificateOutlined />
               </button>
             </Tooltip>
-            <Tooltip title="Sửa hồ sơ">
+            <Tooltip title={tr("Sửa hồ sơ", "编辑资料")}>
               <button type="button" onClick={() => choose({ kind: "edit", id: person.id })}>
                 <EditOutlined />
               </button>
@@ -556,13 +560,13 @@ export function StaffBoard(props: {
       <div className="page-header">
         <div>
           <Typography.Title level={3} className="page-header__title">
-            Nhân sự
+            {tr("Nhân sự", "员工")}
           </Typography.Title>
-          <Typography.Text type="secondary">Một nhân viên chăm sóc có thể gắn nhiều đài. Icon trên mỗi dòng: chat website, Telegram, đổi mật khẩu, MFA, sửa hồ sơ.</Typography.Text>
+          <Typography.Text type="secondary">{tr("Một nhân viên chăm sóc có thể gắn nhiều đài. Icon trên mỗi dòng: chat website, Telegram, đổi mật khẩu, MFA, sửa hồ sơ.", "一名客服可以分配多个站点。每行图标：网站聊天、Telegram、修改密码、MFA、编辑资料。")}</Typography.Text>
         </div>
         {props.canWrite ? (
           <Button type="primary" icon={<PlusOutlined />} onClick={() => choose({ kind: "create" })}>
-            Thêm nhân viên
+            {tr("Thêm nhân viên", "添加员工")}
           </Button>
         ) : null}
       </div>
@@ -575,8 +579,8 @@ export function StaffBoard(props: {
             }}
             allowClear
             prefix={<SearchOutlined />}
-            placeholder="Tìm theo tên hoặc tên đăng nhập"
-            aria-label="Tìm nhân viên"
+            placeholder={tr("Tìm theo tên hoặc tên đăng nhập", "按姓名或用户名搜索")}
+            aria-label={tr("Tìm nhân viên", "搜索员工")}
             style={{ width: 280 }}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
@@ -586,9 +590,9 @@ export function StaffBoard(props: {
             style={{ width: 180 }}
             onChange={setFilter}
             options={[
-              { value: "all", label: `Tất cả (${people.length})` },
-              { value: "active", label: `Đang làm (${activeCount})` },
-              { value: "disabled", label: `Đã khóa (${lockedCount})` },
+              { value: "all", label: tr(`Tất cả (${people.length})`, `全部 (${people.length})`) },
+              { value: "active", label: tr(`Đang làm (${activeCount})`, `在职 (${activeCount})`) },
+              { value: "disabled", label: tr(`Đã khóa (${lockedCount})`, `已锁定 (${lockedCount})`) },
             ]}
           />
         </div>
@@ -600,7 +604,7 @@ export function StaffBoard(props: {
               setFilter("all");
             }}
           >
-            Xóa bộ lọc
+            {tr("Xóa bộ lọc", "清除筛选")}
           </Button>
         </Space>
       </div>
@@ -617,7 +621,7 @@ export function StaffBoard(props: {
                 refresh().finally(() => setLoading(false));
               }}
             >
-              Thử lại
+              {tr("Thử lại", "重试")}
             </button>
           }
         />
@@ -631,7 +635,7 @@ export function StaffBoard(props: {
           dataSource={visible}
           loading={loading}
           pagination={{ pageSize: 20, showSizeChanger: false, hideOnSinglePage: true }}
-          locale={{ emptyText: "Không có người khớp." }}
+          locale={{ emptyText: tr("Không có người khớp.", "没有匹配的人员。") }}
           onRow={(person) => ({
             onClick: () => choose({ kind: "edit", id: person.id }),
             style: { cursor: "pointer" },
@@ -640,12 +644,12 @@ export function StaffBoard(props: {
       </div>
 
       <Modal
-        title={passwordFor ? `Đổi mật khẩu ${passwordFor.display_name}` : "Đổi mật khẩu"}
+        title={passwordFor ? tr(`Đổi mật khẩu ${passwordFor.display_name}`, `修改 ${passwordFor.display_name} 的密码`) : tr("Đổi mật khẩu", "修改密码")}
         open={passwordFor !== null}
         centered
         confirmLoading={saving}
-        okText={passwordShown ? "Đóng" : "Lưu mật khẩu"}
-        cancelText="Hủy"
+        okText={passwordShown ? tr("Đóng", "关闭") : tr("Lưu mật khẩu", "保存密码")}
+        cancelText={tr("Hủy", "取消")}
         cancelButtonProps={{ style: passwordShown ? { display: "none" } : undefined }}
         onCancel={() => setPasswordFor(null)}
         onOk={() => {
@@ -659,59 +663,59 @@ export function StaffBoard(props: {
         {formError ? <ErrorAlert error={formError} /> : null}
         {passwordShown ? (
           <p className="page-note">
-            Mật khẩu mới chỉ hiện lúc này: <code className="secret-code">{passwordShown}</code>
+            {tr("Mật khẩu mới chỉ hiện lúc này: ", "新密码只显示这一次：")}<code className="secret-code">{passwordShown}</code>
             <Button size="small" style={{ marginLeft: 8 }} onClick={() => void copyText(passwordShown).then(setPasswordCopied)}>
-              {passwordCopied ? "Đã chép" : "Chép"}
+              {passwordCopied ? tr("Đã chép", "已复制") : tr("Chép", "复制")}
             </Button>
           </p>
         ) : (
           <>
-            <p className="page-note">Người này sẽ phải đăng nhập lại. Gửi mật khẩu cho họ, CMS không lưu lại.</p>
-            <p className="page-note">Mật khẩu mới</p>
+            <p className="page-note">{tr("Người này sẽ phải đăng nhập lại. Gửi mật khẩu cho họ, CMS không lưu lại.", "此人需要重新登录。请把密码发给对方，后台不会保存。")}</p>
+            <p className="page-note">{tr("Mật khẩu mới", "新密码")}</p>
             <Input.Password value={passwordValue} autoComplete="new-password" onChange={(event) => setPasswordValue(event.target.value)} />
-            <p className="page-note" style={{ marginTop: 12 }}>Mật khẩu của bạn</p>
+            <p className="page-note" style={{ marginTop: 12 }}>{tr("Mật khẩu của bạn", "你的密码")}</p>
             <Input.Password
               autoComplete="current-password"
               value={actorPassword}
               onChange={(event) => setActorPassword(event.target.value)}
             />
             <button type="button" className="text-button" style={{ marginTop: 8 }} onClick={() => setPasswordValue(generatePassword())}>
-              Tạo mật khẩu khác
+              {tr("Tạo mật khẩu khác", "生成另一个密码")}
             </button>
           </>
         )}
       </Modal>
 
       <Modal
-        title={mfaFor ? `Gỡ MFA của ${mfaFor.display_name}` : "Gỡ MFA"}
+        title={mfaFor ? tr(`Gỡ MFA của ${mfaFor.display_name}`, `解除 ${mfaFor.display_name} 的 MFA`) : tr("Gỡ MFA", "解除 MFA")}
         open={mfaFor !== null}
         centered
         confirmLoading={saving}
-        okText="Gỡ MFA"
+        okText={tr("Gỡ MFA", "解除 MFA")}
         okButtonProps={{ danger: true }}
-        cancelText="Hủy"
+        cancelText={tr("Hủy", "取消")}
         onCancel={() => setMfaFor(null)}
         onOk={() => void clearMfa()}
       >
         {formError ? <ErrorAlert error={formError} /> : null}
         <p className="page-note">
           {mfaFor?.id === props.me.id
-            ? "MFA của bạn sẽ bị gỡ và phiên này đóng."
-            : "Người này đăng nhập bằng mật khẩu cho đến khi tự bật lại MFA. Phiên đang mở của họ sẽ đóng."}
+            ? tr("MFA của bạn sẽ bị gỡ và phiên này đóng.", "你的 MFA 将被解除，当前会话会关闭。")
+            : tr("Người này đăng nhập bằng mật khẩu cho đến khi tự bật lại MFA. Phiên đang mở của họ sẽ đóng.", "此人将用密码登录，直到自己重新开启 MFA。其当前会话会关闭。")}
         </p>
-        <p className="page-note">Mật khẩu của bạn</p>
+        <p className="page-note">{tr("Mật khẩu của bạn", "你的密码")}</p>
         <Input.Password autoComplete="current-password" value={actorPassword} onChange={(event) => setActorPassword(event.target.value)} />
       </Modal>
 
       <Modal
-        title={selection.kind === "create" ? "Thêm nhân viên" : draft ? `Sửa ${draft.display_name || draft.username}` : "Sửa nhân viên"}
+        title={selection.kind === "create" ? tr("Thêm nhân viên", "添加员工") : draft ? tr(`Sửa ${draft.display_name || draft.username}`, `编辑 ${draft.display_name || draft.username}`) : tr("Sửa nhân viên", "编辑员工")}
         open={editorOpen}
         centered
         width={480}
         styles={{ body: { maxHeight: "calc(100vh - 220px)", overflowY: "auto" } }}
         onCancel={() => choose({ kind: "idle" })}
-        okText={selection.kind === "create" ? "Tạo nhân viên" : draft?.status === "disabled" ? "Lưu và khóa" : "Lưu thay đổi"}
-        cancelText="Đóng"
+        okText={selection.kind === "create" ? tr("Tạo nhân viên", "创建员工") : draft?.status === "disabled" ? tr("Lưu và khóa", "保存并锁定") : tr("Lưu thay đổi", "保存更改")}
+        cancelText={tr("Đóng", "关闭")}
         confirmLoading={saving}
         okButtonProps={{
           htmlType: "submit",
@@ -720,7 +724,7 @@ export function StaffBoard(props: {
           style: props.canWrite ? undefined : { display: "none" },
         }}
         cancelButtonProps={{ style: props.canWrite ? undefined : { display: "none" } }}
-        footer={props.canWrite ? undefined : <Button onClick={() => choose({ kind: "idle" })}>Đóng</Button>}
+        footer={props.canWrite ? undefined : <Button onClick={() => choose({ kind: "idle" })}>{tr("Đóng", "关闭")}</Button>}
       >
         {formError && formError.code !== "conflict" ? <ErrorAlert error={formError} /> : null}
         {draft ? (
@@ -753,19 +757,19 @@ export function StaffBoard(props: {
       </Modal>
 
       <Modal
-        title="Có thay đổi chưa lưu"
+        title={tr("Có thay đổi chưa lưu", "有未保存的更改")}
         open={queued !== null}
         onCancel={() => setQueued(null)}
         footer={
           <Space>
-            <Button onClick={() => setQueued(null)}>Tiếp tục sửa</Button>
+            <Button onClick={() => setQueued(null)}>{tr("Tiếp tục sửa", "继续编辑")}</Button>
             <Button danger onClick={() => queued && apply(queued)}>
-              Bỏ thay đổi
+              {tr("Bỏ thay đổi", "放弃更改")}
             </Button>
           </Space>
         }
       >
-        Thoát lúc này sẽ mất phần vừa sửa.
+        {tr("Thoát lúc này sẽ mất phần vừa sửa.", "现在离开会丢失刚才的修改。")}
       </Modal>
     </section>
   );

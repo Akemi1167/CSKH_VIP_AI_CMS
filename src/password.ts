@@ -1,10 +1,12 @@
+import { deskLang } from "./desk/language.tsx";
+
 const LETTERS = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
 const DIGITS = "23456789";
 const ALL = `${LETTERS}${DIGITS}`;
 
 export function passwordProblem(password: string): string | null {
   if (password.length < 12 || password.length > 128 || !/\p{L}/u.test(password) || !/\d/.test(password)) {
-    return "Mật khẩu cần từ 12 ký tự, có chữ và số";
+    return deskLang() === "zh" ? "密码至少 12 个字符，并且包含字母和数字" : "Mật khẩu cần từ 12 ký tự, có chữ và số";
   }
   return null;
 }

@@ -227,7 +227,7 @@ export function Desk(props: {
     if (settingsGroups.length > 0) {
       sections.push({
         id: "settings",
-        label: "Cài đặt",
+        label: DESK_TEXT.settings[lang],
         items: [{ kind: "branch", id: "settings", label: DESK_TEXT.settings[lang], panelTitle: canReadSettings ? DESK_TEXT.settingsSystem[lang] : DESK_TEXT.settings[lang], icon: <SettingOutlined />, groups: settingsGroups }],
       });
     }

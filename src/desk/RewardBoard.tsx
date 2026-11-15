@@ -6,6 +6,7 @@ import { ApiError, api } from "../api.ts";
 import { formatStamp } from "../copy.ts";
 import type { VipCustomer } from "../types.ts";
 import { ErrorAlert } from "../ui.tsx";
+import { useTr } from "./language.tsx";
 
 type Grant = {
   id: string;
@@ -26,6 +27,7 @@ function currentPeriod(): string {
 }
 
 export function RewardBoard(props: { canReadCustomers: boolean; onUnauthorized: () => void; onMfaSetup: () => void }) {
+  const tr = useTr();
   const [period, setPeriod] = useState(currentPeriod);
   const [applied, setApplied] = useState(period);
   const [items, setItems] = useState<Grant[]>([]);
@@ -70,7 +72,7 @@ export function RewardBoard(props: { canReadCustomers: boolean; onUnauthorized: 
         if (ignore) {
           return;
         }
-        const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không tải được thưởng", "");
+        const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", tr("Không tải được thưởng", "无法加载奖励"), "");
         if (!failAuth(problem)) {
           setError(problem);
         }
@@ -96,7 +98,7 @@ export function RewardBoard(props: { canReadCustomers: boolean; onUnauthorized: 
       setMatches(result.items);
       setCustomerId(result.items[0]?.id);
     } catch (caught) {
-      const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không tìm được hội viên", "");
+      const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", tr("Không tìm được hội viên", "无法搜索会员"), "");
       if (!failAuth(problem)) {
         setError(problem);
       }
@@ -105,7 +107,7 @@ export function RewardBoard(props: { canReadCustomers: boolean; onUnauthorized: 
 
   async function approve() {
     if (!customerId || !/^[0-9]{4}-[0-9]{2}$/.test(period)) {
-      setError(new ApiError(0, "validation_error", "Kỳ thưởng dạng năm-tháng, ví dụ 2026-10", ""));
+      setError(new ApiError(0, "validation_error", tr("Kỳ thưởng dạng năm-tháng, ví dụ 2026-10", "奖励周期格式为年-月，例如 2026-10"), ""));
       return;
     }
     setBusy(true);
@@ -113,11 +115,11 @@ export function RewardBoard(props: { canReadCustomers: boolean; onUnauthorized: 
     setError(null);
     try {
       await api(`/api/v1/vip-customers/${customerId}/rewards`, { method: "POST", body: { period } });
-      setNotice("Đã duyệt thưởng.");
+      setNotice(tr("Đã duyệt thưởng.", "已审批奖励。"));
       setApplied(period.trim());
       await load(period.trim());
     } catch (caught) {
-      const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không duyệt được thưởng", "");
+      const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", tr("Không duyệt được thưởng", "无法审批奖励"), "");
       if (!failAuth(problem)) {
         setError(problem);
       }
@@ -132,10 +134,10 @@ export function RewardBoard(props: { canReadCustomers: boolean; onUnauthorized: 
     setError(null);
     try {
       await api(`/api/v1/rewards/${id}/revoke`, { method: "POST", body: {} });
-      setNotice("Đã gỡ duyệt thưởng.");
+      setNotice(tr("Đã gỡ duyệt thưởng.", "已撤销奖励审批。"));
       await load(applied);
     } catch (caught) {
-      const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không gỡ được duyệt thưởng", "");
+      const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", tr("Không gỡ được duyệt thưởng", "无法撤销奖励审批"), "");
       if (!failAuth(problem)) {
         setError(problem);
       }
@@ -145,23 +147,23 @@ export function RewardBoard(props: { canReadCustomers: boolean; onUnauthorized: 
   }
 
   const columns: TableColumnsType<Grant> = [
-    { title: "Tài khoản", ellipsis: true, render: (_, row) => row.game_account || row.customer_ref },
-    { title: "Trang", dataIndex: "site", width: 110, render: (site: string | null) => site || "—" },
-    { title: "Kỳ", dataIndex: "period", width: 110 },
+    { title: tr("Tài khoản", "账号"), ellipsis: true, render: (_, row) => row.game_account || row.customer_ref },
+    { title: tr("Trang", "站点"), dataIndex: "site", width: 110, render: (site: string | null) => site || "—" },
+    { title: tr("Kỳ", "周期"), dataIndex: "period", width: 110 },
     {
-      title: "Trạng thái",
+      title: tr("Trạng thái", "状态"),
       dataIndex: "status",
       width: 130,
-      render: (status: string) => <Tag color={status === "approved" ? "green" : "default"}>{status === "approved" ? "Đã duyệt" : "Đã gỡ"}</Tag>,
+      render: (status: string) => <Tag color={status === "approved" ? "green" : "default"}>{status === "approved" ? tr("Đã duyệt", "已审批") : tr("Đã gỡ", "已撤销")}</Tag>,
     },
-    { title: "Duyệt lúc", dataIndex: "approved_at", width: 160, render: (value: string) => formatStamp(value) },
+    { title: tr("Duyệt lúc", "审批时间"), dataIndex: "approved_at", width: 160, render: (value: string) => formatStamp(value) },
     {
       title: "",
       width: 100,
       render: (_, row) =>
         row.status === "approved" ? (
           <Button size="small" danger loading={busy} onClick={() => void revoke(row.id)}>
-            Gỡ
+            {tr("Gỡ", "撤销")}
           </Button>
         ) : null,
     },
@@ -172,12 +174,12 @@ export function RewardBoard(props: { canReadCustomers: boolean; onUnauthorized: 
       <div className="page-header">
         <div>
           <Typography.Title level={3} className="page-header__title">
-            Thưởng
+            {tr("Thưởng", "奖励")}
           </Typography.Title>
-          <Typography.Text type="secondary">Mỗi hội viên một lần duyệt trong tháng. Chỉ duyệt khi nhãn thành công còn hiệu lực.</Typography.Text>
+          <Typography.Text type="secondary">{tr("Mỗi hội viên một lần duyệt trong tháng. Chỉ duyệt khi nhãn thành công còn hiệu lực.", "每位会员每月只能审批一次。仅当成功标签仍有效时才能审批。")}</Typography.Text>
         </div>
-        <Button icon={<ReloadOutlined />} onClick={() => void load(applied).catch((caught: unknown) => { const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không tải được thưởng", ""); if (!failAuth(problem)) setError(problem); })}>
-          Tải lại
+        <Button icon={<ReloadOutlined />} onClick={() => void load(applied).catch((caught: unknown) => { const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", tr("Không tải được thưởng", "无法加载奖励"), ""); if (!failAuth(problem)) setError(problem); })}>
+          {tr("Tải lại", "刷新")}
         </Button>
       </div>
       {error ? <ErrorAlert error={error} /> : null}
@@ -187,25 +189,25 @@ export function RewardBoard(props: { canReadCustomers: boolean; onUnauthorized: 
           <Input value={period} maxLength={7} placeholder="2026-10" style={{ width: 120 }} onChange={(event) => setPeriod(event.target.value)} onPressEnter={() => setApplied(period.trim())} />
           {props.canReadCustomers ? (
             <>
-              <Input value={query} placeholder="Tài khoản hoặc trang" style={{ width: 220 }} onChange={(event) => setQuery(event.target.value)} onPressEnter={() => void search()} />
-              <Button onClick={() => void search()}>Tìm hội viên</Button>
+              <Input value={query} placeholder={tr("Tài khoản hoặc trang", "账号或站点")} style={{ width: 220 }} onChange={(event) => setQuery(event.target.value)} onPressEnter={() => void search()} />
+              <Button onClick={() => void search()}>{tr("Tìm hội viên", "搜索会员")}</Button>
               <Select
                 showSearch
                 optionFilterProp="label"
-                placeholder="Chọn hội viên"
+                placeholder={tr("Chọn hội viên", "选择会员")}
                 style={{ width: 240 }}
                 value={customerId}
                 options={matches.map((person) => ({ value: person.id, label: `${person.game_account || person.display_name}${person.site ? ` · ${person.site}` : ""}` }))}
                 onChange={setCustomerId}
               />
               <Button type="primary" loading={busy} disabled={!customerId} onClick={() => void approve()}>
-                Duyệt
+                {tr("Duyệt", "审批")}
               </Button>
             </>
           ) : null}
         </div>
       </div>
-      <Table rowKey="id" size="middle" loading={loading} columns={columns} dataSource={items} pagination={false} locale={{ emptyText: "Chưa có lần duyệt." }} />
+      <Table rowKey="id" size="middle" loading={loading} columns={columns} dataSource={items} pagination={false} locale={{ emptyText: tr("Chưa có lần duyệt.", "还没有审批记录。") }} />
     </section>
   );
 }

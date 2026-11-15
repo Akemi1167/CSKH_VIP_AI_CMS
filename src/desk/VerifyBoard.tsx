@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { ApiError, api } from "../api.ts";
 import { formatStamp } from "../copy.ts";
 import { ErrorAlert } from "../ui.tsx";
+import { useTr } from "./language.tsx";
 
 type VerifyItem = {
   id: string;
@@ -16,13 +17,18 @@ type VerifyItem = {
   last_message_body: string | null;
 };
 
-const REASON: Record<VerifyItem["reason"], string> = {
-  account_unknown: "Sai tên",
-  account_forgotten: "Không nhớ tài khoản",
-  web_direct: "Chat web không có link",
-};
+function reasonText(reason: VerifyItem["reason"], tr: (vi: string, zh: string) => string): string {
+  if (reason === "account_unknown") {
+    return tr("Sai tên", "名称错误");
+  }
+  if (reason === "account_forgotten") {
+    return tr("Không nhớ tài khoản", "不记得账号");
+  }
+  return tr("Chat web không có link", "网页聊天没有链接");
+}
 
 export function VerifyBoard(props: { onUnauthorized: () => void; onMfaSetup: () => void }) {
+  const tr = useTr();
   const [items, setItems] = useState<VerifyItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<ApiError | null>(null);
@@ -61,7 +67,7 @@ export function VerifyBoard(props: { onUnauthorized: () => void; onMfaSetup: () 
         if (ignore) {
           return;
         }
-        const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không tải được hàng xác minh", "");
+        const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", tr("Không tải được hàng xác minh", "无法加载验证队列"), "");
         if (!failAuth(problem)) {
           setError(problem);
         }
@@ -84,7 +90,7 @@ export function VerifyBoard(props: { onUnauthorized: () => void; onMfaSetup: () 
       await work();
       await load();
     } catch (caught) {
-      const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không xử lý được hội thoại", "");
+      const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", tr("Không xử lý được hội thoại", "无法处理会话"), "");
       if (!failAuth(problem)) {
         setError(problem);
       }
@@ -94,11 +100,11 @@ export function VerifyBoard(props: { onUnauthorized: () => void; onMfaSetup: () 
   }
 
   const columns: TableColumnsType<VerifyItem> = [
-    { title: "Lý do", width: 210, dataIndex: "reason", render: (value: VerifyItem["reason"]) => REASON[value] },
-    { title: "Tên đã nhập", dataIndex: "attempted_account", render: (value: string | null) => value || "—" },
-    { title: "Tin khách", dataIndex: "last_message_body", ellipsis: true, render: (value: string | null) => value || "—" },
-    { title: "Kênh", width: 110, dataIndex: "channel", render: (value: string) => (value === "telegram" ? "Telegram" : "Web") },
-    { title: "Vào hàng", width: 160, dataIndex: "received_at", render: (value: string) => formatStamp(value) },
+    { title: tr("Lý do", "原因"), width: 210, dataIndex: "reason", render: (value: VerifyItem["reason"]) => reasonText(value, tr) },
+    { title: tr("Tên đã nhập", "填写的名称"), dataIndex: "attempted_account", render: (value: string | null) => value || "—" },
+    { title: tr("Tin khách", "客户消息"), dataIndex: "last_message_body", ellipsis: true, render: (value: string | null) => value || "—" },
+    { title: tr("Kênh", "渠道"), width: 110, dataIndex: "channel", render: (value: string) => (value === "telegram" ? "Telegram" : "Web") },
+    { title: tr("Vào hàng", "入队时间"), width: 160, dataIndex: "received_at", render: (value: string) => formatStamp(value) },
     {
       title: "",
       width: 320,
@@ -110,11 +116,11 @@ export function VerifyBoard(props: { onUnauthorized: () => void; onMfaSetup: () 
             onClick={() =>
               void run(async () => {
                 await api(`/api/v1/tasks/${row.id}/verify-claim`, { method: "POST", body: { version: row.version } });
-                setNotice("Đã nhận. Mở Hộp thư hỗ trợ để chat với khách.");
+                setNotice(tr("Đã nhận. Mở Hộp thư hỗ trợ để chat với khách.", "已领取。请打开客服收件箱与客户聊天。"));
               })
             }
           >
-            Nhận chat
+            {tr("Nhận chat", "领取会话")}
           </Button>
           <Button
             size="small"
@@ -126,7 +132,7 @@ export function VerifyBoard(props: { onUnauthorized: () => void; onMfaSetup: () 
               setNotice(null);
             }}
           >
-            Gắn tài khoản
+            {tr("Gắn tài khoản", "绑定账号")}
           </Button>
           <Button
             size="small"
@@ -135,11 +141,11 @@ export function VerifyBoard(props: { onUnauthorized: () => void; onMfaSetup: () 
             onClick={() =>
               void run(async () => {
                 await api(`/api/v1/tasks/${row.id}/verify-reject`, { method: "POST", body: { version: row.version } });
-                setNotice("Đã báo khách không nằm trong danh sách khuyến mãi.");
+                setNotice(tr("Đã báo khách không nằm trong danh sách khuyến mãi.", "已告知客户不在优惠名单中。"));
               })
             }
           >
-            Không thuộc KM
+            {tr("Không thuộc KM", "不属于优惠")}
           </Button>
         </Space>
       ),
@@ -151,33 +157,33 @@ export function VerifyBoard(props: { onUnauthorized: () => void; onMfaSetup: () 
       <div className="page-header">
         <div>
           <Typography.Title level={3} className="page-header__title">
-            Xác minh tài khoản
+            {tr("Xác minh tài khoản", "账户验证")}
           </Typography.Title>
           <Typography.Text type="secondary">
-            Khách nhập sai tên hoặc không nhớ tài khoản. Nhận để chat, gắn đúng tài khoản để chuyển về đài, hoặc báo khách không thuộc danh sách khuyến mãi.
+            {tr("Khách nhập sai tên hoặc không nhớ tài khoản. Nhận để chat, gắn đúng tài khoản để chuyển về đài, hoặc báo khách không thuộc danh sách khuyến mãi.", "客户填错名称或不记得账号。可领取后聊天，绑定正确账号以转回对应站点，或告知客户不在优惠名单中。")}
           </Typography.Text>
         </div>
         <Button
           icon={<ReloadOutlined />}
           onClick={() =>
             void load().catch((caught: unknown) => {
-              const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không tải được hàng xác minh", "");
+              const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", tr("Không tải được hàng xác minh", "无法加载验证队列"), "");
               if (!failAuth(problem)) {
                 setError(problem);
               }
             })
           }
         >
-          Tải lại
+          {tr("Tải lại", "刷新")}
         </Button>
       </div>
       {error ? <ErrorAlert error={error} /> : null}
       {notice ? <Typography.Paragraph>{notice}</Typography.Paragraph> : null}
-      <Table rowKey="id" size="middle" loading={loading} columns={columns} dataSource={items} pagination={false} locale={{ emptyText: "Không có hội thoại cần xác minh." }} />
+      <Table rowKey="id" size="middle" loading={loading} columns={columns} dataSource={items} pagination={false} locale={{ emptyText: tr("Không có hội thoại cần xác minh.", "没有需要验证的会话。") }} />
       <Modal
-        title="Gắn tài khoản"
+        title={tr("Gắn tài khoản", "绑定账号")}
         open={target !== null}
-        okText="Chuyển đúng đài"
+        okText={tr("Chuyển đúng đài", "转到正确站点")}
         confirmLoading={saving}
         okButtonProps={{ disabled: account.trim().length < 3 }}
         onOk={() => {
@@ -191,16 +197,16 @@ export function VerifyBoard(props: { onUnauthorized: () => void; onMfaSetup: () 
               body: { version: row.version, account: account.trim(), site: site.trim() || undefined },
             });
             setTarget(null);
-            setNotice(`Đã gắn ${result.game_account} tại đài ${result.site}. Hội thoại sẽ về nhân viên đài đó.`);
+            setNotice(tr(`Đã gắn ${result.game_account} tại đài ${result.site}. Hội thoại sẽ về nhân viên đài đó.`, `已绑定 ${result.game_account}，站点 ${result.site}。会话将交给该站点的员工。`));
           });
         }}
         onCancel={() => setTarget(null)}
       >
         <Form layout="vertical" requiredMark={false}>
-          <Form.Item label="Tài khoản game">
+          <Form.Item label={tr("Tài khoản game", "游戏账号")}>
             <Input value={account} maxLength={32} onChange={(event) => setAccount(event.target.value)} />
           </Form.Item>
-          <Form.Item label="Đài" help="Chỉ cần khi tài khoản có ở nhiều đài. Ví dụ J88.">
+          <Form.Item label={tr("Đài", "站点")} help={tr("Chỉ cần khi tài khoản có ở nhiều đài. Ví dụ J88.", "仅当账号存在于多个站点时填写。例如 J88。")}>
             <Input value={site} maxLength={16} onChange={(event) => setSite(event.target.value)} />
           </Form.Item>
         </Form>

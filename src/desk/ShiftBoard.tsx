@@ -3,6 +3,7 @@ import type { Dayjs } from "dayjs";
 import dayjs from "dayjs";
 import { useCallback, useEffect, useState } from "react";
 import { ApiError, api } from "../api.ts";
+import { useTr } from "./language.tsx";
 import { ErrorAlert } from "../ui.tsx";
 
 type Report = {
@@ -14,6 +15,7 @@ type Report = {
 };
 
 export function ShiftBoard(props: { onUnauthorized: () => void; onMfaSetup: () => void }) {
+  const tr = useTr();
   const [day, setDay] = useState<Dayjs>(dayjs());
   const [site, setSite] = useState("");
   const [stations, setStations] = useState<string[]>([]);
@@ -60,7 +62,7 @@ export function ShiftBoard(props: { onUnauthorized: () => void; onMfaSetup: () =
       }
       setReport(await api<Report>(`/api/v1/admin/reports/shift?${params.toString()}`));
     } catch (caught) {
-      const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không tải được báo cáo ca", "");
+      const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", tr("Không tải được báo cáo ca", "无法加载班次报表"), "");
       if (!failAuth(problem)) {
         setError(problem);
       }
@@ -74,9 +76,9 @@ export function ShiftBoard(props: { onUnauthorized: () => void; onMfaSetup: () =
       <div className="page-header">
         <div>
           <Typography.Title level={3} className="page-header__title">
-            Báo cáo ca
+            {tr("Báo cáo ca", "班次报表")}
           </Typography.Title>
-          <Typography.Text type="secondary">Số hội viên đã liên hệ, khách trả lời và nhãn thành công trong ngày theo giờ Việt Nam.</Typography.Text>
+          <Typography.Text type="secondary">{tr("Số hội viên đã liên hệ, khách trả lời và nhãn thành công trong ngày theo giờ Việt Nam.", "按越南时间统计当天已联系的会员、会员回复和成功标签数量。")}</Typography.Text>
         </div>
       </div>
       <div className="filter-bar">
@@ -85,11 +87,11 @@ export function ShiftBoard(props: { onUnauthorized: () => void; onMfaSetup: () =
           <Select
             value={site || "all"}
             style={{ width: 160 }}
-            options={[{ value: "all", label: "Mọi trang" }, ...stations.map((code) => ({ value: code, label: code }))]}
+            options={[{ value: "all", label: tr("Mọi trang", "全部站点") }, ...stations.map((code) => ({ value: code, label: code }))]}
             onChange={(value: string) => setSite(value === "all" ? "" : value)}
           />
           <Button type="primary" loading={loading} onClick={() => void load(day, site)}>
-            Xem
+            {tr("Xem", "查看")}
           </Button>
         </div>
       </div>
@@ -97,20 +99,20 @@ export function ShiftBoard(props: { onUnauthorized: () => void; onMfaSetup: () =
       {report ? (
         <div className="shift-grid">
           <article className="shift-card">
-            <p className="shift-card__label">Đã liên hệ</p>
+            <p className="shift-card__label">{tr("Đã liên hệ", "已联系")}</p>
             <p className="shift-card__hours">{report.touched}</p>
           </article>
           <article className="shift-card">
-            <p className="shift-card__label">Khách trả lời</p>
+            <p className="shift-card__label">{tr("Khách trả lời", "会员回复")}</p>
             <p className="shift-card__hours">{report.connected}</p>
           </article>
           <article className="shift-card">
-            <p className="shift-card__label">Thành công</p>
+            <p className="shift-card__label">{tr("Thành công", "成功")}</p>
             <p className="shift-card__hours">{report.success}</p>
           </article>
         </div>
       ) : (
-        <p className="page-note">Chọn ngày rồi bấm Xem.</p>
+        <p className="page-note">{tr("Chọn ngày rồi bấm Xem.", "选择日期后点击查看。")}</p>
       )}
     </section>
   );

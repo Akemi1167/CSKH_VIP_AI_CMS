@@ -7,16 +7,9 @@ import { ChatBody } from "./ChatBody.tsx";
 import { bindInboxBoard, markInboxRead, reportTaskRead, sendStaffReply, staffChatLive } from "./inboxWatch.ts";
 import { applyDockLiveMessage, applyDockLiveTask, applyDockRead, closeDockChat, noteDockFocus, replaceDockTask, seedDockBubble, setDockDraft, setDockExpanded, useChatDock, type DockMessage, type DockTask } from "./chatDock.ts";
 import { showReadMark } from "../readMark.ts";
+import { useTr } from "./language.tsx";
 
 const OPEN_STATUS = new Set(["ASSIGNED", "IN_PROGRESS", "WAITING_CUSTOMER"]);
-
-const STATUS_LABEL: Record<string, string> = {
-  ASSIGNED: "Đã giao",
-  IN_PROGRESS: "Đang xử lý",
-  WAITING_CUSTOMER: "Chờ khách",
-  COMPLETED: "Xong",
-  CANCELLED: "Đã hủy",
-};
 
 const NEXT_STATUS: Record<string, string[]> = {
   ASSIGNED: ["IN_PROGRESS", "WAITING_CUSTOMER", "COMPLETED"],
@@ -24,7 +17,24 @@ const NEXT_STATUS: Record<string, string[]> = {
   WAITING_CUSTOMER: ["IN_PROGRESS", "COMPLETED"],
 };
 
-function guestName(task: DockTask): string {
+function statusText(status: string, tr: (vi: string, zh: string) => string): string {
+  switch (status) {
+    case "ASSIGNED":
+      return tr("Đã giao", "已分配");
+    case "IN_PROGRESS":
+      return tr("Đang xử lý", "处理中");
+    case "WAITING_CUSTOMER":
+      return tr("Chờ khách", "等待客户");
+    case "COMPLETED":
+      return tr("Xong", "完成");
+    case "CANCELLED":
+      return tr("Đã hủy", "已取消");
+    default:
+      return status;
+  }
+}
+
+function guestName(task: DockTask, tr: (vi: string, zh: string) => string): string {
   const account = task.member?.game_account?.trim();
   if (account) {
     return account;
@@ -33,13 +43,13 @@ function guestName(task: DockTask): string {
   if (display) {
     return display;
   }
-  return task.customer_ref.replace(/^tg:/i, "").trim() || "Khách";
+  return task.customer_ref.replace(/^tg:/i, "").trim() || tr("Khách", "客户");
 }
 
-function guestFacts(task: DockTask): string {
+function guestFacts(task: DockTask, tr: (vi: string, zh: string) => string): string {
   const channel = task.channel === "telegram" ? "Telegram" : "Web";
-  const site = task.member?.site ? `Đài ${task.member.site}` : "";
-  const status = STATUS_LABEL[task.status] ?? task.status;
+  const site = task.member?.site ? `${tr("Đài", "站点")} ${task.member.site}` : "";
+  const status = statusText(task.status, tr);
   return [site, channel, status].filter(Boolean).join(" · ");
 }
 
@@ -47,8 +57,8 @@ function guestPlace(task: DockTask): string {
   return [task.client_ip?.trim(), task.client_country?.trim()].filter((part) => Boolean(part)).join(" · ");
 }
 
-function guestWhere(task: DockTask): string {
-  return [guestFacts(task), guestPlace(task)].filter(Boolean).join(" · ");
+function guestWhere(task: DockTask, tr: (vi: string, zh: string) => string): string {
+  return [guestFacts(task, tr), guestPlace(task)].filter(Boolean).join(" · ");
 }
 
 function initial(name: string): string {
@@ -64,6 +74,7 @@ export function ChatDock(props: {
   onUnauthorized: () => void;
   onMfaSetup: () => void;
 }) {
+  const tr = useTr();
   const windows = useChatDock();
   const [busyId, setBusyId] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -108,7 +119,7 @@ export function ChatDock(props: {
   }
 
   function fail(id: string, caught: unknown) {
-    const problem = caught instanceof ApiError ? caught : new ApiError(0, "chat", caught instanceof Error ? caught.message : "Không gửi được", "");
+    const problem = caught instanceof ApiError ? caught : new ApiError(0, "chat", caught instanceof Error ? caught.message : tr("Không gửi được", "无法发送"), "");
     if (problem.status === 401) {
       props.onUnauthorized();
       return;
@@ -192,7 +203,7 @@ export function ChatDock(props: {
 
   async function sendImage(id: string, task: DockTask, file: File, caption: string) {
     if (file.size === 0 || file.size > 5 * 1024 * 1024) {
-      setErrors((current) => ({ ...current, [id]: "Ảnh tối đa 5 MB" }));
+      setErrors((current) => ({ ...current, [id]: tr("Ảnh tối đa 5 MB", "图片不能超过 5 MB") }));
       return;
     }
     setBusyId(id);
@@ -228,7 +239,7 @@ export function ChatDock(props: {
         const open = OPEN_STATUS.has(chat.task.status);
         const canHandle = props.canUpdate && open && (props.canManageAny || chat.task.assignee_user_id === props.selfId);
         const canReopen = props.canUpdate && chat.task.channel === "telegram" && chat.task.status === "COMPLETED" && (props.canManageAny || !chat.task.assignee_user_id || chat.task.assignee_user_id === props.selfId);
-        const name = guestName(chat.task);
+        const name = guestName(chat.task, tr);
         const nextStatuses = NEXT_STATUS[chat.task.status] ?? [];
         if (!chat.expanded) {
           return (
@@ -236,7 +247,7 @@ export function ChatDock(props: {
               key={chat.task.id}
               type="button"
               className={chat.alert ? "chat-dock__bubble chat-dock__bubble--alert" : "chat-dock__bubble"}
-              title={chat.alert ? `Tin mới · ${guestWhere(chat.task)}` : guestWhere(chat.task)}
+              title={chat.alert ? `${tr("Tin mới", "新消息")} · ${guestWhere(chat.task, tr)}` : guestWhere(chat.task, tr)}
               onClick={() => {
                 setDockExpanded(chat.task.id, true);
                 markInboxRead(chat.task.id);
@@ -262,17 +273,17 @@ export function ChatDock(props: {
                 <span>
                   <strong>{name}</strong>
                   <small>
-                    {guestFacts(chat.task)}
+                    {guestFacts(chat.task, tr)}
                     {guestPlace(chat.task) ? <span className="chat-dock__place">{guestPlace(chat.task)}</span> : null}
                   </small>
-                  {chat.alert ? <em className="chat-dock__new">Tin mới</em> : null}
+                  {chat.alert ? <em className="chat-dock__new">{tr("Tin mới", "新消息")}</em> : null}
                 </span>
               </div>
               <div className="chat-dock__tools">
-                <button type="button" title="Thu nhỏ" onClick={() => setDockExpanded(chat.task.id, false)}>
+                <button type="button" title={tr("Thu nhỏ", "最小化")} onClick={() => setDockExpanded(chat.task.id, false)}>
                   <MinusOutlined />
                 </button>
-                <button type="button" title="Đóng" onClick={() => closeDockChat(chat.task.id)}>
+                <button type="button" title={tr("Đóng", "关闭")} onClick={() => closeDockChat(chat.task.id)}>
                   <CloseOutlined />
                 </button>
               </div>
@@ -281,7 +292,7 @@ export function ChatDock(props: {
               <div className="chat-dock__actions">
                 {nextStatuses.map((status) => (
                   <Button key={status} size="small" disabled={busyId === chat.task.id} onClick={() => void setStatus(chat.task.id, chat.task.version, status)}>
-                    {STATUS_LABEL[status] ?? status}
+                    {statusText(status, tr)}
                   </Button>
                 ))}
               </div>
@@ -299,7 +310,7 @@ export function ChatDock(props: {
                 <Input.TextArea
                   value={chat.draft}
                   rows={2}
-                  placeholder={chat.task.channel === "telegram" ? "Nhắn khách trên Telegram" : "Nhắn khách"}
+                  placeholder={chat.task.channel === "telegram" ? tr("Nhắn khách trên Telegram", "通过 Telegram 给客户发消息") : tr("Nhắn khách", "给客户发消息")}
                   onFocus={() => noteDockFocus(chat.task.id)}
                   onBlur={() => noteDockFocus(null)}
                   onChange={(event) => setDockDraft(chat.task.id, event.target.value)}
@@ -311,7 +322,7 @@ export function ChatDock(props: {
                     void send(chat.task.id, chat.task, chat.draft);
                   }}
                 />
-                <label className="chat-photo-send" title="Gửi ảnh" aria-label="Gửi ảnh">
+                <label className="chat-photo-send" title={tr("Gửi ảnh", "发送图片")} aria-label={tr("Gửi ảnh", "发送图片")}>
                   <PictureOutlined />
                   <input
                     type="file"
@@ -327,7 +338,7 @@ export function ChatDock(props: {
                   />
                 </label>
                 <Button type="primary" htmlType="submit" loading={busyId === chat.task.id} disabled={chat.draft.trim().length === 0}>
-                  Gửi
+                  {tr("Gửi", "发送")}
                 </Button>
               </form>
             ) : (
@@ -335,11 +346,11 @@ export function ChatDock(props: {
                 {canReopen ? (
                   <div className="chat-dock__actions">
                     <Button size="small" type="primary" loading={busyId === chat.task.id} onClick={() => void reopen(chat.task.id, chat.task.version)}>
-                      Mở lại
+                      {tr("Mở lại", "重新打开")}
                     </Button>
                   </div>
                 ) : null}
-                <p className="chat-dock__note">{open ? "Hội thoại đang của nhân viên khác." : canReopen ? "Hội thoại Telegram đã đóng. Mở lại để nhắn tiếp." : "Hội thoại đã đóng."}</p>
+                <p className="chat-dock__note">{open ? tr("Hội thoại đang của nhân viên khác.", "会话目前由其他员工负责。") : canReopen ? tr("Hội thoại Telegram đã đóng. Mở lại để nhắn tiếp.", "Telegram 会话已关闭。重新打开后可继续发送。") : tr("Hội thoại đã đóng.", "会话已关闭。")}</p>
               </>
             )}
           </section>
@@ -350,6 +361,7 @@ export function ChatDock(props: {
 }
 
 function DockThread(props: { taskId: string; messages: DockMessage[] }) {
+  const tr = useTr();
   const ref = useRef<HTMLDivElement>(null);
   const last = props.messages.at(-1)?.id;
   useEffect(() => {
@@ -367,7 +379,7 @@ function DockThread(props: { taskId: string; messages: DockMessage[] }) {
             {kind === "bot" ? <span className="chat-who">Bot</span> : null}
             <ChatBody taskId={props.taskId} message={message} />
             <time>{message.created_at ? formatStamp(message.created_at) : ""}</time>
-            {showReadMark(props.messages, index, (item) => item.sender_type === "agent") ? <span className="chat-read">Đã đọc</span> : null}
+            {showReadMark(props.messages, index, (item) => item.sender_type === "agent") ? <span className="chat-read">{tr("Đã đọc", "已读")}</span> : null}
           </article>
         );
       })}

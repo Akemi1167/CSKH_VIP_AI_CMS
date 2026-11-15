@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import { ApiError, api } from "./api.ts";
-import { useDeskLang } from "./desk/language.tsx";
+import { deskLang, useDeskLang } from "./desk/language.tsx";
 import type { Me, UserProfile } from "./types.ts";
 
 const AuthScreen = lazy(() => import("./auth/AuthScreen.tsx").then((module) => ({ default: module.AuthScreen })));
@@ -8,7 +8,8 @@ const Desk = lazy(() => import("./desk/Desk.tsx").then((module) => ({ default: m
 const GuestChat = lazy(() => import("./public/GuestChat.tsx").then((module) => ({ default: module.GuestChat })));
 
 function Booting() {
-  return <div className="route-loading" role="status" aria-label="Đang tải" />;
+  const lang = useDeskLang();
+  return <div className="route-loading" role="status" aria-label={lang === "zh" ? "正在加载" : "Đang tải"} />;
 }
 
 function isGuestPath(): boolean {
@@ -34,7 +35,7 @@ export function App() {
       setBootError(null);
       setPhase(me.session === "mfa_setup" ? "mfa_setup" : "desk");
     } catch (caught) {
-      const error = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không kết nối được máy chủ", "");
+      const error = caught instanceof ApiError ? caught : new ApiError(0, "network", deskLang() === "zh" ? "无法连接服务器" : "Không kết nối được máy chủ", "");
       setUser(null);
       setPhase("login");
       setBootError(error.status === 401 ? null : error.message);

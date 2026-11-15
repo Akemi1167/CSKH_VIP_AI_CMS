@@ -2,6 +2,7 @@ import { Button, InputNumber, Typography } from "antd";
 import { useCallback, useEffect, useState } from "react";
 import { ApiError, api } from "../api.ts";
 import { ErrorAlert } from "../ui.tsx";
+import { useTr } from "./language.tsx";
 
 type VoicePolicy = {
   max_call_seconds: number;
@@ -9,6 +10,7 @@ type VoicePolicy = {
 };
 
 export function VoiceCallBoard(props: { canWrite: boolean; onUnauthorized: () => void; onMfaSetup: () => void }) {
+  const tr = useTr();
   const [seconds, setSeconds] = useState(300);
   const [baseline, setBaseline] = useState(300);
   const [loading, setLoading] = useState(true);
@@ -47,7 +49,7 @@ export function VoiceCallBoard(props: { canWrite: boolean; onUnauthorized: () =>
         if (ignore) {
           return;
         }
-        const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không tải được thời lượng cuộc gọi", "");
+        const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", tr("Không tải được thời lượng cuộc gọi", "无法加载通话时长"), "");
         if (!failAuth(problem)) {
           setError(problem);
         }
@@ -70,9 +72,9 @@ export function VoiceCallBoard(props: { canWrite: boolean; onUnauthorized: () =>
       const result = await api<VoicePolicy>("/api/v1/admin/voice-call", { method: "PUT", body: { max_call_seconds: seconds } });
       setSeconds(result.max_call_seconds);
       setBaseline(result.max_call_seconds);
-      setNotice(`Đã lưu. Cuộc gọi sau khi nối máy sẽ cắt sau ${result.max_call_seconds} giây.`);
+      setNotice(tr(`Đã lưu. Cuộc gọi sau khi nối máy sẽ cắt sau ${result.max_call_seconds} giây.`, `已保存。接通后的通话将在 ${result.max_call_seconds} 秒后挂断。`));
     } catch (caught) {
-      const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không lưu được thời lượng cuộc gọi", "");
+      const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", tr("Không lưu được thời lượng cuộc gọi", "无法保存通话时长"), "");
       if (!failAuth(problem)) {
         setError(problem);
       }
@@ -86,15 +88,15 @@ export function VoiceCallBoard(props: { canWrite: boolean; onUnauthorized: () =>
       <div className="page-header">
         <div>
           <Typography.Title level={3} className="page-header__title">
-            Thời lượng cuộc gọi
+            {tr("Thời lượng cuộc gọi", "通话时长")}
           </Typography.Title>
           <Typography.Text type="secondary">
-            Tính từ lúc khách nghe máy. Hết số giây này thì cuộc gọi bị cắt, kể cả khách còn đang nói. Lần gọi kế tiếp dùng số vừa lưu.
+            {tr("Tính từ lúc khách nghe máy. Hết số giây này thì cuộc gọi bị cắt, kể cả khách còn đang nói. Lần gọi kế tiếp dùng số vừa lưu.", "从客户接听时起算。到达秒数后通话会被挂断，即使客户还在说话。下一次呼叫使用刚保存的秒数。")}
           </Typography.Text>
         </div>
         {props.canWrite ? (
           <Button type="primary" loading={saving} disabled={!dirty || loading} onClick={() => void save()}>
-            Lưu
+            {tr("Lưu", "保存")}
           </Button>
         ) : null}
       </div>
@@ -106,7 +108,7 @@ export function VoiceCallBoard(props: { canWrite: boolean; onUnauthorized: () =>
         precision={0}
         value={seconds}
         disabled={!props.canWrite || loading}
-        addonAfter="giây"
+        addonAfter={tr("giây", "秒")}
         onChange={(value) => {
           setNotice(null);
           if (typeof value === "number") {

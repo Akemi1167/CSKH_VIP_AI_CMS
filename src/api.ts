@@ -1,3 +1,5 @@
+import { deskLang } from "./desk/language.tsx";
+
 let csrfToken = "";
 
 export function setCsrfToken(value: string): void {
@@ -87,7 +89,7 @@ export async function api<T>(path: string, options: Options = {}): Promise<T> {
   try {
     response = await fetch(toApiUrl(path), init);
   } catch {
-    throw new ApiError(0, "network", "Không kết nối được máy chủ", "");
+    throw new ApiError(0, "network", deskLang() === "zh" ? "无法连接服务器" : "Không kết nối được máy chủ", "");
   }
 
   const text = await response.text();
@@ -102,7 +104,7 @@ export async function api<T>(path: string, options: Options = {}): Promise<T> {
 
   if (!response.ok) {
     const record = payload && typeof payload === "object" ? (payload as Record<string, unknown>) : {};
-    const message = typeof record.message === "string" ? record.message : "Lỗi hệ thống";
+    const message = typeof record.message === "string" ? record.message : deskLang() === "zh" ? "系统错误" : "Lỗi hệ thống";
     const code = typeof record.code === "string" ? record.code : "internal_error";
     const requestId = typeof record.request_id === "string" ? record.request_id : "";
     if (response.status === 401) {

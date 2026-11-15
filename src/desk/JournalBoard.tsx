@@ -1,8 +1,9 @@
 import { EyeOutlined, ReloadOutlined } from "@ant-design/icons";
 import { Button, Modal, Segmented, Select, Table, Tag, Typography } from "antd";
 import type { TableColumnsType } from "antd";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, api } from "../api.ts";
+import { useTr } from "./language.tsx";
 import { careLabelName, formatStamp } from "../copy.ts";
 import type { AuditEvent, Page, Staff, SystemLog } from "../types.ts";
 import { ErrorAlert } from "../ui.tsx";
@@ -10,6 +11,9 @@ import { ErrorAlert } from "../ui.tsx";
 type Kind = "audit" | "system";
 
 export function JournalBoard(props: { canListStaff: boolean; onUnauthorized: () => void; onMfaSetup: () => void }) {
+  const tr = useTr();
+  const trRef = useRef(tr);
+  trRef.current = tr;
   const [kind, setKind] = useState<Kind>("audit");
   const [actorId, setActorId] = useState<string | undefined>(undefined);
   const [action, setAction] = useState("");
@@ -108,7 +112,7 @@ export function JournalBoard(props: { canListStaff: boolean; onUnauthorized: () 
         if (ignore) {
           return;
         }
-        const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không tải được nhật ký", "");
+        const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", trRef.current("Không tải được nhật ký", "无法加载日志"), "");
         if (!failAuth(problem)) {
           setError(problem);
         }
@@ -142,7 +146,7 @@ export function JournalBoard(props: { canListStaff: boolean; onUnauthorized: () 
     try {
       await load(cursor);
     } catch (caught) {
-      const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không tải được trang sau", "");
+      const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", tr("Không tải được trang sau", "无法加载下一页"), "");
       if (!failAuth(problem)) {
         setError(problem);
       }
@@ -156,66 +160,66 @@ export function JournalBoard(props: { canListStaff: boolean; onUnauthorized: () 
 
   const auditColumns: TableColumnsType<AuditEvent> = [
     {
-      title: "Người",
+      title: tr("Người", "人员"),
       width: 160,
       ellipsis: true,
-      render: (_, row) => (row.actor_username ? (namesByUsername.get(row.actor_username) ?? row.actor_username) : "Hệ thống"),
+      render: (_, row) => (row.actor_username ? (namesByUsername.get(row.actor_username) ?? row.actor_username) : tr("Hệ thống", "系统")),
     },
     {
-      title: "Nội dung",
+      title: tr("Nội dung", "内容"),
       render: (_, row) => (
         <LogReason
           failed={row.outcome === "failure"}
-          title={describeAudit(row, names)}
-          code={ACTION_LABELS[row.action] ? row.action : null}
+          title={describeAudit(row, names, tr)}
+          code={AUDIT_FILTERS.some((item) => item.value === row.action) ? row.action : null}
         />
       ),
     },
     {
-      title: "Thời điểm",
+      title: tr("Thời điểm", "时间"),
       width: 168,
-      render: (_, row) => <LogWhen at={row.created_at} scope="Hành động" />,
+      render: (_, row) => <LogWhen at={row.created_at} scope={tr("Hành động", "操作")} />,
     },
     {
-      title: "Trạng thái",
+      title: tr("Trạng thái", "状态"),
       width: 120,
-      render: (_, row) => <Tag color={row.outcome === "failure" ? "red" : "green"}>{row.outcome === "failure" ? "Thất bại" : "Thành công"}</Tag>,
+      render: (_, row) => <Tag color={row.outcome === "failure" ? "red" : "green"}>{row.outcome === "failure" ? tr("Thất bại", "失败") : tr("Thành công", "成功")}</Tag>,
     },
     {
       title: "",
       width: 56,
-      render: (_, row) => <Button type="text" aria-label="Xem chi tiết" icon={<EyeOutlined />} onClick={() => setOpenAudit(row)} />,
+      render: (_, row) => <Button type="text" aria-label={tr("Xem chi tiết", "查看详情")} icon={<EyeOutlined />} onClick={() => setOpenAudit(row)} />,
     },
   ];
 
   const logColumns: TableColumnsType<SystemLog> = [
     {
-      title: "Người",
+      title: tr("Người", "人员"),
       width: 150,
       ellipsis: true,
-      render: (_, row) => (row.actor_username ? (namesByUsername.get(row.actor_username) ?? row.actor_username) : "Hệ thống"),
+      render: (_, row) => (row.actor_username ? (namesByUsername.get(row.actor_username) ?? row.actor_username) : tr("Hệ thống", "系统")),
     },
     {
-      title: "Nội dung",
+      title: tr("Nội dung", "内容"),
       render: (_, row) => {
-        const view = presentLog(row);
+        const view = presentLog(row, tr);
         return <LogReason failed={row.level === "error"} title={view.title} method={view.method} path={view.path} status={view.status} ip={row.ip} />;
       },
     },
     {
-      title: "Thời điểm",
+      title: tr("Thời điểm", "时间"),
       width: 168,
-      render: (_, row) => <LogWhen at={row.created_at} scope={logScope(row.event)} />,
+      render: (_, row) => <LogWhen at={row.created_at} scope={logScope(row.event, tr)} />,
     },
     {
-      title: "Trạng thái",
+      title: tr("Trạng thái", "状态"),
       width: 120,
-      render: (_, row) => <Tag color={row.level === "error" ? "red" : "blue"}>{row.level === "error" ? "Lỗi" : "Thông tin"}</Tag>,
+      render: (_, row) => <Tag color={row.level === "error" ? "red" : "blue"}>{row.level === "error" ? tr("Lỗi", "错误") : tr("Thông tin", "信息")}</Tag>,
     },
     {
       title: "",
       width: 56,
-      render: (_, row) => <Button type="text" aria-label="Xem chi tiết" icon={<EyeOutlined />} onClick={() => setOpenLog(row)} />,
+      render: (_, row) => <Button type="text" aria-label={tr("Xem chi tiết", "查看详情")} icon={<EyeOutlined />} onClick={() => setOpenLog(row)} />,
     },
   ];
 
@@ -224,9 +228,9 @@ export function JournalBoard(props: { canListStaff: boolean; onUnauthorized: () 
       <div className="page-header">
         <div>
           <Typography.Title level={3} className="page-header__title">
-            Nhật ký
+            {tr("Nhật ký", "日志")}
           </Typography.Title>
-          <Typography.Text type="secondary">Mỗi dòng là một việc vừa xảy ra. Không có mật khẩu hay nội dung tin nhắn.</Typography.Text>
+          <Typography.Text type="secondary">{tr("Mỗi dòng là một việc vừa xảy ra. Không có mật khẩu hay nội dung tin nhắn.", "每一行是刚发生的一件事。不含密码或消息内容。")}</Typography.Text>
         </div>
       </div>
       <div className="filter-bar">
@@ -234,8 +238,8 @@ export function JournalBoard(props: { canListStaff: boolean; onUnauthorized: () 
         <Segmented
           value={kind}
           options={[
-            { label: "Hành động", value: "audit" },
-            { label: "Log hệ thống", value: "system" },
+            { label: tr("Hành động", "操作"), value: "audit" },
+            { label: tr("Log hệ thống", "系统日志"), value: "system" },
           ]}
           onChange={(value) => {
             const next = value as Kind;
@@ -249,7 +253,7 @@ export function JournalBoard(props: { canListStaff: boolean; onUnauthorized: () 
               <Select
                 allowClear
                 showSearch
-                placeholder="Người thực hiện"
+                placeholder={tr("Người thực hiện", "操作人")}
                 style={{ width: 220 }}
                 value={actorId}
                 optionFilterProp="label"
@@ -259,19 +263,19 @@ export function JournalBoard(props: { canListStaff: boolean; onUnauthorized: () 
             ) : null}
             <Select
               allowClear
-              placeholder="Mọi việc"
+              placeholder={tr("Mọi việc", "全部事项")}
               style={{ width: 220 }}
               value={action || undefined}
-              options={AUDIT_FILTERS}
+              options={AUDIT_FILTERS.map((item) => ({ value: item.value, label: tr(item.vi, item.zh) }))}
               onChange={(value) => setAction(value ?? "")}
             />
             <Select
               value={outcome}
               style={{ width: 150 }}
               options={[
-                { value: "all", label: "Mọi kết quả" },
-                { value: "success", label: "Thành công" },
-                { value: "failure", label: "Thất bại" },
+                { value: "all", label: tr("Mọi kết quả", "全部结果") },
+                { value: "success", label: tr("Thành công", "成功") },
+                { value: "failure", label: tr("Thất bại", "失败") },
               ]}
               onChange={(value: "all" | "success" | "failure") => setOutcome(value)}
             />
@@ -282,26 +286,26 @@ export function JournalBoard(props: { canListStaff: boolean; onUnauthorized: () 
               value={level}
               style={{ width: 150 }}
               options={[
-                { value: "all", label: "Mọi mức" },
-                { value: "info", label: "Thông tin" },
-                { value: "error", label: "Lỗi" },
+                { value: "all", label: tr("Mọi mức", "全部级别") },
+                { value: "info", label: tr("Thông tin", "信息") },
+                { value: "error", label: tr("Lỗi", "错误") },
               ]}
               onChange={(value: "all" | "info" | "error") => setLevel(value)}
             />
             <Select
               allowClear
-              placeholder="Mọi việc"
+              placeholder={tr("Mọi việc", "全部事项")}
               style={{ width: 260 }}
               value={eventName || undefined}
-              options={LOG_FILTERS}
+              options={LOG_FILTERS.map((item) => ({ value: item.value, label: tr(item.vi, item.zh) }))}
               onChange={(value) => setEventName(value ?? "")}
             />
           </>
         )}
         <Button type="primary" onClick={() => apply()}>
-          Lọc
+          {tr("Lọc", "筛选")}
         </Button>
-        <Button icon={<ReloadOutlined />} aria-label="Tải lại" onClick={() => setApplied((current) => ({ ...current }))} />
+        <Button icon={<ReloadOutlined />} aria-label={tr("Tải lại", "刷新")} onClick={() => setApplied((current) => ({ ...current }))} />
         </div>
       </div>
       {error ? <ErrorAlert error={error} /> : null}
@@ -314,7 +318,7 @@ export function JournalBoard(props: { canListStaff: boolean; onUnauthorized: () 
           columns={auditColumns}
           dataSource={audit}
           pagination={false}
-          locale={{ emptyText: loading ? " " : "Chưa có hành động." }}
+          locale={{ emptyText: loading ? " " : tr("Chưa có hành động.", "暂无操作。") }}
         />
       ) : (
         <Table<SystemLog>
@@ -325,341 +329,403 @@ export function JournalBoard(props: { canListStaff: boolean; onUnauthorized: () 
           columns={logColumns}
           dataSource={logs}
           pagination={false}
-          locale={{ emptyText: loading ? " " : "Chưa có log." }}
+          locale={{ emptyText: loading ? " " : tr("Chưa có log.", "暂无日志。") }}
         />
       )}
       <Modal
         open={openAudit !== null}
-        title="Chi tiết hành động"
+        title={tr("Chi tiết hành động", "操作详情")}
         footer={null}
         width={720}
         onCancel={() => setOpenAudit(null)}
       >
         {openAudit ? <AuditDetail row={openAudit} names={names} /> : null}
       </Modal>
-      <Modal open={openLog !== null} title="Chi tiết log" footer={null} width={720} onCancel={() => setOpenLog(null)}>
+      <Modal open={openLog !== null} title={tr("Chi tiết log", "日志详情")} footer={null} width={720} onCancel={() => setOpenLog(null)}>
         {openLog ? <LogDetail row={openLog} /> : null}
       </Modal>
       {cursor ? (
         <Button style={{ marginTop: 12 }} loading={loadingMore} onClick={() => void more()}>
-          Xem thêm
+          {tr("Xem thêm", "查看更多")}
         </Button>
       ) : null}
     </section>
   );
 }
 
-const AUDIT_FILTERS = [
-  { value: "auth.login", label: "Đăng nhập" },
-  { value: "auth.logout", label: "Đăng xuất" },
-  { value: "auth.password_change", label: "Đổi mật khẩu" },
-  { value: "auth.step_up", label: "Xác nhận mật khẩu" },
-  { value: "auth.mfa_setup", label: "Bắt đầu bật MFA" },
-  { value: "auth.mfa_confirm", label: "Bật MFA" },
-  { value: "auth.mfa_verify", label: "Nhập mã MFA" },
-  { value: "staff.create", label: "Tạo nhân viên" },
-  { value: "staff.update", label: "Sửa nhân viên" },
-  { value: "staff.mfa_reset", label: "Gỡ MFA" },
-  { value: "schedule.save", label: "Đặt giờ ca" },
-  { value: "schedule.leave", label: "Ghi nghỉ" },
-  { value: "schedule.leave_delete", label: "Xóa nghỉ" },
-  { value: "customers.create", label: "Thêm hội viên" },
-  { value: "customers.import", label: "Nhập hội viên" },
-  { value: "task.update", label: "Đổi trạng thái task" },
-  { value: "task.reply", label: "Trả lời task" },
-  { value: "task.reopen", label: "Mở lại hội thoại Telegram" },
-  { value: "task.assign", label: "Giao task" },
-  { value: "task.transfer", label: "Chuyển task" },
-  { value: "customers.care", label: "Gắn nhãn chăm sóc" },
-  { value: "customers.consent", label: "Ghi đồng ý nhận tin" },
-  { value: "campaign.create", label: "Tạo chiến dịch" },
-  { value: "campaign.call_list", label: "Gắn danh sách gọi" },
-  { value: "voice.review", label: "Chấm điểm cuộc gọi" },
-  { value: "campaign.launch", label: "Chạy chiến dịch" },
-  { value: "campaign.pause", label: "Tạm dừng chiến dịch" },
-  { value: "campaign.resume", label: "Chạy tiếp chiến dịch" },
-  { value: "stations.create", label: "Thêm hậu đài" },
-  { value: "stations.update", label: "Bật hoặc tắt hậu đài" },
-  { value: "stations.assign", label: "Gắn nhân viên hậu đài" },
-  { value: "stations.logo", label: "Đổi logo đài" },
-  { value: "staff.stations", label: "Gắn đài cho nhân viên" },
-  { value: "stations.lead", label: "Gắn tổ trưởng hậu đài" },
-  { value: "staff.availability", label: "Bật hoặc tắt nhận việc" },
-  { value: "customers.owner", label: "Gán người giữ hội viên" },
-  { value: "customers.pool", label: "Chuyển kho chăm sóc" },
-  { value: "rewards.approve", label: "Duyệt thưởng" },
-  { value: "rewards.revoke", label: "Gỡ duyệt thưởng" },
-  { value: "stations.sms", label: "Sửa mẫu tin theo đài" },
-  { value: "sms.test", label: "Gửi thử SMS" },
-  { value: "voice.test", label: "Gọi thử AI" },
-  { value: "laaffic.sync", label: "Đồng bộ Laaffic" },
-  { value: "settings.rate_limit", label: "Cập nhật IP không bị chặn" },
-  { value: "settings.voice_call", label: "Đổi thời lượng cuộc gọi" },
-  { value: "settings.hangup_sms", label: "Đổi tin sau cuộc gọi" },
-  { value: "task.verify_claim", label: "Nhận hội thoại xác minh" },
-  { value: "task.verify_account", label: "Gắn tài khoản và chuyển đài" },
-  { value: "task.verify_reject", label: "Báo không thuộc danh sách khuyến mãi" },
-  { value: "telegram.configure", label: "Cấu hình bot Telegram" },
+type Tr = (vi: string, zh: string) => string;
+
+const AUDIT_FILTERS: { value: string; vi: string; zh: string }[] = [
+  { value: "auth.login", vi: "Đăng nhập", zh: "登录" },
+  { value: "auth.logout", vi: "Đăng xuất", zh: "退出" },
+  { value: "auth.password_change", vi: "Đổi mật khẩu", zh: "修改密码" },
+  { value: "auth.step_up", vi: "Xác nhận mật khẩu", zh: "确认密码" },
+  { value: "auth.mfa_setup", vi: "Bắt đầu bật MFA", zh: "开始开启 MFA" },
+  { value: "auth.mfa_confirm", vi: "Bật MFA", zh: "开启 MFA" },
+  { value: "auth.mfa_verify", vi: "Nhập mã MFA", zh: "输入 MFA 验证码" },
+  { value: "staff.create", vi: "Tạo nhân viên", zh: "创建员工" },
+  { value: "staff.update", vi: "Sửa nhân viên", zh: "编辑员工" },
+  { value: "staff.mfa_reset", vi: "Gỡ MFA", zh: "解除 MFA" },
+  { value: "schedule.save", vi: "Đặt giờ ca", zh: "设置班次时间" },
+  { value: "schedule.leave", vi: "Ghi nghỉ", zh: "登记休息" },
+  { value: "schedule.leave_delete", vi: "Xóa nghỉ", zh: "删除休息" },
+  { value: "customers.create", vi: "Thêm hội viên", zh: "添加会员" },
+  { value: "customers.import", vi: "Nhập hội viên", zh: "导入会员" },
+  { value: "task.update", vi: "Đổi trạng thái task", zh: "更改任务状态" },
+  { value: "task.reply", vi: "Trả lời task", zh: "回复任务" },
+  { value: "task.reopen", vi: "Mở lại hội thoại Telegram", zh: "重新打开 Telegram 会话" },
+  { value: "task.assign", vi: "Giao task", zh: "分配任务" },
+  { value: "task.transfer", vi: "Chuyển task", zh: "转交任务" },
+  { value: "customers.care", vi: "Gắn nhãn chăm sóc", zh: "添加关怀标签" },
+  { value: "customers.consent", vi: "Ghi đồng ý nhận tin", zh: "记录接收消息同意" },
+  { value: "campaign.create", vi: "Tạo chiến dịch", zh: "创建活动" },
+  { value: "campaign.call_list", vi: "Gắn danh sách gọi", zh: "添加呼叫名单" },
+  { value: "voice.review", vi: "Chấm điểm cuộc gọi", zh: "通话评分" },
+  { value: "campaign.launch", vi: "Chạy chiến dịch", zh: "启动活动" },
+  { value: "campaign.pause", vi: "Tạm dừng chiến dịch", zh: "暂停活动" },
+  { value: "campaign.resume", vi: "Chạy tiếp chiến dịch", zh: "继续活动" },
+  { value: "stations.create", vi: "Thêm hậu đài", zh: "添加站点" },
+  { value: "stations.update", vi: "Bật hoặc tắt hậu đài", zh: "开启或关闭站点" },
+  { value: "stations.assign", vi: "Gắn nhân viên hậu đài", zh: "分配站点员工" },
+  { value: "stations.logo", vi: "Đổi logo đài", zh: "更换站点 Logo" },
+  { value: "staff.stations", vi: "Gắn đài cho nhân viên", zh: "为员工分配站点" },
+  { value: "stations.lead", vi: "Gắn tổ trưởng hậu đài", zh: "分配站点组长" },
+  { value: "staff.availability", vi: "Bật hoặc tắt nhận việc", zh: "开启或关闭接单" },
+  { value: "customers.owner", vi: "Gán người giữ hội viên", zh: "指定会员负责人" },
+  { value: "customers.pool", vi: "Chuyển kho chăm sóc", zh: "转移关怀库" },
+  { value: "rewards.approve", vi: "Duyệt thưởng", zh: "审批奖励" },
+  { value: "rewards.revoke", vi: "Gỡ duyệt thưởng", zh: "取消奖励审批" },
+  { value: "stations.sms", vi: "Sửa mẫu tin theo đài", zh: "按站点修改消息模板" },
+  { value: "sms.test", vi: "Gửi thử SMS", zh: "试发 SMS" },
+  { value: "voice.test", vi: "Gọi thử AI", zh: "试呼 AI" },
+  { value: "laaffic.sync", vi: "Đồng bộ Laaffic", zh: "同步 Laaffic" },
+  { value: "settings.rate_limit", vi: "Cập nhật IP không bị chặn", zh: "更新不限制的 IP" },
+  { value: "settings.voice_call", vi: "Đổi thời lượng cuộc gọi", zh: "修改通话时长" },
+  { value: "settings.hangup_sms", vi: "Đổi tin sau cuộc gọi", zh: "修改通话后短信" },
+  { value: "task.verify_claim", vi: "Nhận hội thoại xác minh", zh: "领取验证会话" },
+  { value: "task.verify_account", vi: "Gắn tài khoản và chuyển đài", zh: "绑定账号并转移站点" },
+  { value: "task.verify_reject", vi: "Báo không thuộc danh sách khuyến mãi", zh: "标记不属于优惠名单" },
+  { value: "telegram.configure", vi: "Cấu hình bot Telegram", zh: "配置 Telegram 机器人" },
 ];
 
-const LOG_FILTERS = [
-  { value: "campaign.webhook", label: "Báo cáo Laaffic" },
-  { value: "campaign.sent", label: "Gửi chiến dịch" },
-  { value: "campaign.send_failed", label: "Lỗi gửi chiến dịch" },
-  { value: "provider.test", label: "Gửi hoặc gọi thử" },
-  { value: "dispatch.completed", label: "Giao task" },
-  { value: "dispatch.failed", label: "Lỗi giao task" },
-  { value: "telegram.delivered", label: "Gửi Telegram" },
-  { value: "telegram.deliver_failed", label: "Lỗi Telegram" },
-  { value: "care.stale", label: "Hội viên lâu chưa liên hệ" },
-  { value: "care.worker_failed", label: "Lỗi nhắc hẹn" },
-  { value: "http.server_error", label: "Lỗi máy chủ" },
-  { value: "outbox.publish_failed", label: "Lỗi outbox" },
+const LOG_FILTERS: { value: string; vi: string; zh: string }[] = [
+  { value: "campaign.webhook", vi: "Báo cáo Laaffic", zh: "Laaffic 报告" },
+  { value: "campaign.sent", vi: "Gửi chiến dịch", zh: "发送活动" },
+  { value: "campaign.send_failed", vi: "Lỗi gửi chiến dịch", zh: "活动发送失败" },
+  { value: "provider.test", vi: "Gửi hoặc gọi thử", zh: "试发或试呼" },
+  { value: "dispatch.completed", vi: "Giao task", zh: "分配任务" },
+  { value: "dispatch.failed", vi: "Lỗi giao task", zh: "任务分配失败" },
+  { value: "telegram.delivered", vi: "Gửi Telegram", zh: "发送 Telegram" },
+  { value: "telegram.deliver_failed", vi: "Lỗi Telegram", zh: "Telegram 失败" },
+  { value: "care.stale", vi: "Hội viên lâu chưa liên hệ", zh: "长期未联系的会员" },
+  { value: "care.worker_failed", vi: "Lỗi nhắc hẹn", zh: "预约提醒失败" },
+  { value: "http.server_error", vi: "Lỗi máy chủ", zh: "服务器错误" },
+  { value: "outbox.publish_failed", vi: "Lỗi outbox", zh: "Outbox 错误" },
 ];
 
-const ACTION_LABELS: Record<string, string> = Object.fromEntries(AUDIT_FILTERS.map((item) => [item.value, item.label]));
+function auditSentence(action: string, tr: Tr): string | null {
+  const item = AUDIT_FILTERS.find((row) => row.value === action);
+  return item ? tr(`${item.vi}.`, `${item.zh}。`) : null;
+}
 
-function describeAudit(row: AuditEvent, names: Map<string, string>): string {
+function describeAudit(row: AuditEvent, names: Map<string, string>, tr: Tr): string {
   const summary = row.summary;
-  const person = text(summary.user_id) ? (names.get(text(summary.user_id)) ?? "một nhân viên") : "";
-  const kind = summary.kind === "absence" ? "nghỉ đột xuất" : summary.kind === "leave" ? "nghỉ phép" : "";
+  const personVi = text(summary.user_id) ? (names.get(text(summary.user_id)) ?? "một nhân viên") : "";
+  const personZh = text(summary.user_id) ? (names.get(text(summary.user_id)) ?? "一名员工") : "";
+  const kindVi = summary.kind === "absence" ? "nghỉ đột xuất" : summary.kind === "leave" ? "nghỉ phép" : "";
+  const kindZh = summary.kind === "absence" ? "临时缺勤" : summary.kind === "leave" ? "请假" : "";
   if (row.action === "schedule.leave") {
     const released = numberOf(summary.released_task_count);
-    const returned = released > 0 ? ` Đã trả ${released} hội thoại về hàng chờ.` : "";
-    return `Ghi ${kind || "nghỉ"} cho ${person || "một nhân viên"}.${returned}`;
+    const returnedVi = released > 0 ? ` Đã trả ${released} hội thoại về hàng chờ.` : "";
+    const returnedZh = released > 0 ? `已将 ${released} 个会话退回队列。` : "";
+    return tr(`Ghi ${kindVi || "nghỉ"} cho ${personVi || "một nhân viên"}.${returnedVi}`, `为${personZh || "一名员工"}登记${kindZh || "休息"}。${returnedZh}`);
   }
   if (row.action === "schedule.leave_delete") {
-    return `Xóa ${kind || "một khoảng nghỉ"} của ${person || "một nhân viên"}.`;
+    return tr(
+      `Xóa ${kindVi || "một khoảng nghỉ"} của ${personVi || "một nhân viên"}.`,
+      `删除${personZh || "一名员工"}的${kindZh || "一段休息"}。`,
+    );
   }
   if (row.action === "schedule.save") {
     const start = text(summary.start_local).slice(0, 5);
     const end = text(summary.end_local).slice(0, 5);
-    return start && end ? `Đặt ca team ${start}–${end}.` : "Đặt giờ ca của team.";
+    return start && end ? tr(`Đặt ca team ${start}–${end}.`, `设置团队班次 ${start}–${end}。`) : tr("Đặt giờ ca của team.", "设置团队班次时间。");
   }
   if (row.action === "staff.create") {
     const username = text(summary.username);
-    return username ? `Tạo nhân viên ${username}.` : "Tạo nhân viên.";
+    return username ? tr(`Tạo nhân viên ${username}.`, `创建员工 ${username}。`) : tr("Tạo nhân viên.", "创建员工。");
   }
   if (row.action === "staff.update") {
-    const changes: string[] = [];
+    const changesVi: string[] = [];
+    const changesZh: string[] = [];
     if (summary.status === "disabled") {
-      changes.push("khóa tài khoản");
+      changesVi.push("khóa tài khoản");
+      changesZh.push("锁定账号");
     } else if (summary.status === "active") {
-      changes.push("mở lại tài khoản");
+      changesVi.push("mở lại tài khoản");
+      changesZh.push("重新启用账号");
     }
     if (Array.isArray(summary.roles)) {
-      changes.push("đổi vai trò");
+      changesVi.push("đổi vai trò");
+      changesZh.push("更改角色");
     }
     if (Array.isArray(summary.work_functions)) {
-      changes.push("đổi chức năng làm việc");
+      changesVi.push("đổi chức năng làm việc");
+      changesZh.push("更改工作职能");
     }
     if (summary.password_reset === true) {
-      changes.push("đổi mật khẩu");
+      changesVi.push("đổi mật khẩu");
+      changesZh.push("修改密码");
     }
     const name = text(summary.username);
     const who = name ? ` ${name}` : "";
-    const detail = changes.length > 0 ? `: ${changes.join(", ")}` : "";
-    return `Sửa hồ sơ${who}${detail}.`;
+    const detailVi = changesVi.length > 0 ? `: ${changesVi.join(", ")}` : "";
+    const detailZh = changesZh.length > 0 ? `：${changesZh.join("、")}` : "";
+    return tr(`Sửa hồ sơ${who}${detailVi}.`, `编辑资料${who}${detailZh}。`);
   }
   if (row.action === "staff.stations") {
     const username = text(summary.username);
     const stations = Array.isArray(summary.stations) ? summary.stations.filter((item): item is string => typeof item === "string") : [];
     const who = username ? ` ${username}` : "";
-    return stations.length === 0 ? `Bỏ đài chăm sóc của nhân viên${who}.` : `Gắn đài ${stations.join(", ")} cho nhân viên${who}.`;
+    const listed = stations.join(", ");
+    return stations.length === 0
+      ? tr(`Bỏ đài chăm sóc của nhân viên${who}.`, who ? `取消员工${who} 的负责站点。` : "取消员工的负责站点。")
+      : tr(`Gắn đài ${listed} cho nhân viên${who}.`, who ? `为员工${who} 分配站点 ${listed}。` : `为员工分配站点 ${listed}。`);
   }
   if (row.action === "staff.mfa_reset") {
     const username = text(summary.username);
-    return username ? `Gỡ MFA của ${username}.` : "Gỡ MFA của một nhân viên.";
+    return username ? tr(`Gỡ MFA của ${username}.`, `解除 ${username} 的 MFA。`) : tr("Gỡ MFA của một nhân viên.", "解除一名员工的 MFA。");
   }
   if (row.action === "customers.create") {
     const account = text(summary.game_account);
     const site = text(summary.site);
     if (account && site) {
-      return `Thêm hội viên ${account} trên ${site}.`;
+      return tr(`Thêm hội viên ${account} trên ${site}.`, `在 ${site} 添加会员 ${account}。`);
     }
     const ref = text(summary.customer_ref);
-    return ref ? `Thêm hội viên ${ref}.` : "Thêm một hội viên.";
+    return ref ? tr(`Thêm hội viên ${ref}.`, `添加会员 ${ref}。`) : tr("Thêm một hội viên.", "添加一名会员。");
   }
   if (row.action === "customers.import") {
-    return `Nhập file hội viên: thêm ${numberOf(summary.created_count)}, bỏ qua ${numberOf(summary.skipped_count)}.`;
+    const created = numberOf(summary.created_count);
+    const skipped = numberOf(summary.skipped_count);
+    return tr(`Nhập file hội viên: thêm ${created}, bỏ qua ${skipped}.`, `导入会员文件：新增 ${created}，跳过 ${skipped}。`);
   }
   if (row.action === "task.update") {
-    return `Đổi trạng thái task sang ${text(summary.status) || "trạng thái mới"}.`;
+    const status = text(summary.status);
+    return tr(`Đổi trạng thái task sang ${status || "trạng thái mới"}.`, `将任务状态改为 ${status || "新状态"}。`);
   }
   if (row.action === "task.reply") {
-    return "Trả lời một task.";
+    return tr("Trả lời một task.", "回复一个任务。");
   }
   if (row.action === "task.reopen") {
-    return "Mở lại hội thoại Telegram đã đóng.";
+    return tr("Mở lại hội thoại Telegram đã đóng.", "重新打开已关闭的 Telegram 会话。");
   }
   if (row.action === "task.assign" || row.action === "task.transfer") {
-    const who = text(summary.to_user_id) ? (names.get(text(summary.to_user_id)) ?? "một nhân viên") : "một nhân viên";
-    return row.action === "task.assign" ? `Giao task cho ${who}.` : `Chuyển task cho ${who}.`;
+    const whoVi = text(summary.to_user_id) ? (names.get(text(summary.to_user_id)) ?? "một nhân viên") : "một nhân viên";
+    const whoZh = text(summary.to_user_id) ? (names.get(text(summary.to_user_id)) ?? "一名员工") : "一名员工";
+    return row.action === "task.assign" ? tr(`Giao task cho ${whoVi}.`, `把任务分配给 ${whoZh}。`) : tr(`Chuyển task cho ${whoVi}.`, `把任务转交给 ${whoZh}。`);
   }
   if (row.action === "customers.care") {
     const name = careLabelName(text(summary.label));
-    return name ? `Gắn nhãn ${name}.` : "Gắn nhãn chăm sóc cho một hội viên.";
+    return name ? tr(`Gắn nhãn ${name}.`, `添加标签 ${name}。`) : tr("Gắn nhãn chăm sóc cho một hội viên.", "为一名会员添加关怀标签。");
   }
   if (row.action === "customers.consent") {
-    const channel = text(summary.channel) === "sms" ? "SMS" : text(summary.channel) === "ai_voice" ? "giọng nói AI" : "";
-    const target = channel ? ` nhận tin ${channel}` : " nhận tin";
+    const channelVi = text(summary.channel) === "sms" ? "SMS" : text(summary.channel) === "ai_voice" ? "giọng nói AI" : "";
+    const channelZh = text(summary.channel) === "sms" ? "SMS" : text(summary.channel) === "ai_voice" ? "AI 语音" : "";
+    const targetVi = channelVi ? ` nhận tin ${channelVi}` : " nhận tin";
+    const targetZh = channelZh ? `接收 ${channelZh}` : "接收消息";
     if (text(summary.status) === "revoked") {
-      return `Thu hồi đồng ý${target}.`;
+      return tr(`Thu hồi đồng ý${targetVi}.`, `收回${targetZh}的同意。`);
     }
     if (text(summary.status) === "granted") {
-      return `Ghi đồng ý${target}.`;
+      return tr(`Ghi đồng ý${targetVi}.`, `记录${targetZh}的同意。`);
     }
-    return "Cập nhật đồng ý nhận tin của hội viên.";
+    return tr("Cập nhật đồng ý nhận tin của hội viên.", "更新会员接收消息的同意。");
   }
   if (row.action === "campaign.create") {
     const site = text(summary.site);
-    return site ? `Tạo chiến dịch nháp cho ${site}.` : "Tạo chiến dịch nháp.";
+    return site ? tr(`Tạo chiến dịch nháp cho ${site}.`, `为 ${site} 创建活动草稿。`) : tr("Tạo chiến dịch nháp.", "创建活动草稿。");
   }
   if (row.action === "voice.review") {
-    return `Chấm ${numberOf(summary.score)} điểm cho một cuộc gọi.`;
+    const score = numberOf(summary.score);
+    return tr(`Chấm ${score} điểm cho một cuộc gọi.`, `为一通通话打了 ${score} 分。`);
   }
   if (row.action === "campaign.call_list") {
     const listed = numberOf(summary.listed);
     const missing = numberOf(summary.missing);
-    return missing > 0 ? `Gắn ${listed} hội viên vào danh sách gọi. Không thấy ${missing}.` : `Gắn ${listed} hội viên vào danh sách gọi.`;
+    return missing > 0
+      ? tr(`Gắn ${listed} hội viên vào danh sách gọi. Không thấy ${missing}.`, `已将 ${listed} 名会员加入呼叫名单。有 ${missing} 名未找到。`)
+      : tr(`Gắn ${listed} hội viên vào danh sách gọi.`, `已将 ${listed} 名会员加入呼叫名单。`);
   }
   if (row.action === "campaign.launch") {
-    return "Chạy một chiến dịch.";
+    return tr("Chạy một chiến dịch.", "启动一个活动。");
   }
   if (row.action === "campaign.pause") {
-    return "Tạm dừng một chiến dịch.";
+    return tr("Tạm dừng một chiến dịch.", "暂停一个活动。");
   }
   if (row.action === "campaign.resume") {
-    return "Chạy tiếp một chiến dịch.";
+    return tr("Chạy tiếp một chiến dịch.", "继续一个活动。");
   }
   if (row.action === "staff.availability") {
-    return summary.status === "paused" ? "Tắt nhận việc mới." : "Bật nhận việc mới.";
+    return summary.status === "paused" ? tr("Tắt nhận việc mới.", "关闭接收新任务。") : tr("Bật nhận việc mới.", "开启接收新任务。");
   }
   if (row.action === "customers.owner") {
-    return summary.status === "cleared" ? "Bỏ người giữ hội viên." : "Gán người giữ hội viên.";
+    return summary.status === "cleared" ? tr("Bỏ người giữ hội viên.", "取消会员负责人。") : tr("Gán người giữ hội viên.", "指定会员负责人。");
   }
   if (row.action === "customers.pool") {
     const pool = text(summary.status);
-    const name = pool === "kho_data" ? "kho data" : pool === "nuoi_sms" ? "nuôi SMS" : pool === "active" ? "đang chăm sóc" : "";
-    return name ? `Chuyển hội viên sang ${name}.` : "Chuyển kho chăm sóc của hội viên.";
+    const nameVi = pool === "kho_data" ? "kho data" : pool === "nuoi_sms" ? "nuôi SMS" : pool === "active" ? "đang chăm sóc" : "";
+    const nameZh = pool === "kho_data" ? "数据集中库" : pool === "nuoi_sms" ? "短信养护" : pool === "active" ? "正在关怀" : "";
+    return nameVi ? tr(`Chuyển hội viên sang ${nameVi}.`, `将会员转到${nameZh}。`) : tr("Chuyển kho chăm sóc của hội viên.", "转移会员的关怀库。");
   }
   if (row.action === "rewards.approve") {
     const period = text(summary.period);
-    return period ? `Duyệt thưởng kỳ ${period}.` : "Duyệt thưởng.";
+    return period ? tr(`Duyệt thưởng kỳ ${period}.`, `审批 ${period} 期奖励。`) : tr("Duyệt thưởng.", "审批奖励。");
   }
   if (row.action === "rewards.revoke") {
     const period = text(summary.period);
-    return period ? `Gỡ duyệt thưởng kỳ ${period}.` : "Gỡ duyệt thưởng.";
+    return period ? tr(`Gỡ duyệt thưởng kỳ ${period}.`, `取消 ${period} 期奖励审批。`) : tr("Gỡ duyệt thưởng.", "取消奖励审批。");
   }
   if (row.action === "stations.lead") {
     const code = row.entity_id || text(summary.station);
-    return code ? `Gắn tổ trưởng cho ${code}.` : "Gắn tổ trưởng hậu đài.";
+    return code ? tr(`Gắn tổ trưởng cho ${code}.`, `为 ${code} 分配组长。`) : tr("Gắn tổ trưởng hậu đài.", "分配站点组长。");
   }
   if (row.action === "stations.create") {
     const code = row.entity_id || text(summary.station);
-    return code ? `Thêm hậu đài ${code}.` : "Thêm một hậu đài.";
+    return code ? tr(`Thêm hậu đài ${code}.`, `添加站点 ${code}。`) : tr("Thêm một hậu đài.", "添加一个站点。");
   }
   if (row.action === "stations.update") {
     const code = row.entity_id || text(summary.station);
     const name = code ? ` ${code}` : "";
-    return summary.status === "disabled" ? `Tắt hậu đài${name}.` : `Mở lại hậu đài${name}.`;
+    return summary.status === "disabled"
+      ? tr(`Tắt hậu đài${name}.`, name ? `停用站点${name}。` : "停用站点。")
+      : tr(`Mở lại hậu đài${name}.`, name ? `重新开启站点${name}。` : "重新开启站点。");
   }
   if (row.action === "stations.sms") {
     const code = row.entity_id || text(summary.station);
-    return code ? `Cập nhật mẫu tin của ${code}.` : "Cập nhật mẫu tin của một đài.";
+    return code ? tr(`Cập nhật mẫu tin của ${code}.`, `更新 ${code} 的消息模板。`) : tr("Cập nhật mẫu tin của một đài.", "更新一个站点的消息模板。");
   }
   if (row.action === "sms.test") {
     const who = text(summary.recipient);
-    return who ? `Gửi thử SMS tới ${who}.` : "Gửi thử SMS.";
+    return who ? tr(`Gửi thử SMS tới ${who}.`, `向 ${who} 试发 SMS。`) : tr("Gửi thử SMS.", "试发 SMS。");
   }
   if (row.action === "voice.test") {
     const who = text(summary.recipient);
-    return who ? `Gọi thử AI tới ${who}.` : "Gọi thử AI.";
+    return who ? tr(`Gọi thử AI tới ${who}.`, `向 ${who} 试呼 AI。`) : tr("Gọi thử AI.", "试呼 AI。");
   }
   if (row.action === "laaffic.sync") {
     const count = typeof summary.pulled === "number" ? summary.pulled : 0;
-    return summary.channel === "ai_voice" ? `Đồng bộ ${count} cuộc gọi từ Laaffic.` : `Đồng bộ ${count} tin nhắn từ Laaffic.`;
+    return summary.channel === "ai_voice"
+      ? tr(`Đồng bộ ${count} cuộc gọi từ Laaffic.`, `从 Laaffic 同步了 ${count} 通呼叫。`)
+      : tr(`Đồng bộ ${count} tin nhắn từ Laaffic.`, `从 Laaffic 同步了 ${count} 条短信。`);
   }
   if (row.action === "stations.logo") {
     const code = row.entity_id || text(summary.station);
     const name = code ? ` ${code}` : "";
-    return summary.status === "cleared" ? `Gỡ logo hậu đài${name}.` : `Đổi logo hậu đài${name}.`;
+    return summary.status === "cleared"
+      ? tr(`Gỡ logo hậu đài${name}.`, name ? `移除站点${name} 的 Logo。` : "移除站点 Logo。")
+      : tr(`Đổi logo hậu đài${name}.`, name ? `更换站点${name} 的 Logo。` : "更换站点 Logo。");
   }
   if (row.action === "stations.assign") {
     const code = row.entity_id || text(summary.station);
     const name = code ? ` ${code}` : "";
     const count = Array.isArray(summary.user_ids) ? summary.user_ids.length : 0;
-    return count === 0 ? `Bỏ nhân viên chăm sóc khỏi hậu đài${name}.` : `Gắn ${count} nhân viên chăm sóc cho hậu đài${name}.`;
+    return count === 0
+      ? tr(`Bỏ nhân viên chăm sóc khỏi hậu đài${name}.`, name ? `移除站点${name} 的客服。` : "移除站点的客服。")
+      : tr(`Gắn ${count} nhân viên chăm sóc cho hậu đài${name}.`, name ? `为站点${name} 分配 ${count} 名客服。` : `为站点分配 ${count} 名客服。`);
   }
   if (row.action === "settings.rate_limit") {
-    return `Cập nhật danh sách IP không bị chặn, còn ${numberOf(summary.count)} địa chỉ.`;
+    const count = numberOf(summary.count);
+    return tr(`Cập nhật danh sách IP không bị chặn, còn ${count} địa chỉ.`, `已更新不限制的 IP 列表，现有 ${count} 个地址。`);
   }
   if (row.action === "settings.voice_call") {
-    return `Đổi thời lượng cuộc gọi AI còn ${numberOf(summary.max_call_seconds)} giây.`;
+    const seconds = numberOf(summary.max_call_seconds);
+    return tr(`Đổi thời lượng cuộc gọi AI còn ${seconds} giây.`, `已将 AI 通话时长改为 ${seconds} 秒。`);
   }
   if (row.action === "settings.hangup_sms") {
     const length = numberOf(summary.content_length);
     if (length === 0) {
-      return "Tắt tin nhắn sau cuộc gọi.";
+      return tr("Tắt tin nhắn sau cuộc gọi.", "关闭通话后短信。");
     }
-    return `Đổi tin nhắn sau cuộc gọi, nội dung ${length} ký tự và ${numberOf(summary.text_fields)} biến text.`;
+    const fields = numberOf(summary.text_fields);
+    return tr(
+      `Đổi tin nhắn sau cuộc gọi, nội dung ${length} ký tự và ${fields} biến text.`,
+      `已修改通话后短信，内容 ${length} 个字符，${fields} 个文本变量。`,
+    );
   }
   if (row.action === "telegram.configure") {
     const username = text(summary.username);
     const name = username ? ` @${username}` : "";
-    return summary.status === "disabled" ? `Tắt bot Telegram${name}.` : `Cấu hình bot Telegram${name}.`;
+    return summary.status === "disabled"
+      ? tr(`Tắt bot Telegram${name}.`, `关闭 Telegram 机器人${name}。`)
+      : tr(`Cấu hình bot Telegram${name}.`, `配置 Telegram 机器人${name}。`);
   }
   if (row.action === "auth.step_up" && row.outcome === "failure") {
-    return "Mật khẩu xác nhận không đúng.";
+    return tr("Mật khẩu xác nhận không đúng.", "确认密码不正确。");
   }
   if (row.action === "auth.login" && row.outcome === "failure") {
     const username = text(summary.username);
-    return username ? `Đăng nhập thất bại với tên ${username}.` : "Đăng nhập thất bại.";
+    return username ? tr(`Đăng nhập thất bại với tên ${username}.`, `用户名 ${username} 登录失败。`) : tr("Đăng nhập thất bại.", "登录失败。");
   }
   if (row.action === "auth.mfa_verify" && row.outcome === "failure") {
-    return "Mã MFA không đúng.";
+    return tr("Mã MFA không đúng.", "MFA 验证码不正确。");
   }
-  return ACTION_LABELS[row.action] ? `${ACTION_LABELS[row.action]}.` : row.action;
+  return auditSentence(row.action, tr) ?? row.action;
 }
 
-function describeLog(row: SystemLog): string {
+function describeLog(row: SystemLog, tr: Tr): string {
   const context = row.context;
   if (row.event === "dispatch.completed") {
     const assigned = numberOf(context.assigned);
     const released = numberOf(context.released);
-    const parts: string[] = [];
+    const partsVi: string[] = [];
+    const partsZh: string[] = [];
     if (assigned > 0) {
-      parts.push(`giao ${assigned} task`);
+      partsVi.push(`giao ${assigned} task`);
+      partsZh.push(`分配 ${assigned} 个任务`);
     }
     if (released > 0) {
-      parts.push(`trả ${released} task về hàng chờ`);
+      partsVi.push(`trả ${released} task về hàng chờ`);
+      partsZh.push(`将 ${released} 个任务退回队列`);
     }
-    return parts.length > 0 ? `Đã ${parts.join(" và ")}.` : "Đã chạy vòng giao task.";
+    return partsVi.length > 0 ? tr(`Đã ${partsVi.join(" và ")}.`, `已${partsZh.join("，并")}。`) : tr("Đã chạy vòng giao task.", "已执行一轮任务分配。");
   }
   if (row.event === "campaign.webhook") {
-    const channel = text(context.channel) === "ai_voice" ? "gọi AI" : text(context.channel) === "sms" ? "SMS" : "nhà cung cấp";
+    const channelVi = text(context.channel) === "ai_voice" ? "gọi AI" : text(context.channel) === "sms" ? "SMS" : "nhà cung cấp";
+    const channelZh = text(context.channel) === "ai_voice" ? "AI 呼叫" : text(context.channel) === "sms" ? "SMS" : "供应商";
     if (text(context.outcome) === "rejected") {
       const reason = text(context.reason);
-      const why = reason === "bad_signature" ? "chữ ký sai" : reason === "missing_signature" ? "thiếu chữ ký" : reason === "invalid_json" ? "nội dung không đọc được" : "không hợp lệ";
-      return `Từ chối báo cáo ${channel} vì ${why}.`;
+      const whyVi = reason === "bad_signature" ? "chữ ký sai" : reason === "missing_signature" ? "thiếu chữ ký" : reason === "invalid_json" ? "nội dung không đọc được" : "không hợp lệ";
+      const whyZh = reason === "bad_signature" ? "签名错误" : reason === "missing_signature" ? "缺少签名" : reason === "invalid_json" ? "内容无法读取" : "无效";
+      return tr(`Từ chối báo cáo ${channelVi} vì ${whyVi}.`, `已拒绝${channelZh}报告，因为${whyZh}。`);
     }
-    return `Nhận báo cáo ${channel}: ${numberOf(context.received)} tin, cập nhật ${numberOf(context.updated)}.${dialogueCount(context.dialogue) > 0 ? ` Có ${dialogueCount(context.dialogue)} câu hội thoại.` : ""}`;
+    const received = numberOf(context.received);
+    const updated = numberOf(context.updated);
+    const turns = dialogueCount(context.dialogue);
+    const dialogueVi = turns > 0 ? ` Có ${turns} câu hội thoại.` : "";
+    const dialogueZh = turns > 0 ? `有 ${turns} 句会话。` : "";
+    return tr(`Nhận báo cáo ${channelVi}: ${received} tin, cập nhật ${updated}.${dialogueVi}`, `收到${channelZh}报告：${received} 条，更新 ${updated} 条。${dialogueZh}`);
   }
   if (row.event === "campaign.sent") {
     const failed = numberOf(context.failed);
     const accepted = numberOf(context.accepted);
-    return failed > 0 ? `Gửi chiến dịch: ${accepted} thành công, ${failed} lỗi.` : `Đã gửi ${accepted} tin chiến dịch.`;
+    return failed > 0
+      ? tr(`Gửi chiến dịch: ${accepted} thành công, ${failed} lỗi.`, `发送活动：成功 ${accepted}，失败 ${failed}。`)
+      : tr(`Đã gửi ${accepted} tin chiến dịch.`, `已发送 ${accepted} 条活动消息。`);
   }
   if (row.event === "provider.test") {
     return row.message;
   }
   if (row.event === "care.stale") {
-    return `Có ${numberOf(context.count)} hội viên quá 15 ngày chưa liên hệ.`;
+    const count = numberOf(context.count);
+    return tr(`Có ${count} hội viên quá 15 ngày chưa liên hệ.`, `有 ${count} 名会员超过 15 天未联系。`);
   }
   if (row.event === "telegram.delivered") {
     const failed = numberOf(context.failed);
     const sent = numberOf(context.sent);
-    return failed > 0 ? `Telegram: gửi được ${sent}, lỗi ${failed}.` : `Đã gửi ${sent} tin Telegram.`;
+    return failed > 0
+      ? tr(`Telegram: gửi được ${sent}, lỗi ${failed}.`, `Telegram：已发送 ${sent}，失败 ${failed}。`)
+      : tr(`Đã gửi ${sent} tin Telegram.`, `已发送 ${sent} 条 Telegram 消息。`);
   }
   if (row.event === "http.server_error") {
     const method = text(context.method);
@@ -667,7 +733,7 @@ function describeLog(row: SystemLog): string {
     const status = numberOf(context.status);
     const where = method && path ? ` ${method} ${path}` : "";
     const reason = text(context.detail);
-    const head = status > 0 ? `Lỗi ${status}${where}` : row.message || "Lỗi máy chủ";
+    const head = status > 0 ? tr(`Lỗi ${status}${where}`, `错误 ${status}${where}`) : row.message || tr("Lỗi máy chủ", "服务器错误");
     return reason ? `${head}. ${reason}` : `${head}.`;
   }
   return row.message || row.event;
@@ -723,9 +789,9 @@ function LogPath(props: { path: string }) {
   );
 }
 
-function presentLog(row: SystemLog): { title: string; method: string | null; path: string | null; status: number | null } {
+function presentLog(row: SystemLog, tr: Tr): { title: string; method: string | null; path: string | null; status: number | null } {
   const route = readRoute(row);
-  return { title: stripRoute(describeLog(row), route), ...route };
+  return { title: stripRoute(describeLog(row, tr), route, tr), ...route };
 }
 
 function readRoute(row: SystemLog): { method: string | null; path: string | null; status: number | null } {
@@ -741,19 +807,19 @@ function readRoute(row: SystemLog): { method: string | null; path: string | null
   return { method, path, status };
 }
 
-function stripRoute(sentence: string, route: { method: string | null; path: string | null; status: number | null }): string {
+function stripRoute(sentence: string, route: { method: string | null; path: string | null; status: number | null }, tr: Tr): string {
   let next = sentence;
   if (route.method && route.path) {
     next = next.replace(`${route.method} ${route.path}`, " ");
   }
   if (route.status) {
-    next = next.replace(`Lỗi ${route.status}`, " ");
+    next = next.replace(tr(`Lỗi ${route.status}`, `错误 ${route.status}`), " ");
   }
   next = next.replace(/\s+/g, " ").replace(/^[\s.]+|[\s.]+$/g, "").replace(/\s+\./g, ".");
   return next || sentence;
 }
 
-function logScope(event: string): string {
+function logScope(event: string, tr: Tr): string {
   if (event.startsWith("http.")) {
     return "API";
   }
@@ -761,7 +827,7 @@ function logScope(event: string): string {
     return "Laaffic";
   }
   if (event.startsWith("dispatch.")) {
-    return "Giao việc";
+    return tr("Giao việc", "分配");
   }
   if (event.startsWith("chat.")) {
     return "Chat";
@@ -770,16 +836,16 @@ function logScope(event: string): string {
     return "Telegram";
   }
   if (event.startsWith("care.")) {
-    return "Chăm sóc";
+    return tr("Chăm sóc", "关怀");
   }
-  return "Hệ thống";
+  return tr("Hệ thống", "系统");
 }
 
 function dialogueCount(value: unknown): number {
   return Array.isArray(value) ? value.length : 0;
 }
 
-function logTurns(value: unknown): Array<{ role: string; text: string; at?: string | null }> {
+function logTurns(value: unknown, tr: Tr): Array<{ role: string; text: string; at?: string | null }> {
   if (!Array.isArray(value)) {
     return [];
   }
@@ -792,34 +858,35 @@ function logTurns(value: unknown): Array<{ role: string; text: string; at?: stri
     if (!text) {
       return [];
     }
-    return [{ role: typeof row.role === "string" ? row.role : "Khác", text, at: typeof row.at === "string" ? row.at : null }];
+    return [{ role: typeof row.role === "string" ? row.role : tr("Khác", "其他"), text, at: typeof row.at === "string" ? row.at : null }];
   });
 }
 
 function AuditDetail(props: { row: AuditEvent; names: Map<string, string> }) {
+  const tr = useTr();
   const failed = props.row.outcome === "failure";
-  const extra = plainRows(props.row.summary);
+  const extra = plainRows(props.row.summary, tr);
   return (
     <div className="log-view">
       <section className={failed ? "log-sheet log-sheet--fail" : "log-sheet"}>
         <div className="log-reason__badges">
-          <Tag color={failed ? "red" : "green"}>{failed ? "Thất bại" : "Thành công"}</Tag>
+          <Tag color={failed ? "red" : "green"}>{failed ? tr("Thất bại", "失败") : tr("Thành công", "成功")}</Tag>
           <span className="log-code">{props.row.action}</span>
         </div>
-        <p className="log-sheet__title">{describeAudit(props.row, props.names)}</p>
+        <p className="log-sheet__title">{describeAudit(props.row, props.names, tr)}</p>
       </section>
       <section className="log-panel">
-        <h3>Thông tin</h3>
+        <h3>{tr("Thông tin", "信息")}</h3>
         <div className="log-detail">
-          <Field label="Thời điểm" value={formatStamp(props.row.created_at)} />
-          <Field label="Người" value={props.row.actor_username || "Hệ thống"} />
-          <Field label="Đối tượng" value={props.row.entity} />
-          <Field label="Mã yêu cầu" value={props.row.request_id} mono />
+          <Field label={tr("Thời điểm", "时间")} value={formatStamp(props.row.created_at)} />
+          <Field label={tr("Người", "人员")} value={props.row.actor_username || tr("Hệ thống", "系统")} />
+          <Field label={tr("Đối tượng", "对象")} value={props.row.entity} />
+          <Field label={tr("Mã yêu cầu", "请求编号")} value={props.row.request_id} mono />
         </div>
       </section>
       {extra.length > 0 ? (
         <section className="log-panel">
-          <h3>Ghi thêm</h3>
+          <h3>{tr("Ghi thêm", "补充记录")}</h3>
           <dl className="log-pairs">
             {extra.map((item) => (
               <div key={item.label}>
@@ -835,18 +902,19 @@ function AuditDetail(props: { row: AuditEvent; names: Map<string, string> }) {
 }
 
 function LogDetail(props: { row: SystemLog }) {
-  const view = presentLog(props.row);
+  const tr = useTr();
+  const view = presentLog(props.row, tr);
   const failed = props.row.level === "error";
-  const turns = logTurns(props.row.context.dialogue);
-  const extra = plainRows(props.row.context);
+  const turns = logTurns(props.row.context.dialogue, tr);
+  const extra = plainRows(props.row.context, tr);
   return (
     <div className="log-view">
       <section className={failed ? "log-sheet log-sheet--fail" : "log-sheet"}>
         <div className="log-reason__badges">
-          <Tag color={failed ? "red" : "blue"}>{failed ? "Lỗi" : "Thông tin"}</Tag>
+          <Tag color={failed ? "red" : "blue"}>{failed ? tr("Lỗi", "错误") : tr("Thông tin", "信息")}</Tag>
           {view.method ? <span className={`log-method log-method--${view.method.toLowerCase()}`}>{view.method}</span> : null}
           {view.status ? <Tag color={view.status >= 500 ? "red" : "default"}>{view.status}</Tag> : null}
-          <span className="log-code">{logScope(props.row.event)}</span>
+          <span className="log-code">{logScope(props.row.event, tr)}</span>
         </div>
         <p className="log-sheet__title">{view.title}</p>
         {view.path ? (
@@ -856,17 +924,17 @@ function LogDetail(props: { row: SystemLog }) {
         ) : null}
       </section>
       <section className="log-panel">
-        <h3>Thông tin</h3>
+        <h3>{tr("Thông tin", "信息")}</h3>
         <div className="log-detail">
-          <Field label="Thời điểm" value={formatStamp(props.row.created_at)} />
-          <Field label="Người" value={props.row.actor_username || "Hệ thống"} />
+          <Field label={tr("Thời điểm", "时间")} value={formatStamp(props.row.created_at)} />
+          <Field label={tr("Người", "人员")} value={props.row.actor_username || tr("Hệ thống", "系统")} />
           <Field label="IP" value={props.row.ip} mono />
-          <Field label="Mã yêu cầu" value={props.row.request_id} mono />
+          <Field label={tr("Mã yêu cầu", "请求编号")} value={props.row.request_id} mono />
         </div>
       </section>
       {turns.length > 0 ? (
         <section className="log-panel">
-          <h3>Hội thoại</h3>
+          <h3>{tr("Hội thoại", "会话")}</h3>
           <div className="log-dialogue">
             {turns.map((turn, index) => (
               <p key={`${turn.role}-${index}`}>
@@ -879,7 +947,7 @@ function LogDetail(props: { row: SystemLog }) {
       ) : null}
       {extra.length > 0 ? (
         <section className="log-panel">
-          <h3>Ghi thêm</h3>
+          <h3>{tr("Ghi thêm", "补充记录")}</h3>
           <dl className="log-pairs">
             {extra.map((item) => (
               <div key={item.label}>
@@ -903,34 +971,35 @@ function Field(props: { label: string; value: string | null | undefined; mono?: 
   );
 }
 
-const CONTEXT_LABELS: Record<string, string> = {
-  error_name: "Mã lỗi",
-  channel: "Kênh",
-  outcome: "Kết quả",
-  reason: "Lý do",
-  received: "Đã nhận",
-  updated: "Đã cập nhật",
-  assigned: "Đã giao",
-  released: "Đã trả hàng chờ",
-  failed: "Số lỗi",
-  accepted: "Đã gửi được",
-  sent: "Đã gửi",
-  count: "Số lượng",
-  idle_minutes: "Số phút im lặng",
-  max_call_seconds: "Số giây cuộc gọi",
-  closed: "Hội thoại đã đóng",
-  pulled: "Số dòng",
-  username: "Tên đăng nhập",
-  ip: "Địa chỉ IP",
-  game_account: "Tài khoản",
-  site: "Hậu đài",
-  status: "Trạng thái",
-  label: "Nhãn",
-};
+function contextLabel(key: string, tr: Tr): string | null {
+  if (key === "error_name") return tr("Mã lỗi", "错误码");
+  if (key === "channel") return tr("Kênh", "渠道");
+  if (key === "outcome") return tr("Kết quả", "结果");
+  if (key === "reason") return tr("Lý do", "原因");
+  if (key === "received") return tr("Đã nhận", "已接收");
+  if (key === "updated") return tr("Đã cập nhật", "已更新");
+  if (key === "assigned") return tr("Đã giao", "已分配");
+  if (key === "released") return tr("Đã trả hàng chờ", "已退回队列");
+  if (key === "failed") return tr("Số lỗi", "失败数");
+  if (key === "accepted") return tr("Đã gửi được", "已发送成功");
+  if (key === "sent") return tr("Đã gửi", "已发送");
+  if (key === "count") return tr("Số lượng", "数量");
+  if (key === "idle_minutes") return tr("Số phút im lặng", "无消息分钟数");
+  if (key === "max_call_seconds") return tr("Số giây cuộc gọi", "通话秒数");
+  if (key === "closed") return tr("Hội thoại đã đóng", "已关闭的会话");
+  if (key === "pulled") return tr("Số dòng", "行数");
+  if (key === "username") return tr("Tên đăng nhập", "用户名");
+  if (key === "ip") return tr("Địa chỉ IP", "IP 地址");
+  if (key === "game_account") return tr("Tài khoản", "账号");
+  if (key === "site") return tr("Hậu đài", "站点");
+  if (key === "status") return tr("Trạng thái", "状态");
+  if (key === "label") return tr("Nhãn", "标签");
+  return null;
+}
 
 const SKIP_CONTEXT = new Set(["path", "method", "detail", "dialogue", "payload", "message", "body", "content"]);
 
-function plainRows(record: Record<string, unknown>): Array<{ label: string; value: string }> {
+function plainRows(record: Record<string, unknown>, tr: Tr): Array<{ label: string; value: string }> {
   return Object.entries(record).flatMap(([key, value]) => {
     if (SKIP_CONTEXT.has(key) || value == null || value === "" || (key === "status" && typeof value === "number")) {
       return [];
@@ -938,14 +1007,14 @@ function plainRows(record: Record<string, unknown>): Array<{ label: string; valu
     if (typeof value === "object") {
       return [];
     }
-    return [{ label: CONTEXT_LABELS[key] ?? key.replaceAll("_", " "), value: shownValue(key, value) }];
+    return [{ label: contextLabel(key, tr) ?? key.replaceAll("_", " "), value: shownValue(key, value, tr) }];
   });
 }
 
-function shownValue(key: string, value: unknown): string {
+function shownValue(key: string, value: unknown, tr: Tr): string {
   if (key === "channel") {
     if (value === "ai_voice") {
-      return "Gọi AI";
+      return tr("Gọi AI", "AI 呼叫");
     }
     if (value === "sms") {
       return "SMS";
@@ -953,25 +1022,25 @@ function shownValue(key: string, value: unknown): string {
   }
   if (key === "outcome") {
     if (value === "rejected") {
-      return "Từ chối";
+      return tr("Từ chối", "已拒绝");
     }
     if (value === "accepted") {
-      return "Đã nhận";
+      return tr("Đã nhận", "已接收");
     }
   }
   if (key === "reason") {
     if (value === "bad_signature") {
-      return "Chữ ký sai";
+      return tr("Chữ ký sai", "签名错误");
     }
     if (value === "missing_signature") {
-      return "Thiếu chữ ký";
+      return tr("Thiếu chữ ký", "缺少签名");
     }
     if (value === "invalid_json") {
-      return "Nội dung không đọc được";
+      return tr("Nội dung không đọc được", "内容无法读取");
     }
   }
   if (typeof value === "boolean") {
-    return value ? "Có" : "Không";
+    return value ? tr("Có", "是") : tr("Không", "否");
   }
   return String(value);
 }

@@ -2,9 +2,10 @@ import { Button, DatePicker, Drawer, Form, Input, Select, Space, Tag, Typography
 import type { Dayjs } from "dayjs";
 import { useCallback, useEffect, useState } from "react";
 import { ApiError, api } from "../api.ts";
-import { CARE_LABELS, careLabelHelp, careLabelName, formatStamp } from "../copy.ts";
+import { careChoices, careLabelHelp, careLabelName, formatStamp } from "../copy.ts";
 import type { VipCustomer } from "../types.ts";
 import { ErrorAlert } from "../ui.tsx";
+import { useTr } from "./language.tsx";
 
 type CareItem = {
   id: string;
@@ -19,16 +20,23 @@ type CareList = {
   items: CareItem[];
 };
 
-const CHANNELS = [
-  { value: "sms", label: "SMS" },
-  { value: "ai_voice", label: "Giọng nói AI" },
-] as const;
+const CHANNELS = ["sms", "ai_voice"] as const;
 
-const POOLS = [
-  { value: "active", label: "Đang chăm sóc" },
-  { value: "kho_data", label: "Kho data" },
-  { value: "nuoi_sms", label: "Nuôi SMS" },
-] as const;
+const POOLS = ["active", "kho_data", "nuoi_sms"] as const;
+
+function channelName(value: (typeof CHANNELS)[number], tr: (vi: string, zh: string) => string): string {
+  return value === "ai_voice" ? tr("Giọng nói AI", "AI 语音") : "SMS";
+}
+
+function poolName(value: (typeof POOLS)[number], tr: (vi: string, zh: string) => string): string {
+  if (value === "active") {
+    return tr("Đang chăm sóc", "关怀中");
+  }
+  if (value === "kho_data") {
+    return tr("Kho data", "数据集");
+  }
+  return tr("Nuôi SMS", "短信培育");
+}
 
 export function MemberDrawer(props: {
   customer: VipCustomer;
@@ -39,6 +47,7 @@ export function MemberDrawer(props: {
   onUnauthorized: () => void;
   onMfaSetup: () => void;
 }) {
+  const tr = useTr();
   const [care, setCare] = useState<CareList | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<ApiError | null>(null);
@@ -82,7 +91,7 @@ export function MemberDrawer(props: {
         if (ignore) {
           return;
         }
-        const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không tải được nhãn chăm sóc", "");
+        const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", tr("Không tải được nhãn chăm sóc", "无法加载关怀标签"), "");
         if (!failAuth(problem)) {
           setError(problem);
         }
@@ -129,7 +138,7 @@ export function MemberDrawer(props: {
         setOwnerId(null);
       }
     } catch (caught) {
-      const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không chuyển được kho chăm sóc", "");
+      const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", tr("Không chuyển được kho chăm sóc", "无法切换关怀库"), "");
       if (!failAuth(problem)) {
         setError(problem);
       }
@@ -148,7 +157,7 @@ export function MemberDrawer(props: {
       });
       setOwnerId(saved.owner_user_id);
     } catch (caught) {
-      const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không gán được người giữ", "");
+      const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", tr("Không gán được người giữ", "无法指定负责人"), "");
       if (!failAuth(problem)) {
         setError(problem);
       }
@@ -163,7 +172,7 @@ export function MemberDrawer(props: {
       return;
     }
     if (label === "hen_lien_he_lai" && (!when || when.valueOf() <= Date.now())) {
-      setError(new ApiError(0, "validation_error", "Giờ hẹn phải ở tương lai", ""));
+      setError(new ApiError(0, "validation_error", tr("Giờ hẹn phải ở tương lai", "预约时间必须晚于现在"), ""));
       return;
     }
     setSaving(true);
@@ -178,7 +187,7 @@ export function MemberDrawer(props: {
       setWhen(null);
       await load();
     } catch (caught) {
-      const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không gắn được nhãn", "");
+      const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", tr("Không gắn được nhãn", "无法添加标签"), "");
       if (!failAuth(problem)) {
         setError(problem);
       }
@@ -194,7 +203,7 @@ export function MemberDrawer(props: {
       await api(`/api/v1/vip-customers/${props.customer.id}/consent`, { method: "POST", body: { channel, status } });
       setConsent((current) => ({ ...current, [channel]: status }));
     } catch (caught) {
-      const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không ghi được đồng ý nhận tin", "");
+      const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", tr("Không ghi được đồng ý nhận tin", "无法记录接收同意"), "");
       if (!failAuth(problem)) {
         setError(problem);
       }
@@ -203,7 +212,7 @@ export function MemberDrawer(props: {
     }
   }
 
-  const choices = CARE_LABELS.filter((item) => props.canRevoke || !item.revoke);
+  const choices = careChoices().filter((item) => props.canRevoke || !item.revoke);
   const title = props.customer.game_account || props.customer.display_name;
   const help = careLabelHelp(label);
 
@@ -212,16 +221,16 @@ export function MemberDrawer(props: {
       {error ? <ErrorAlert error={error} /> : null}
       {props.canImport ? (
         <Form layout="vertical" requiredMark={false}>
-          <Form.Item label="Kho chăm sóc" help={pool === "kho_data" ? "Kho data không giữ người phụ trách." : pool === "nuoi_sms" ? "Nuôi SMS không vào chiến dịch giọng nói AI." : undefined}>
-            <Select value={pool} loading={savingCare} options={POOLS.map((item) => ({ value: item.value, label: item.label }))} onChange={(value: "active" | "kho_data" | "nuoi_sms") => void savePool(value)} />
+          <Form.Item label={tr("Kho chăm sóc", "关怀库")} help={pool === "kho_data" ? tr("Kho data không giữ người phụ trách.", "数据集不保留负责人。") : pool === "nuoi_sms" ? tr("Nuôi SMS không vào chiến dịch giọng nói AI.", "短信培育不会进入 AI 语音活动。") : undefined}>
+            <Select value={pool} loading={savingCare} options={POOLS.map((value) => ({ value, label: poolName(value, tr) }))} onChange={(value: "active" | "kho_data" | "nuoi_sms") => void savePool(value)} />
           </Form.Item>
           {props.canAssignOwner ? (
-            <Form.Item label="Người giữ" help="Chỉ nhân viên chăm sóc của đúng hậu đài.">
+            <Form.Item label={tr("Người giữ", "负责人")} help={tr("Chỉ nhân viên chăm sóc của đúng hậu đài.", "只能选择该站点的关怀员工。")}>
               <Select
                 allowClear
                 showSearch
                 optionFilterProp="label"
-                placeholder="Chưa gán"
+                placeholder={tr("Chưa gán", "未指定")}
                 disabled={pool === "kho_data"}
                 value={ownerId ?? undefined}
                 options={[
@@ -234,19 +243,19 @@ export function MemberDrawer(props: {
           ) : null}
         </Form>
       ) : null}
-      <Typography.Text type="secondary">{loading && !care ? "Đang tải nhãn…" : `Nhãn hiện tại: ${care?.current_label ? careLabelName(care.current_label) : "Chưa có"}`}</Typography.Text>
+      <Typography.Text type="secondary">{loading && !care ? tr("Đang tải nhãn…", "正在加载标签…") : `${tr("Nhãn hiện tại: ", "当前标签：")}${care?.current_label ? careLabelName(care.current_label) : tr("Chưa có", "暂无")}`}</Typography.Text>
       <div className="task-thread">
         {(care?.items ?? []).map((item) => (
           <p key={item.id} className="page-note">
             <Tag>{careLabelName(item.label)}</Tag> {item.note}
-            {item.callback_at ? ` · Hẹn ${formatStamp(item.callback_at)}` : ""} · {formatStamp(item.created_at)}
+            {item.callback_at ? ` · ${tr("Hẹn", "预约")} ${formatStamp(item.callback_at)}` : ""} · {formatStamp(item.created_at)}
           </p>
         ))}
-        {care && care.items.length === 0 ? <p className="page-note">Chưa có nhãn.</p> : null}
+        {care && care.items.length === 0 ? <p className="page-note">{tr("Chưa có nhãn.", "还没有标签。")}</p> : null}
       </div>
       {props.canImport ? (
         <Form layout="vertical" requiredMark={false} onFinish={() => void saveLabel()}>
-          <Form.Item label="Nhãn" help={help || undefined}>
+          <Form.Item label={tr("Nhãn", "标签")} help={help || undefined}>
             <Select
               value={label}
               options={choices.map((item) => ({ value: item.value, label: item.label }))}
@@ -259,36 +268,36 @@ export function MemberDrawer(props: {
             />
           </Form.Item>
           {label === "hen_lien_he_lai" ? (
-            <Form.Item label="Giờ hẹn">
+            <Form.Item label={tr("Giờ hẹn", "预约时间")}>
               <DatePicker showTime value={when} style={{ width: "100%" }} onChange={(value) => setWhen(value)} />
             </Form.Item>
           ) : null}
-          <Form.Item label="Ghi chú">
+          <Form.Item label={tr("Ghi chú", "备注")}>
             <Input value={note} maxLength={200} onChange={(event) => setNote(event.target.value)} />
           </Form.Item>
           <Button type="primary" htmlType="submit" loading={saving} disabled={note.trim().length === 0}>
-            Gắn nhãn
+            {tr("Gắn nhãn", "添加标签")}
           </Button>
         </Form>
       ) : null}
       {props.canImport ? (
         <div className="shift-form">
-          <p className="shift-card__label">Đồng ý nhận tin</p>
+          <p className="shift-card__label">{tr("Đồng ý nhận tin", "接收同意")}</p>
           {CHANNELS.map((channel) => (
-            <div key={channel.value}>
+            <div key={channel}>
               <Space wrap style={{ marginBottom: 8 }}>
-                <Typography.Text>{channel.label}</Typography.Text>
-                {consent[channel.value] ? <Tag>{consent[channel.value] === "granted" ? "Đã đồng ý" : "Đã thu hồi"}</Tag> : null}
-                <Button size="small" loading={consentBusy === `${channel.value}:granted`} onClick={() => void saveConsent(channel.value, "granted")}>
-                  Ghi nhận
+                <Typography.Text>{channelName(channel, tr)}</Typography.Text>
+                {consent[channel] ? <Tag>{consent[channel] === "granted" ? tr("Đã đồng ý", "已同意") : tr("Đã thu hồi", "已收回")}</Tag> : null}
+                <Button size="small" loading={consentBusy === `${channel}:granted`} onClick={() => void saveConsent(channel, "granted")}>
+                  {tr("Ghi nhận", "记录同意")}
                 </Button>
-                <Button size="small" loading={consentBusy === `${channel.value}:revoked`} onClick={() => void saveConsent(channel.value, "revoked")}>
-                  Thu hồi
+                <Button size="small" loading={consentBusy === `${channel}:revoked`} onClick={() => void saveConsent(channel, "revoked")}>
+                  {tr("Thu hồi", "收回")}
                 </Button>
               </Space>
             </div>
           ))}
-          <p className="page-note">Chỉ hiện kết quả vừa ghi trong lần mở này.</p>
+          <p className="page-note">{tr("Chỉ hiện kết quả vừa ghi trong lần mở này.", "只显示本次打开后刚记下的结果。")}</p>
         </div>
       ) : null}
     </Drawer>

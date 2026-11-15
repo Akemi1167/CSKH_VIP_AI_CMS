@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import { ApiError, api } from "../api.ts";
 import { careLabelName, formatStamp } from "../copy.ts";
 import { ErrorAlert } from "../ui.tsx";
+import { useTr } from "./language.tsx";
 
 type Reminder = { id: string; customer_ref: string; site: string | null; due_on: string };
 type HistoryItem = {
@@ -35,6 +36,7 @@ function dayLabel(value: string): string {
 }
 
 export function CareHome(props: { canReadTasks: boolean; canReport: boolean; onUnauthorized: () => void; onMfaSetup: () => void }) {
+  const tr = useTr();
   const [openTasks, setOpenTasks] = useState<number | null>(null);
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [report, setReport] = useState<Personal | null>(null);
@@ -88,7 +90,7 @@ export function CareHome(props: { canReadTasks: boolean; canReport: boolean; onU
         if (ignore) {
           return;
         }
-        const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không tải được tổng quan", "");
+        const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", tr("Không tải được tổng quan", "无法加载总览"), "");
         if (!failAuth(problem)) {
           setError(problem);
         }
@@ -108,50 +110,50 @@ export function CareHome(props: { canReadTasks: boolean; canReport: boolean; onU
       <div className="page-header">
         <div>
           <Typography.Title level={3} className="page-header__title">
-            Tổng quan
+            {tr("Tổng quan", "总览")}
           </Typography.Title>
-          <Typography.Text type="secondary">Việc đang mở, lịch hẹn và kết quả chăm sóc của bạn trong hôm nay.</Typography.Text>
+          <Typography.Text type="secondary">{tr("Việc đang mở, lịch hẹn và kết quả chăm sóc của bạn trong hôm nay.", "今天的未完成工作、预约和您的关怀结果。")}</Typography.Text>
         </div>
       </div>
       {error ? <ErrorAlert error={error} /> : null}
       <div className="shift-grid">
         {props.canReadTasks ? (
           <article className="shift-card">
-            <p className="shift-card__label">Việc đang mở</p>
+            <p className="shift-card__label">{tr("Việc đang mở", "未完成")}</p>
             <p className="shift-card__hours">{loading && openTasks === null ? "…" : (openTasks ?? 0)}</p>
           </article>
         ) : null}
         {props.canReadTasks ? (
           <article className="shift-card">
-            <p className="shift-card__label">Việc hẹn</p>
+            <p className="shift-card__label">{tr("Việc hẹn", "预约")}</p>
             <p className="shift-card__hours">{loading && reminders.length === 0 && !error ? "…" : reminders.length}</p>
           </article>
         ) : null}
         {props.canReport ? (
           <article className="shift-card">
-            <p className="shift-card__label">Đã liên hệ hôm nay</p>
+            <p className="shift-card__label">{tr("Đã liên hệ hôm nay", "今日已联系")}</p>
             <p className="shift-card__hours">{report?.touched ?? (loading ? "…" : 0)}</p>
           </article>
         ) : null}
         {props.canReport ? (
           <article className="shift-card">
-            <p className="shift-card__label">Thành công hôm nay</p>
+            <p className="shift-card__label">{tr("Thành công hôm nay", "今日成功")}</p>
             <p className="shift-card__hours">{report?.success ?? (loading ? "…" : 0)}</p>
           </article>
         ) : null}
       </div>
       {reminders.length > 0 ? (
         <>
-          <Typography.Title level={5}>Sắp đến hạn liên hệ</Typography.Title>
+          <Typography.Title level={5}>{tr("Sắp đến hạn liên hệ", "即将联系")}</Typography.Title>
           <Table
             rowKey="id"
             size="middle"
             pagination={false}
             dataSource={reminders}
             columns={[
-              { title: "Hội viên", dataIndex: "customer_ref", ellipsis: true },
-              { title: "Trang", dataIndex: "site", width: 110, render: (value: string | null) => value || "—" },
-              { title: "Hẹn", dataIndex: "due_on", width: 140, render: (value: string) => dayLabel(value) },
+              { title: tr("Hội viên", "会员"), dataIndex: "customer_ref", ellipsis: true },
+              { title: tr("Trang", "站点"), dataIndex: "site", width: 110, render: (value: string | null) => value || "—" },
+              { title: tr("Hẹn", "预约"), dataIndex: "due_on", width: 140, render: (value: string) => dayLabel(value) },
             ]}
           />
         </>
@@ -161,6 +163,7 @@ export function CareHome(props: { canReadTasks: boolean; canReport: boolean; onU
 }
 
 export function ContactBoard(props: { onUnauthorized: () => void; onMfaSetup: () => void }) {
+  const tr = useTr();
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [contacts, setContacts] = useState<HistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -199,7 +202,7 @@ export function ContactBoard(props: { onUnauthorized: () => void; onMfaSetup: ()
         if (ignore) {
           return;
         }
-        const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không tải được liên hệ", "");
+        const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", tr("Không tải được liên hệ", "无法加载联系记录"), "");
         if (!failAuth(problem)) {
           setError(problem);
         }
@@ -219,36 +222,37 @@ export function ContactBoard(props: { onUnauthorized: () => void; onMfaSetup: ()
       <div className="page-header">
         <div>
           <Typography.Title level={3} className="page-header__title">
-            Cuộc gọi & liên hệ
+            {tr("Cuộc gọi & liên hệ", "通话与联系")}
           </Typography.Title>
-          <Typography.Text type="secondary">Lịch hẹn còn mở và các lần đã liên hệ hoặc hẹn lại.</Typography.Text>
+          <Typography.Text type="secondary">{tr("Lịch hẹn còn mở và các lần đã liên hệ hoặc hẹn lại.", "未完成的预约，以及已联系或改约的记录。")}</Typography.Text>
         </div>
-        <Button onClick={() => void load().catch(() => undefined)}>Tải lại</Button>
+        <Button onClick={() => void load().catch(() => undefined)}>{tr("Tải lại", "刷新")}</Button>
       </div>
       {error ? <ErrorAlert error={error} /> : null}
-      <Typography.Title level={5}>Việc hẹn</Typography.Title>
+      <Typography.Title level={5}>{tr("Việc hẹn", "预约")}</Typography.Title>
       <Table
         rowKey="id"
         size="middle"
         loading={loading}
         pagination={false}
         dataSource={reminders}
-        locale={{ emptyText: loading ? " " : "Không có lịch hẹn." }}
+        locale={{ emptyText: loading ? " " : tr("Không có lịch hẹn.", "没有预约。") }}
         columns={[
-          { title: "Hội viên", dataIndex: "customer_ref", ellipsis: true },
-          { title: "Trang", dataIndex: "site", width: 110, render: (value: string | null) => value || "—" },
-          { title: "Hẹn", dataIndex: "due_on", width: 140, render: (value: string) => dayLabel(value) },
+          { title: tr("Hội viên", "会员"), dataIndex: "customer_ref", ellipsis: true },
+          { title: tr("Trang", "站点"), dataIndex: "site", width: 110, render: (value: string | null) => value || "—" },
+          { title: tr("Hẹn", "预约"), dataIndex: "due_on", width: 140, render: (value: string) => dayLabel(value) },
         ]}
       />
       <Typography.Title level={5} style={{ marginTop: 24 }}>
-        Đã liên hệ
+        {tr("Đã liên hệ", "已联系")}
       </Typography.Title>
-      <HistoryTable loading={loading} items={contacts} emptyText="Chưa có lần liên hệ." />
+      <HistoryTable loading={loading} items={contacts} emptyText={tr("Chưa có lần liên hệ.", "还没有联系记录。")} />
     </section>
   );
 }
 
 export function CareHistoryBoard(props: { onUnauthorized: () => void; onMfaSetup: () => void }) {
+  const tr = useTr();
   const [items, setItems] = useState<HistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<ApiError | null>(null);
@@ -281,7 +285,7 @@ export function CareHistoryBoard(props: { onUnauthorized: () => void; onMfaSetup
         if (ignore) {
           return;
         }
-        const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không tải được lịch sử", "");
+        const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", tr("Không tải được lịch sử", "无法加载记录"), "");
         if (!failAuth(problem)) {
           setError(problem);
         }
@@ -301,18 +305,19 @@ export function CareHistoryBoard(props: { onUnauthorized: () => void; onMfaSetup
       <div className="page-header">
         <div>
           <Typography.Title level={3} className="page-header__title">
-            Lịch sử chăm sóc
+            {tr("Lịch sử chăm sóc", "关怀记录")}
           </Typography.Title>
-          <Typography.Text type="secondary">Nhãn chăm sóc mới nhất. Người có quyền xem hội viên thấy mọi người; còn lại chỉ thấy việc của mình.</Typography.Text>
+          <Typography.Text type="secondary">{tr("Nhãn chăm sóc mới nhất. Người có quyền xem hội viên thấy mọi người; còn lại chỉ thấy việc của mình.", "最新关怀标签。可查看会员的人能看到全部，其他人只看到自己的工作。")}</Typography.Text>
         </div>
       </div>
       {error ? <ErrorAlert error={error} /> : null}
-      <HistoryTable loading={loading} items={items} emptyText="Chưa có lịch sử." />
+      <HistoryTable loading={loading} items={items} emptyText={tr("Chưa có lịch sử.", "还没有记录。")} />
     </section>
   );
 }
 
 export function PersonalReportBoard(props: { onUnauthorized: () => void; onMfaSetup: () => void }) {
+  const tr = useTr();
   const [day, setDay] = useState<Dayjs>(dayjs(vietnamToday()));
   const [report, setReport] = useState<Personal | null>(null);
   const [loading, setLoading] = useState(true);
@@ -347,7 +352,7 @@ export function PersonalReportBoard(props: { onUnauthorized: () => void; onMfaSe
         if (ignore) {
           return;
         }
-        const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không tải được báo cáo", "");
+        const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", tr("Không tải được báo cáo", "无法加载报表"), "");
         if (!failAuth(problem)) {
           setError(problem);
         }
@@ -367,9 +372,9 @@ export function PersonalReportBoard(props: { onUnauthorized: () => void; onMfaSe
       <div className="page-header">
         <div>
           <Typography.Title level={3} className="page-header__title">
-            Báo cáo cá nhân
+            {tr("Báo cáo cá nhân", "个人报表")}
           </Typography.Title>
-          <Typography.Text type="secondary">Số hội viên bạn đã liên hệ, số lần hẹn và số lần thành công trong ngày.</Typography.Text>
+          <Typography.Text type="secondary">{tr("Số hội viên bạn đã liên hệ, số lần hẹn và số lần thành công trong ngày.", "当天您联系的会员数、预约次数和成功次数。")}</Typography.Text>
         </div>
       </div>
       <div className="filter-bar">
@@ -380,15 +385,15 @@ export function PersonalReportBoard(props: { onUnauthorized: () => void; onMfaSe
       {error ? <ErrorAlert error={error} /> : null}
       <div className="shift-grid">
         <article className="shift-card">
-          <p className="shift-card__label">Đã liên hệ</p>
+          <p className="shift-card__label">{tr("Đã liên hệ", "已联系")}</p>
           <p className="shift-card__hours">{loading && !report ? "…" : (report?.touched ?? 0)}</p>
         </article>
         <article className="shift-card">
-          <p className="shift-card__label">Hẹn liên hệ</p>
+          <p className="shift-card__label">{tr("Hẹn liên hệ", "预约联系")}</p>
           <p className="shift-card__hours">{loading && !report ? "…" : (report?.callbacks ?? 0)}</p>
         </article>
         <article className="shift-card">
-          <p className="shift-card__label">Thành công</p>
+          <p className="shift-card__label">{tr("Thành công", "成功")}</p>
           <p className="shift-card__hours">{loading && !report ? "…" : (report?.success ?? 0)}</p>
         </article>
       </div>
@@ -397,13 +402,14 @@ export function PersonalReportBoard(props: { onUnauthorized: () => void; onMfaSe
 }
 
 function HistoryTable(props: { loading: boolean; items: HistoryItem[]; emptyText: string }) {
+  const tr = useTr();
   const columns: TableColumnsType<HistoryItem> = [
-    { title: "Lúc", dataIndex: "created_at", width: 160, render: (value: string) => formatStamp(value) },
-    { title: "Tài khoản", ellipsis: true, render: (_, row) => row.game_account || row.customer_ref },
-    { title: "Trang", dataIndex: "site", width: 100, render: (value: string | null) => value || "—" },
-    { title: "Nhãn", dataIndex: "label", width: 170, render: (value: string) => careLabelName(value) },
-    { title: "Ghi chú", dataIndex: "note", ellipsis: true },
-    { title: "Người ghi", dataIndex: "actor_name", width: 140, render: (value: string | null) => value || "—" },
+    { title: tr("Lúc", "时间"), dataIndex: "created_at", width: 160, render: (value: string) => formatStamp(value) },
+    { title: tr("Tài khoản", "账号"), ellipsis: true, render: (_, row) => row.game_account || row.customer_ref },
+    { title: tr("Trang", "站点"), dataIndex: "site", width: 100, render: (value: string | null) => value || "—" },
+    { title: tr("Nhãn", "标签"), dataIndex: "label", width: 170, render: (value: string) => careLabelName(value) },
+    { title: tr("Ghi chú", "备注"), dataIndex: "note", ellipsis: true },
+    { title: tr("Người ghi", "记录人"), dataIndex: "actor_name", width: 140, render: (value: string | null) => value || "—" },
   ];
   return (
     <Table

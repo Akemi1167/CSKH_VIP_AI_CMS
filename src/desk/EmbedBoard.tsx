@@ -2,6 +2,7 @@ import { Button, Form, Input, Typography } from "antd";
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { ApiError, api, toWsUrl } from "../api.ts";
 import { formatStamp } from "../copy.ts";
+import { deskLang, useTr } from "./language.tsx";
 
 type Draft = {
   title: string;
@@ -30,6 +31,7 @@ WebSocket /api/v1/chat/socket?ticket=<ticket>
 {"type":"message","source_message_id":"<mã tin>","body":"Mình cần hỗ trợ"}`;
 
 export function EmbedBoard(props: { onUnauthorized: () => void; onMfaSetup: () => void }) {
+  const tr = useTr();
   const [draft, setDraft] = useState<Draft>(() => loadDraft());
   const [messages, setMessages] = useState<Bubble[]>([]);
   const [text, setText] = useState("");
@@ -93,7 +95,7 @@ export function EmbedBoard(props: { onUnauthorized: () => void; onMfaSetup: () =
     const customerRef = draft.customerRef.trim();
     const conversationId = draft.conversationId.trim();
     if (customerRef.length === 0 || conversationId.length === 0) {
-      setError("Cần mã khách và mã hội thoại.");
+      setError(tr("Cần mã khách và mã hội thoại.", "需要客户编号和会话编号。"));
       return;
     }
     setBusy(true);
@@ -109,7 +111,7 @@ export function EmbedBoard(props: { onUnauthorized: () => void; onMfaSetup: () =
       openCustomer(issued.ticket);
     } catch (caught) {
       setStatus("down");
-      const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không nối được chat", "");
+      const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", tr("Không nối được chat", "无法连接聊天"), "");
       if (!failAuth(problem)) {
         setError(problem.message);
       }
@@ -142,7 +144,7 @@ export function EmbedBoard(props: { onUnauthorized: () => void; onMfaSetup: () =
         if (sourceId) {
           setMessages((current) => current.filter((item) => item.id !== sourceId));
         }
-        setError(frame.message || "Chat từ chối tin");
+        setError(frame.message || tr("Chat từ chối tin", "聊天拒绝了这条消息"));
         return;
       }
       if (frame.type === "message" && frame.message_id && frame.body) {
@@ -227,49 +229,49 @@ export function EmbedBoard(props: { onUnauthorized: () => void; onMfaSetup: () =
       <div className="page-header">
         <div>
           <Typography.Title level={3} className="page-header__title">
-            Chat nhúng
+            {tr("Chat nhúng", "嵌入聊天")}
           </Typography.Title>
-          <Typography.Text type="secondary">Khách mở /ho-tro để chat. Trang này chỉ để thử. Trả lời ở Hộp thư hỗ trợ.</Typography.Text>
+          <Typography.Text type="secondary">{tr("Khách mở /ho-tro để chat. Trang này chỉ để thử. Trả lời ở Hộp thư hỗ trợ.", "客户打开 /ho-tro 即可聊天。此页仅供测试。请在客服收件箱回复。")}</Typography.Text>
         </div>
       </div>
       <div className="embed-layout">
         <div className="shift-form">
           <Form layout="vertical" requiredMark={false} onFinish={() => void connect()}>
-            <Form.Item label="Tiêu đề hộp thoại">
+            <Form.Item label={tr("Tiêu đề hộp thoại", "对话框标题")}>
               <Input value={draft.title} maxLength={40} onChange={(event) => patch({ title: event.target.value })} />
             </Form.Item>
-            <Form.Item label="Lời chào">
+            <Form.Item label={tr("Lời chào", "问候语")}>
               <Input.TextArea rows={2} value={draft.greeting} maxLength={200} onChange={(event) => patch({ greeting: event.target.value })} />
             </Form.Item>
-            <Form.Item label="Mã khách">
+            <Form.Item label={tr("Mã khách", "客户编号")}>
               <Input value={draft.customerRef} maxLength={128} onChange={(event) => patch({ customerRef: event.target.value })} />
             </Form.Item>
-            <Form.Item label="Mã hội thoại">
+            <Form.Item label={tr("Mã hội thoại", "会话编号")}>
               <Input
                 value={draft.conversationId}
                 maxLength={128}
                 onChange={(event) => patch({ conversationId: event.target.value })}
                 addonAfter={
                   <button type="button" className="embed-link" onClick={newConversation}>
-                    Mã mới
+                    {tr("Mã mới", "新编号")}
                   </button>
                 }
               />
             </Form.Item>
             {error ? <p className="chat-compose__error">{error}</p> : null}
             <Button type="primary" htmlType="submit" loading={busy}>
-              {live ? "Nối lại" : "Bắt đầu thử"}
+              {live ? tr("Nối lại", "重新连接") : tr("Bắt đầu thử", "开始测试")}
             </Button>
-            <Form.Item label="Site nhúng gọi ba bước này">
+            <Form.Item label={tr("Site nhúng gọi ba bước này", "嵌入站点按以下三步调用")}>
               <Input.TextArea rows={10} readOnly value={SNIPPET} />
             </Form.Item>
           </Form>
-          <p className="page-note">Vé do API cấp từ phiên đang đăng nhập. Vé sống 60 giây và dùng một lần. Mất kết nối thì bấm nối lại, cùng mã hội thoại.</p>
+          <p className="page-note">{tr("Vé do API cấp từ phiên đang đăng nhập. Vé sống 60 giây và dùng một lần. Mất kết nối thì bấm nối lại, cùng mã hội thoại.", "票据由 API 根据当前登录会话签发，有效 60 秒且只能使用一次。断开后请点击重新连接，会话编号不变。")}</p>
         </div>
         <aside className="embed-widget">
           <header className="embed-widget__head">
             <strong>{draft.title.trim() || "CSKH VIP"}</strong>
-            <p>{statusLabel(status)}</p>
+            <p>{statusLabel(status, tr)}</p>
           </header>
           <div className="chat-thread" ref={threadRef}>
             {draft.greeting.trim() ? (
@@ -295,7 +297,7 @@ export function EmbedBoard(props: { onUnauthorized: () => void; onMfaSetup: () =
               value={text}
               disabled={!live}
               autoSize={{ minRows: 1, maxRows: 4 }}
-              placeholder={live ? "Nhắn nhân viên" : "Bấm Bắt đầu thử trước"}
+              placeholder={live ? tr("Nhắn nhân viên", "给员工发消息") : tr("Bấm Bắt đầu thử trước", "请先点击开始测试")}
               onChange={(event) => writeText(event.target.value)}
               onCompositionStart={() => {
                 composingRef.current = true;
@@ -307,7 +309,7 @@ export function EmbedBoard(props: { onUnauthorized: () => void; onMfaSetup: () =
               onKeyDown={sendOnEnter}
             />
             <Button type="primary" htmlType="submit" disabled={!live || text.trim().length === 0}>
-              Gửi
+              {tr("Gửi", "发送")}
             </Button>
           </form>
         </aside>
@@ -316,17 +318,17 @@ export function EmbedBoard(props: { onUnauthorized: () => void; onMfaSetup: () =
   );
 }
 
-function statusLabel(status: "idle" | "connecting" | "live" | "down"): string {
+function statusLabel(status: "idle" | "connecting" | "live" | "down", tr: (vi: string, zh: string) => string): string {
   if (status === "live") {
-    return "Đang nối";
+    return tr("Đang nối", "已连接");
   }
   if (status === "connecting") {
-    return "Đang lấy vé…";
+    return tr("Đang lấy vé…", "正在获取票据…");
   }
   if (status === "down") {
-    return "Mất kết nối";
+    return tr("Mất kết nối", "连接已断开");
   }
-  return "Chưa bắt đầu";
+  return tr("Chưa bắt đầu", "尚未开始");
 }
 
 function newConversationId(): string {
@@ -336,7 +338,7 @@ function newConversationId(): string {
 function loadDraft(): Draft {
   const fallback: Draft = {
     title: "CSKH VIP",
-    greeting: "Xin chào, nhân viên sẽ trả lời bạn trong khung này.",
+    greeting: deskLang() === "zh" ? "你好，客服会在此窗口回复你。" : "Xin chào, nhân viên sẽ trả lời bạn trong khung này.",
     customerRef: "web-test",
     conversationId: newConversationId(),
   };

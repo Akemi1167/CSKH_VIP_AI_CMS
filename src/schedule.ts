@@ -1,4 +1,9 @@
+import { deskLang } from "./desk/language.tsx";
 import type { FieldErrors, Shift } from "./types.ts";
+
+function say(vi: string, zh: string): string {
+  return deskLang() === "zh" ? zh : vi;
+}
 
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
 
@@ -21,25 +26,25 @@ export function shiftFieldErrors(input: {
 }): FieldErrors {
   const errors: FieldErrors = {};
   if (!TIME.test(input.start)) {
-    errors.start_local = "Chọn giờ bắt đầu";
+    errors.start_local = say("Chọn giờ bắt đầu", "请选择开始时间");
   }
   if (!TIME.test(input.end)) {
-    errors.end_local = "Chọn giờ kết thúc";
+    errors.end_local = say("Chọn giờ kết thúc", "请选择结束时间");
   }
   if (!errors.start_local && !errors.end_local && minutesOfDay(input.start) >= minutesOfDay(input.end)) {
-    errors.end_local = "Giờ kết thúc phải sau giờ bắt đầu, trong cùng một ngày";
+    errors.end_local = say("Giờ kết thúc phải sau giờ bắt đầu, trong cùng một ngày", "结束时间必须晚于开始时间，并且在同一天");
   }
   try {
     new Intl.DateTimeFormat("vi-VN", { timeZone: input.timezone }).format(new Date());
   } catch {
-    errors.timezone = "Múi giờ không hợp lệ";
+    errors.timezone = say("Múi giờ không hợp lệ", "时区无效");
   }
   if (input.breakOn) {
     if (!TIME.test(input.breakStart)) {
-      errors.break_start_local = "Chọn giờ bắt đầu nghỉ";
+      errors.break_start_local = say("Chọn giờ bắt đầu nghỉ", "请选择休息开始时间");
     }
     if (!TIME.test(input.breakEnd)) {
-      errors.break_end_local = "Chọn giờ kết thúc nghỉ";
+      errors.break_end_local = say("Chọn giờ kết thúc nghỉ", "请选择休息结束时间");
     }
     if (!errors.start_local && !errors.end_local && !errors.break_start_local && !errors.break_end_local) {
       const start = minutesOfDay(input.start);
@@ -47,12 +52,12 @@ export function shiftFieldErrors(input: {
       const breakStart = minutesOfDay(input.breakStart);
       const breakEnd = minutesOfDay(input.breakEnd);
       if (breakStart <= start || breakEnd >= end || breakStart >= breakEnd) {
-        errors.break_start_local = "Giờ nghỉ phải nằm trong ca";
+        errors.break_start_local = say("Giờ nghỉ phải nằm trong ca", "休息时间必须在班次之内");
       }
     }
   }
   if (input.when === "later" && (!input.effective || Number.isNaN(input.effective.getTime()))) {
-    errors.effective_from = "Chọn thời điểm ca bắt đầu có hiệu lực";
+    errors.effective_from = say("Chọn thời điểm ca bắt đầu có hiệu lực", "请选择班次开始生效的时间");
   }
   return errors;
 }
@@ -76,12 +81,12 @@ export function clockState(now: Date, shift: Shift): ClockState {
 
 export function clockLabel(state: ClockState): string {
   if (state === "working") {
-    return "Trong ca";
+    return say("Trong ca", "班次中");
   }
   if (state === "break") {
-    return "Nghỉ giữa ca";
+    return say("Nghỉ giữa ca", "班次休息");
   }
-  return "Ngoài ca";
+  return say("Ngoài ca", "班次外");
 }
 
 function localMinutes(date: Date, timezone: string): number {

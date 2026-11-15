@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import { deskLang } from "./language.tsx";
 import { withRead } from "../readMark.ts";
 import type { LiveChatMessage, LiveChatTask } from "./staffChat.ts";
 import { reportTaskRead } from "./inboxWatch.ts";
@@ -92,7 +93,7 @@ export function seedDockBubble(event: LiveChatMessage): void {
         id: event.task_id,
         status: event.task_status,
         version: event.version,
-        customer_ref: event.customer_ref || "Khách",
+        customer_ref: event.customer_ref || (deskLang() === "zh" ? "客户" : "Khách"),
         channel: event.channel || "web_chat",
         client_ip: event.client_ip,
         client_country: event.client_country,

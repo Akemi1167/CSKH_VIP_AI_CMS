@@ -3,6 +3,7 @@ import type { TableColumnsType } from "antd";
 import { useCallback, useEffect, useState } from "react";
 import { ApiError, api } from "../api.ts";
 import { LaafficWebhooks } from "./LaafficWebhooks.tsx";
+import { useTr } from "./language.tsx";
 import { ErrorAlert } from "../ui.tsx";
 
 type StationSms = {
@@ -12,6 +13,7 @@ type StationSms = {
 };
 
 export function StationSmsBoard(props: { canWrite: boolean; canTest: boolean; onUnauthorized: () => void; onMfaSetup: () => void }) {
+  const tr = useTr();
   const [items, setItems] = useState<StationSms[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<ApiError | null>(null);
@@ -48,7 +50,7 @@ export function StationSmsBoard(props: { canWrite: boolean; canTest: boolean; on
         if (ignore) {
           return;
         }
-        const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không tải được mẫu tin", "");
+        const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", tr("Không tải được mẫu tin", "无法加载短信模板"), "");
         if (!failAuth(problem)) {
           setError(problem);
         }
@@ -64,15 +66,15 @@ export function StationSmsBoard(props: { canWrite: boolean; canTest: boolean; on
   }, [failAuth, load]);
 
   const columns: TableColumnsType<StationSms> = [
-    { title: "Đài", dataIndex: "code", width: 120 },
+    { title: tr("Đài", "站点"), dataIndex: "code", width: 120 },
     {
-      title: "Nội dung",
+      title: tr("Nội dung", "内容"),
       dataIndex: "body",
       ellipsis: true,
-      render: (body: string) => body.trim() || "Chưa có",
+      render: (body: string) => body.trim() || tr("Chưa có", "暂无"),
     },
     {
-      title: "Link đích",
+      title: tr("Link đích", "目标链接"),
       dataIndex: "destination_url",
       width: 240,
       ellipsis: true,
@@ -84,7 +86,7 @@ export function StationSmsBoard(props: { canWrite: boolean; canTest: boolean; on
       render: (_, row) =>
         props.canWrite ? (
           <Button size="small" onClick={() => setEditing(row)}>
-            Sửa
+            {tr("Sửa", "编辑")}
           </Button>
         ) : null,
     },
@@ -95,9 +97,9 @@ export function StationSmsBoard(props: { canWrite: boolean; canTest: boolean; on
       <div className="page-header">
         <div>
           <Typography.Title level={3} className="page-header__title">
-            Tin nhắn theo đài
+            {tr("Tin nhắn theo đài", "按站点的短信")}
           </Typography.Title>
-          <Typography.Text type="secondary">Mẫu SMS của từng hậu đài. Chiến dịch để trống nội dung sẽ dùng mẫu của đài đó.</Typography.Text>
+          <Typography.Text type="secondary">{tr("Mẫu SMS của từng hậu đài. Chiến dịch để trống nội dung sẽ dùng mẫu của đài đó.", "各站点的短信模板。活动内容留空时会使用该站点的模板。")}</Typography.Text>
         </div>
       </div>
       <LaafficWebhooks onUnauthorized={props.onUnauthorized} onMfaSetup={props.onMfaSetup} />
@@ -112,7 +114,7 @@ export function StationSmsBoard(props: { canWrite: boolean; canTest: boolean; on
           onSaved={(saved) => {
             setItems((current) => current.map((item) => (item.code === saved.code ? saved : item)));
             setEditing(null);
-            setNotice(`Đã lưu mẫu tin của ${saved.code}.`);
+            setNotice(tr(`Đã lưu mẫu tin của ${saved.code}.`, `已保存 ${saved.code} 的短信模板。`));
           }}
           onUnauthorized={props.onUnauthorized}
           onMfaSetup={props.onMfaSetup}
@@ -123,6 +125,7 @@ export function StationSmsBoard(props: { canWrite: boolean; canTest: boolean; on
 }
 
 function TestSms(props: { onUnauthorized: () => void; onMfaSetup: () => void }) {
+  const tr = useTr();
   const [phone, setPhone] = useState("");
   const [body, setBody] = useState("");
   const [fieldError, setFieldError] = useState<string | null>(null);
@@ -134,15 +137,15 @@ function TestSms(props: { onUnauthorized: () => void; onMfaSetup: () => void }) 
     const number = phone.trim();
     const text = body.trim();
     if (number.length < 8) {
-      setFieldError("Cần số điện thoại Việt Nam.");
+      setFieldError(tr("Cần số điện thoại Việt Nam.", "请填写越南电话号码。"));
       return;
     }
     if (text.length === 0) {
-      setFieldError("Cần nội dung tin.");
+      setFieldError(tr("Cần nội dung tin.", "请填写短信内容。"));
       return;
     }
     if (text.includes("{link}")) {
-      setFieldError("Tin thử không gắn {link}.");
+      setFieldError(tr("Tin thử không gắn {link}.", "试发短信不能包含 {link}。"));
       return;
     }
     setFieldError(null);
@@ -155,9 +158,9 @@ function TestSms(props: { onUnauthorized: () => void; onMfaSetup: () => void }) 
         body: { phone: number, body: text },
       });
       setPhone("");
-      setNotice(`Đã gửi tin thử. Mã nhà mạng: ${result.provider_ref}.`);
+      setNotice(tr(`Đã gửi tin thử. Mã nhà mạng: ${result.provider_ref}.`, `试发短信已发送。运营商编号：${result.provider_ref}。`));
     } catch (caught) {
-      const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không gửi được tin thử", "");
+      const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", tr("Không gửi được tin thử", "无法发送试发短信"), "");
       if (problem.status === 401) {
         props.onUnauthorized();
         return;
@@ -175,22 +178,22 @@ function TestSms(props: { onUnauthorized: () => void; onMfaSetup: () => void }) 
   return (
     <div className="shift-form" style={{ marginBottom: 16, maxWidth: 520 }}>
       <Typography.Title level={5} style={{ marginTop: 0 }}>
-        Gửi thử một tin
+        {tr("Gửi thử một tin", "试发一条短信")}
       </Typography.Title>
       <p className="page-note" style={{ marginTop: 0 }}>
-        Gửi một SMS tới số bạn nhập, từ 8 giờ đến 21 giờ giờ Việt Nam. Mỗi lần cách nhau 30 giây.
+        {tr("Gửi một SMS tới số bạn nhập, từ 8 giờ đến 21 giờ giờ Việt Nam. Mỗi lần cách nhau 30 giây.", "向你输入的号码发送一条短信，时间为越南时间 8 点至 21 点。每次间隔 30 秒。")}
       </p>
       <ErrorAlert error={error} />
       {notice ? <Alert type="success" showIcon style={{ marginBottom: 16 }} message={notice} /> : null}
       <Form layout="vertical" requiredMark={false} onFinish={() => void submit()}>
-        <Form.Item label="Số điện thoại" validateStatus={fieldError ? "error" : ""} help={fieldError || "Nhập số di động, ví dụ 0901234567."}>
+        <Form.Item label={tr("Số điện thoại", "电话号码")} validateStatus={fieldError ? "error" : ""} help={fieldError || tr("Nhập số di động, ví dụ 0901234567.", "输入手机号，例如 0901234567。")}>
           <Input value={phone} maxLength={20} inputMode="tel" autoComplete="off" onChange={(event) => setPhone(event.target.value)} />
         </Form.Item>
-        <Form.Item label="Nội dung">
+        <Form.Item label={tr("Nội dung", "内容")}>
           <Input.TextArea rows={3} value={body} maxLength={320} onChange={(event) => setBody(event.target.value)} />
         </Form.Item>
         <Button type="primary" htmlType="submit" loading={sending} disabled={phone.trim().length === 0 || body.trim().length === 0}>
-          Gửi thử
+          {tr("Gửi thử", "试发")}
         </Button>
       </Form>
     </div>
@@ -204,6 +207,7 @@ function EditSms(props: {
   onUnauthorized: () => void;
   onMfaSetup: () => void;
 }) {
+  const tr = useTr();
   const [body, setBody] = useState(props.template.body);
   const [destination, setDestination] = useState(props.template.destination_url ?? "");
   const [fieldError, setFieldError] = useState<string | null>(null);
@@ -214,15 +218,15 @@ function EditSms(props: {
     const text = body.trim();
     const url = destination.trim();
     if (text.length === 0) {
-      setFieldError("Cần nội dung tin.");
+      setFieldError(tr("Cần nội dung tin.", "请填写短信内容。"));
       return;
     }
     if (text.includes("{link}") && url.length === 0) {
-      setFieldError("Nội dung có {link} thì cần link đích https.");
+      setFieldError(tr("Nội dung có {link} thì cần link đích https.", "内容包含 {link} 时需要 https 目标链接。"));
       return;
     }
     if (url.length > 0 && !url.startsWith("https://")) {
-      setFieldError("Link đích phải bắt đầu bằng https://.");
+      setFieldError(tr("Link đích phải bắt đầu bằng https://.", "目标链接必须以 https:// 开头。"));
       return;
     }
     setFieldError(null);
@@ -235,7 +239,7 @@ function EditSms(props: {
       });
       props.onSaved(saved);
     } catch (caught) {
-      const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không lưu được mẫu tin", "");
+      const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", tr("Không lưu được mẫu tin", "无法保存短信模板"), "");
       if (problem.status === 401) {
         props.onUnauthorized();
         return;
@@ -251,13 +255,13 @@ function EditSms(props: {
   }
 
   return (
-    <Modal title={`Tin nhắn ${props.template.code}`} open centered width={520} confirmLoading={saving} okText="Lưu" cancelText="Đóng" onCancel={props.onClose} onOk={() => void submit()}>
+    <Modal title={tr(`Tin nhắn ${props.template.code}`, `短信 ${props.template.code}`)} open centered width={520} confirmLoading={saving} okText={tr("Lưu", "保存")} cancelText={tr("Đóng", "关闭")} onCancel={props.onClose} onOk={() => void submit()}>
       <ErrorAlert error={error} />
       <Form layout="vertical" requiredMark={false}>
-        <Form.Item label="Nội dung" validateStatus={fieldError ? "error" : ""} help={fieldError || "Viết {link} ở chỗ cần gắn mã chiến dịch. Mẫu mới không đổi chiến dịch đã tạo."}>
+        <Form.Item label={tr("Nội dung", "内容")} validateStatus={fieldError ? "error" : ""} help={fieldError || tr("Viết {link} ở chỗ cần gắn mã chiến dịch. Mẫu mới không đổi chiến dịch đã tạo.", "在需要插入活动码的位置写 {link}。新模板不会改变已创建的活动。")}>
           <Input.TextArea rows={5} value={body} maxLength={1024} onChange={(event) => setBody(event.target.value)} />
         </Form.Item>
-        <Form.Item label="Link đích">
+        <Form.Item label={tr("Link đích", "目标链接")}>
           <Input value={destination} maxLength={300} placeholder="https://" onChange={(event) => setDestination(event.target.value)} />
         </Form.Item>
       </Form>

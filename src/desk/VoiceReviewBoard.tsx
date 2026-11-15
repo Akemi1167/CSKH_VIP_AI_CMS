@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { ApiError, api } from "../api.ts";
 import { formatStamp } from "../copy.ts";
 import { ErrorAlert } from "../ui.tsx";
+import { useTr } from "./language.tsx";
 
 type ReviewRow = {
   provider_ref: string;
@@ -16,6 +17,7 @@ type ReviewRow = {
 type Turn = { role: string; text: string };
 
 export function VoiceReviewBoard(props: { onUnauthorized: () => void; onMfaSetup: () => void }) {
+  const tr = useTr();
   const [items, setItems] = useState<ReviewRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<ApiError | null>(null);
@@ -54,7 +56,7 @@ export function VoiceReviewBoard(props: { onUnauthorized: () => void; onMfaSetup
         if (ignore) {
           return;
         }
-        const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không tải được mẫu chấm", "");
+        const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", tr("Không tải được mẫu chấm", "无法加载评分样本"), "");
         if (!failAuth(problem)) {
           setError(problem);
         }
@@ -86,7 +88,7 @@ export function VoiceReviewBoard(props: { onUnauthorized: () => void; onMfaSetup
         setAudio(null);
       }
     } catch (caught) {
-      const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không mở được cuộc gọi", "");
+      const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", tr("Không mở được cuộc gọi", "无法打开通话"), "");
       if (!failAuth(problem)) {
         setError(problem);
       }
@@ -109,7 +111,7 @@ export function VoiceReviewBoard(props: { onUnauthorized: () => void; onMfaSetup
       setSelected(null);
       await load();
     } catch (caught) {
-      const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không lưu được điểm", "");
+      const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", tr("Không lưu được điểm", "无法保存分数"), "");
       if (!failAuth(problem)) {
         setError(problem);
       }
@@ -119,10 +121,10 @@ export function VoiceReviewBoard(props: { onUnauthorized: () => void; onMfaSetup
   }
 
   const columns: TableColumnsType<ReviewRow> = [
-    { title: "Lúc gọi", width: 170, dataIndex: "happened_at", render: (value: string | null) => (value ? formatStamp(value) : "—") },
-    { title: "Số", dataIndex: "phone_mask", width: 140 },
-    { title: "Trạng thái", dataIndex: "status_label", ellipsis: true },
-    { title: "Điểm", width: 90, dataIndex: "score", render: (value: number | null) => (value ?? "—") },
+    { title: tr("Lúc gọi", "呼叫时间"), width: 170, dataIndex: "happened_at", render: (value: string | null) => (value ? formatStamp(value) : "—") },
+    { title: tr("Số", "号码"), dataIndex: "phone_mask", width: 140 },
+    { title: tr("Trạng thái", "状态"), dataIndex: "status_label", ellipsis: true },
+    { title: tr("Điểm", "分数"), width: 90, dataIndex: "score", render: (value: number | null) => (value ?? "—") },
   ];
 
   return (
@@ -130,12 +132,12 @@ export function VoiceReviewBoard(props: { onUnauthorized: () => void; onMfaSetup
       <div className="page-header">
         <div>
           <Typography.Title level={3} className="page-header__title">
-            Chấm điểm cuộc gọi
+            {tr("Chấm điểm cuộc gọi", "通话评分")}
           </Typography.Title>
-          <Typography.Text type="secondary">Mẫu 20% cuộc gọi đã có file ghi âm. Nghe và đọc hội thoại rồi cho điểm từ 1 đến 5.</Typography.Text>
+          <Typography.Text type="secondary">{tr("Mẫu 20% cuộc gọi đã có file ghi âm. Nghe và đọc hội thoại rồi cho điểm từ 1 đến 5.", "抽取 20% 已有录音的通话。听录音、看对话后打 1 到 5 分。")}</Typography.Text>
         </div>
         <Button loading={loading} onClick={() => void load().catch(() => undefined)}>
-          Tải lại
+          {tr("Tải lại", "刷新")}
         </Button>
       </div>
       {error ? <ErrorAlert error={error} /> : null}
@@ -146,13 +148,13 @@ export function VoiceReviewBoard(props: { onUnauthorized: () => void; onMfaSetup
         columns={columns}
         dataSource={items}
         pagination={false}
-        locale={{ emptyText: "Chưa có cuộc gọi trong mẫu." }}
+        locale={{ emptyText: tr("Chưa có cuộc gọi trong mẫu.", "样本中还没有通话。") }}
         onRow={(row) => ({ onClick: () => void open(row) })}
       />
-      <Drawer title="Chấm cuộc gọi" open={selected !== null} width={480} onClose={() => setSelected(null)}>
-        {audio ? <audio controls src={audio} style={{ width: "100%" }} /> : <p className="page-note">Chưa lấy được file nghe.</p>}
+      <Drawer title={tr("Chấm cuộc gọi", "评分通话")} open={selected !== null} width={480} onClose={() => setSelected(null)}>
+        {audio ? <audio controls src={audio} style={{ width: "100%" }} /> : <p className="page-note">{tr("Chưa lấy được file nghe.", "还没有拿到录音。")}</p>}
         <div style={{ marginTop: 16 }}>
-          {turns.length === 0 ? <p className="page-note">Chưa có hội thoại.</p> : turns.map((turn, index) => (
+          {turns.length === 0 ? <p className="page-note">{tr("Chưa có hội thoại.", "还没有对话。")}</p> : turns.map((turn, index) => (
             <p key={`${turn.role}-${index}`}>
               <strong>{turn.role}: </strong>
               {turn.text}
@@ -163,11 +165,11 @@ export function VoiceReviewBoard(props: { onUnauthorized: () => void; onMfaSetup
           style={{ width: 120, marginTop: 8 }}
           value={score}
           onChange={setScore}
-          options={["1", "2", "3", "4", "5"].map((value) => ({ value, label: `${value} điểm` }))}
+          options={["1", "2", "3", "4", "5"].map((value) => ({ value, label: tr(`${value} điểm`, `${value} 分`) }))}
         />
         <div style={{ marginTop: 16 }}>
           <Button type="primary" loading={busy} onClick={() => void save()}>
-            Lưu điểm
+            {tr("Lưu điểm", "保存分数")}
           </Button>
         </div>
       </Drawer>

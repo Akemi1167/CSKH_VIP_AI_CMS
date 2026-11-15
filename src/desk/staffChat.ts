@@ -1,4 +1,5 @@
 import { toWsUrl } from "../api.ts";
+import { deskLang } from "./language.tsx";
 
 export type ReplyAck = {
   message_id: string;
@@ -60,7 +61,7 @@ export class StaffChat {
   stop(): void {
     this.stopped = true;
     window.clearTimeout(this.retry);
-    this.failPending(new Error("Đã ngắt chat"));
+    this.failPending(new Error(deskLang() === "zh" ? "聊天已断开" : "Đã ngắt chat"));
     this.socket?.close();
     this.socket = null;
   }
@@ -74,11 +75,11 @@ export class StaffChat {
       return Promise.reject(new Error("offline"));
     }
     if (this.pending) {
-      return Promise.reject(new Error("Đang gửi tin trước"));
+      return Promise.reject(new Error(deskLang() === "zh" ? "上一条消息还在发送" : "Đang gửi tin trước"));
     }
     return new Promise((resolve, reject) => {
       const timer = window.setTimeout(() => {
-        this.failPending(new Error("Hết giờ chờ xác nhận"));
+        this.failPending(new Error(deskLang() === "zh" ? "等待确认超时" : "Hết giờ chờ xác nhận"));
       }, 8000);
       this.pending = { resolve, reject, timer };
       this.socket?.send(
@@ -112,7 +113,7 @@ export class StaffChat {
         return;
       }
       this.socket = null;
-      this.failPending(new Error("Mất kết nối chat"));
+      this.failPending(new Error(deskLang() === "zh" ? "聊天连接已断开" : "Mất kết nối chat"));
       this.handlers.onStatus("down");
       this.schedule();
     });
@@ -153,7 +154,7 @@ export class StaffChat {
       return;
     }
     if (frame.type === "error") {
-      this.failPending(new Error(frame.message || "Không gửi được tin"));
+      this.failPending(new Error(frame.message || (deskLang() === "zh" ? "消息发送失败" : "Không gửi được tin")));
       return;
     }
     if (frame.type === "read" && frame.task_id && frame.read_at && frame.message_ids && frame.message_ids.length > 0) {

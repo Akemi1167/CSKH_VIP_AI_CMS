@@ -7,6 +7,7 @@ import { formatStamp } from "../copy.ts";
 import type { Staff } from "../types.ts";
 import { ErrorAlert } from "../ui.tsx";
 import { ChatBody } from "./ChatBody.tsx";
+import { useTr } from "./language.tsx";
 import { openDockChat, rememberDockChat } from "./chatDock.ts";
 import { bindInboxBoard, markInboxRead, noteInboxRows, reportTaskRead, sendStaffReply, setInboxFocus, staffChatLive, useInboxUnread } from "./inboxWatch.ts";
 import { showReadMark, withRead } from "../readMark.ts";
@@ -36,14 +37,24 @@ type TaskDetail = TaskRow & {
   messages: { id: string; sender_type: string; body: string; created_at: string; has_image?: boolean; read_at?: string | null }[];
 };
 
-const STATUS_LABEL: Record<string, string> = {
-  QUEUED: "Chưa giao",
-  ASSIGNED: "Đã giao",
-  IN_PROGRESS: "Đang xử lý",
-  WAITING_CUSTOMER: "Chờ khách",
-  COMPLETED: "Xong",
-  CANCELLED: "Đã hủy",
-};
+function statusText(status: string, tr: (vi: string, zh: string) => string): string {
+  switch (status) {
+    case "QUEUED":
+      return tr("Chưa giao", "未分配");
+    case "ASSIGNED":
+      return tr("Đã giao", "已分配");
+    case "IN_PROGRESS":
+      return tr("Đang xử lý", "处理中");
+    case "WAITING_CUSTOMER":
+      return tr("Chờ khách", "等待客户");
+    case "COMPLETED":
+      return tr("Xong", "完成");
+    case "CANCELLED":
+      return tr("Đã hủy", "已取消");
+    default:
+      return status;
+  }
+}
 
 const NEXT_STATUS: Record<string, TaskStatus[]> = {
   ASSIGNED: ["IN_PROGRESS", "WAITING_CUSTOMER", "COMPLETED"],
@@ -51,13 +62,22 @@ const NEXT_STATUS: Record<string, TaskStatus[]> = {
   WAITING_CUSTOMER: ["IN_PROGRESS", "COMPLETED"],
 };
 
-const SLA_LABEL: Record<string, string> = {
-  open: "Đang tính giờ",
-  paused: "Tạm dừng",
-  met: "Đúng hạn",
-  breached: "Trễ",
-  unscheduled: "Ngoài ca",
-};
+function slaText(state: string, tr: (vi: string, zh: string) => string): string {
+  switch (state) {
+    case "open":
+      return tr("Đang tính giờ", "计时中");
+    case "paused":
+      return tr("Tạm dừng", "已暂停");
+    case "met":
+      return tr("Đúng hạn", "准时");
+    case "breached":
+      return tr("Trễ", "超时");
+    case "unscheduled":
+      return tr("Ngoài ca", "班次外");
+    default:
+      return state;
+  }
+}
 
 type AssignResult = {
   outside_shift: boolean;
@@ -110,27 +130,27 @@ function asStatus(value: string, fallback: TaskStatus): TaskStatus {
   return fallback;
 }
 
-function liveLabel(status: "connecting" | "live" | "down"): string {
+function liveLabel(status: "connecting" | "live" | "down", tr: (vi: string, zh: string) => string): string {
   if (status === "live") {
-    return "Chat trực tiếp đang mở. Tin của khách giao cho bạn tới ngay.";
+    return tr("Chat trực tiếp đang mở. Tin của khách giao cho bạn tới ngay.", "实时聊天已接通。分配给您的客户消息会马上到达。");
   }
   if (status === "connecting") {
-    return "Đang nối chat trực tiếp…";
+    return tr("Đang nối chat trực tiếp…", "正在连接实时聊天…");
   }
-  return "Chưa nối socket. Vẫn gửi được bằng API.";
+  return tr("Chưa nối socket. Vẫn gửi được bằng API.", "尚未连接 socket，仍可通过 API 发送。");
 }
 
-function chatCount(shown: number, total: number, query: string): string {
+function chatCount(shown: number, total: number, query: string, tr: (vi: string, zh: string) => string): string {
   if (query && total === 0) {
-    return "Không có hội thoại khớp.";
+    return tr("Không có hội thoại khớp.", "没有匹配的会话。");
   }
   if (shown < total) {
-    return `Đang hiện ${shown} / ${total} hội thoại mới nhất.`;
+    return tr(`Đang hiện ${shown} / ${total} hội thoại mới nhất.`, `正在显示最新 ${shown} / ${total} 个会话。`);
   }
   if (query) {
-    return `${total} hội thoại khớp.`;
+    return tr(`${total} hội thoại khớp.`, `匹配 ${total} 个会话。`);
   }
-  return `${total} hội thoại.`;
+  return tr(`${total} hội thoại.`, `${total} 个会话。`);
 }
 
 function chatInitial(name: string): string {
@@ -152,6 +172,7 @@ export function WorkBoard(props: {
   onUnauthorized: () => void;
   onMfaSetup: () => void;
 }) {
+  const tr = useTr();
   const oversight = props.scope === "staff" || props.scope === "team";
   const chatLayout = props.layout === "chat";
   const threadRef = useRef<HTMLDivElement>(null);
@@ -177,7 +198,7 @@ export function WorkBoard(props: {
   const [roster, setRoster] = useState<Staff[]>([]);
   const [staffLoaded, setStaffLoaded] = useState(false);
   const [userId, setUserId] = useState<string | undefined>();
-  const [reason, setReason] = useState("Chuyển việc");
+  const [reason, setReason] = useState(() => tr("Chuyển việc", "转交工作"));
   const [warning, setWarning] = useState<string | null>(null);
   const [reminders, setReminders] = useState<{ id: string; customer_ref: string; site: string | null; due_on: string }[]>([]);
   const [logos, setLogos] = useState<Set<string>>(new Set());
@@ -284,7 +305,7 @@ export function WorkBoard(props: {
         if (ignore) {
           return;
         }
-        const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không tải được task", "");
+        const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", tr("Không tải được task", "无法加载任务"), "");
         if (!failAuth(problem)) {
           setError(problem);
         }
@@ -370,7 +391,7 @@ export function WorkBoard(props: {
       if (token !== openToken.current) {
         return;
       }
-      const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không mở được task", "");
+      const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", tr("Không mở được task", "无法打开任务"), "");
       if (!failAuth(problem)) {
         setError(problem);
       }
@@ -392,7 +413,7 @@ export function WorkBoard(props: {
       await load(status, assigneeId);
       await openTask(detail.id);
     } catch (caught) {
-      const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không đổi được trạng thái", "");
+      const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", tr("Không đổi được trạng thái", "无法更改状态"), "");
       if (!failAuth(problem)) {
         setError(problem);
       }
@@ -416,7 +437,7 @@ export function WorkBoard(props: {
       await load(nextFilter, assigneeId);
       await openTask(detail.id);
     } catch (caught) {
-      const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không mở lại được hội thoại", "");
+      const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", tr("Không mở lại được hội thoại", "无法重新打开会话"), "");
       if (!failAuth(problem)) {
         setError(problem);
       }
@@ -518,7 +539,7 @@ export function WorkBoard(props: {
       await load(status, assigneeId);
       await openTask(taskId, true);
     } catch (caught) {
-      const problem = caught instanceof ApiError ? caught : new ApiError(0, "chat", caught instanceof Error ? caught.message : "Không gửi được câu trả lời", "");
+      const problem = caught instanceof ApiError ? caught : new ApiError(0, "chat", caught instanceof Error ? caught.message : tr("Không gửi được câu trả lời", "无法发送回复"), "");
       if (!failAuth(problem)) {
         setError(problem);
       }
@@ -532,7 +553,7 @@ export function WorkBoard(props: {
       return;
     }
     if (file.size === 0 || file.size > 5 * 1024 * 1024) {
-      setError(new ApiError(400, "validation_error", "Ảnh tối đa 5 MB", ""));
+      setError(new ApiError(400, "validation_error", tr("Ảnh tối đa 5 MB", "图片不能超过 5 MB"), ""));
       return;
     }
     setBusy(true);
@@ -559,7 +580,7 @@ export function WorkBoard(props: {
       });
       await load(status, assigneeId);
     } catch (caught) {
-      const problem = caught instanceof ApiError ? caught : new ApiError(0, "chat", "Không gửi được ảnh", "");
+      const problem = caught instanceof ApiError ? caught : new ApiError(0, "chat", tr("Không gửi được ảnh", "无法发送图片"), "");
       if (!failAuth(problem)) {
         setError(problem);
       }
@@ -571,7 +592,7 @@ export function WorkBoard(props: {
   async function openTransfer() {
     setTransferOpen(true);
     setUserId(undefined);
-    setReason(detail?.status === "QUEUED" ? "Giao chăm sóc" : "Chuyển việc");
+    setReason(detail?.status === "QUEUED" ? tr("Giao chăm sóc", "分配关怀") : tr("Chuyển việc", "转交工作"));
     if (props.scope === "team") {
       if (staff.length > 0) {
         return;
@@ -581,7 +602,7 @@ export function WorkBoard(props: {
         setStaff(people.items);
         setStaffLoaded(true);
       } catch (caught) {
-        const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không tải được nhân viên", "");
+        const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", tr("Không tải được nhân viên", "无法加载员工"), "");
         if (!failAuth(problem)) {
           setError(problem);
         }
@@ -596,7 +617,7 @@ export function WorkBoard(props: {
       setStaff(people.items.filter((person) => person.status === "active" && person.id !== props.selfId && person.roles.some((role) => role === "agent" || role === "team_lead")));
       setStaffLoaded(true);
     } catch (caught) {
-      const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không tải được nhân viên", "");
+      const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", tr("Không tải được nhân viên", "无法加载员工"), "");
       if (!failAuth(problem)) {
         setError(problem);
       }
@@ -608,27 +629,28 @@ export function WorkBoard(props: {
       return;
     }
     setUserId(props.selfId);
-    setReason("Thu về xử lý");
+    const pullReason = tr("Thu về xử lý", "收回处理");
+    setReason(pullReason);
     setBusy(true);
     setError(null);
     setWarning(null);
     try {
       const result = await api<AssignResult>(`/api/v1/tasks/${detail.id}/transfer`, {
         method: "POST",
-        body: { version: detail.version, to_user_id: props.selfId, reason_code: "Thu về xử lý" },
+        body: { version: detail.version, to_user_id: props.selfId, reason_code: pullReason },
       });
       const notes: string[] = [];
       if (result.outside_shift) {
-        notes.push("Bạn đang ngoài ca.");
+        notes.push(tr("Bạn đang ngoài ca.", "您当前不在班次内。"));
       }
       if (result.over_capacity) {
-        notes.push("Bạn đã đủ 8 hội thoại mở.");
+        notes.push(tr("Bạn đã đủ 8 hội thoại mở.", "您的未完成会话已满 8 个。"));
       }
       setWarning(notes.length > 0 ? notes.join(" ") : null);
       setDetail(null);
       await load(status, assigneeId);
     } catch (caught) {
-      const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không thu được task", "");
+      const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", tr("Không thu được task", "无法收回任务"), "");
       if (!failAuth(problem)) {
         setError(problem);
       }
@@ -651,17 +673,17 @@ export function WorkBoard(props: {
       });
       const notes: string[] = [];
       if (result.outside_shift) {
-        notes.push("Người nhận đang ngoài ca.");
+        notes.push(tr("Người nhận đang ngoài ca.", "接收人当前不在班次内。"));
       }
       if (result.over_capacity) {
-        notes.push("Người nhận đã đủ 8 hội thoại mở.");
+        notes.push(tr("Người nhận đã đủ 8 hội thoại mở.", "接收人的未完成会话已满 8 个。"));
       }
       setWarning(notes.length > 0 ? notes.join(" ") : null);
       setTransferOpen(false);
       setDetail(null);
       await load(status, assigneeId);
     } catch (caught) {
-      const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không chuyển được task", "");
+      const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", tr("Không chuyển được task", "无法转交任务"), "");
       if (!failAuth(problem)) {
         setError(problem);
       }
@@ -671,14 +693,14 @@ export function WorkBoard(props: {
   }
 
   const columns: TableColumnsType<TaskRow> = [
-    ...(oversight ? [{ title: "Nhân viên", dataIndex: "assignee_name", width: 160, ellipsis: true, render: (value: string | null) => value || "—" } satisfies TableColumnsType<TaskRow>[number]] : []),
-    ...(oversight ? [{ title: "Đài", width: 120, render: (_, row) => (row.member?.site ? <StationMark code={row.member.site} logos={logos} /> : "—") } satisfies TableColumnsType<TaskRow>[number]] : []),
-    { title: "Kênh", dataIndex: "channel", width: 110, render: (value: string) => (value === "telegram" ? "Telegram" : "Web") },
-    { title: "Vị trí", width: 220, ellipsis: true, render: (_, row) => customerPlace(row.client_ip, row.client_country) || "—" },
-    { title: "Tin cuối", ellipsis: true, render: (_, row) => row.last_message?.body || "—" },
-    { title: "Trạng thái", dataIndex: "status", width: 130, render: (value: string) => STATUS_LABEL[value] ?? value },
-    { title: "Hạn trả lời", width: 140, render: (_, row) => SLA_LABEL[row.first_response.state] ?? row.first_response.state },
-    { title: "Nhận lúc", dataIndex: "received_at", width: 160, render: (value: string) => formatStamp(value) },
+    ...(oversight ? [{ title: tr("Nhân viên", "员工"), dataIndex: "assignee_name", width: 160, ellipsis: true, render: (value: string | null) => value || "—" } satisfies TableColumnsType<TaskRow>[number]] : []),
+    ...(oversight ? [{ title: tr("Đài", "站点"), width: 120, render: (_, row) => (row.member?.site ? <StationMark code={row.member.site} logos={logos} /> : "—") } satisfies TableColumnsType<TaskRow>[number]] : []),
+    { title: tr("Kênh", "渠道"), dataIndex: "channel", width: 110, render: (value: string) => (value === "telegram" ? "Telegram" : "Web") },
+    { title: tr("Vị trí", "位置"), width: 220, ellipsis: true, render: (_, row) => customerPlace(row.client_ip, row.client_country) || "—" },
+    { title: tr("Tin cuối", "最后一条"), ellipsis: true, render: (_, row) => row.last_message?.body || "—" },
+    { title: tr("Trạng thái", "状态"), dataIndex: "status", width: 130, render: (value: string) => statusText(value, tr) },
+    { title: tr("Hạn trả lời", "回复时限"), width: 140, render: (_, row) => slaText(row.first_response.state, tr) },
+    { title: tr("Nhận lúc", "接收时间"), dataIndex: "received_at", width: 160, render: (value: string) => formatStamp(value) },
   ];
 
   const nextStatuses = detail ? (NEXT_STATUS[detail.status] ?? []) : [];
@@ -768,8 +790,8 @@ export function WorkBoard(props: {
             {props.heading}
           </Typography.Title>
           <Typography.Text type="secondary">{props.lead}</Typography.Text>
-          {chatLayout ? <p className="page-note">{liveLabel(live)}</p> : null}
-          {loading && items.length === 0 ? null : <p className="page-note">{chatCount(items.length, total, query)}</p>}
+          {chatLayout ? <p className="page-note">{liveLabel(live, tr)}</p> : null}
+          {loading && items.length === 0 ? null : <p className="page-note">{chatCount(items.length, total, query, tr)}</p>}
         </div>
         <Space>
           {oversight && (props.scope === "team" || props.canListStaff) ? (
@@ -778,7 +800,7 @@ export function WorkBoard(props: {
               optionFilterProp="label"
               value={assigneeId || "all"}
               style={{ width: 200 }}
-              options={[{ value: "all", label: "Mọi nhân viên" }, ...roster.map((person) => ({ value: person.id, label: person.display_name }))]}
+              options={[{ value: "all", label: tr("Mọi nhân viên", "全部员工") }, ...roster.map((person) => ({ value: person.id, label: person.display_name }))]}
               onChange={(value: string) => setAssigneeId(value === "all" ? "" : value)}
             />
           ) : null}
@@ -787,24 +809,24 @@ export function WorkBoard(props: {
             style={{ width: 160 }}
             onChange={setStatus}
             options={[
-              ...(oversight ? [{ value: "all", label: "Mọi trạng thái" }] : [{ value: "open", label: "Đang mở" }]),
-              ...(oversight ? [{ value: "QUEUED", label: "Chưa giao" }] : []),
-              { value: "ASSIGNED", label: "Đã giao" },
-              { value: "IN_PROGRESS", label: "Đang xử lý" },
-              { value: "WAITING_CUSTOMER", label: "Chờ khách" },
-              { value: "COMPLETED", label: "Xong" },
-              { value: "CANCELLED", label: "Đã hủy" },
+              ...(oversight ? [{ value: "all", label: tr("Mọi trạng thái", "全部状态") }] : [{ value: "open", label: tr("Đang mở", "进行中") }]),
+              ...(oversight ? [{ value: "QUEUED", label: tr("Chưa giao", "未分配") }] : []),
+              { value: "ASSIGNED", label: tr("Đã giao", "已分配") },
+              { value: "IN_PROGRESS", label: tr("Đang xử lý", "处理中") },
+              { value: "WAITING_CUSTOMER", label: tr("Chờ khách", "等待客户") },
+              { value: "COMPLETED", label: tr("Xong", "完成") },
+              { value: "CANCELLED", label: tr("Đã hủy", "已取消") },
             ]}
           />
           <Input
             allowClear
             value={draft}
-            placeholder="Tìm mã chat, IP, đài, tin"
+            placeholder={tr("Tìm mã chat, IP, đài, tin", "搜索会话号、IP、站点、消息")}
             style={{ width: 240 }}
             onChange={(event) => setDraft(event.target.value)}
           />
-          <Button icon={<ReloadOutlined />} onClick={() => void load(status, assigneeId).catch((caught: unknown) => { const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không tải được task", ""); if (!failAuth(problem)) setError(problem); })}>
-            Tải lại
+          <Button icon={<ReloadOutlined />} onClick={() => void load(status, assigneeId).catch((caught: unknown) => { const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", tr("Không tải được task", "无法加载任务"), ""); if (!failAuth(problem)) setError(problem); })}>
+            {tr("Tải lại", "刷新")}
           </Button>
         </Space>
       </div>
@@ -815,15 +837,15 @@ export function WorkBoard(props: {
           type="info"
           showIcon
           style={{ marginBottom: 16 }}
-          message="Việc hẹn"
+          message={tr("Việc hẹn", "预约")}
           description={reminders.map((item) => `${item.customer_ref}${item.site ? ` · ${item.site}` : ""} · ${item.due_on.split("-").reverse().join("/")}`).join("\n")}
         />
       ) : null}
       {chatLayout ? (
         <div className="chat-shell">
           <aside className="chat-list">
-            {loading && items.length === 0 ? <p className="chat-empty">Đang tải hội thoại…</p> : null}
-            {!loading && items.length === 0 ? <p className="chat-empty">{query ? "Không có hội thoại khớp." : "Chưa có hội thoại."}</p> : null}
+            {loading && items.length === 0 ? <p className="chat-empty">{tr("Đang tải hội thoại…", "正在加载会话…")}</p> : null}
+            {!loading && items.length === 0 ? <p className="chat-empty">{query ? tr("Không có hội thoại khớp.", "没有匹配的会话。") : tr("Chưa có hội thoại.", "还没有会话。")}</p> : null}
             {newestFirst(items).map((row) => {
               const when = row.last_message?.created_at || row.received_at;
               const pending = unread.byId.get(row.id);
@@ -840,19 +862,19 @@ export function WorkBoard(props: {
                         <strong>{row.customer_ref}</strong>
                         {pending ? <span className="chat-unread">{pending.count}</span> : <time>{shortTime(when)}</time>}
                       </span>
-                      <span className="chat-list__preview">{pending?.body || row.last_message?.body || "Chưa có tin"}</span>
+                      <span className="chat-list__preview">{pending?.body || row.last_message?.body || tr("Chưa có tin", "暂无消息")}</span>
                       <ChatFacts site={row.member?.site} channel={row.channel} assignee={row.assignee_name} status={row.status} logos={logos} oversight={oversight} clientIp={row.client_ip} clientCountry={row.client_country} />
                     </span>
                   </button>
                   <button
                     type="button"
                     className="chat-list__pin"
-                    title="Mở cửa sổ chat"
+                    title={tr("Mở cửa sổ chat", "打开聊天窗口")}
                     onClick={() => {
                       void api<TaskDetail>(`/api/v1/tasks/${row.id}`)
                         .then((result) => openDockChat(result, true))
                         .catch((caught: unknown) => {
-                          const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không mở được cửa sổ chat", "");
+                          const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", tr("Không mở được cửa sổ chat", "无法打开聊天窗口"), "");
                           if (!failAuth(problem)) {
                             setError(problem);
                           }
@@ -880,39 +902,39 @@ export function WorkBoard(props: {
                   </div>
                   <Space wrap>
                     <Button size="small" onClick={() => openDockChat(detail, true)}>
-                      Cửa sổ
+                      {tr("Cửa sổ", "窗口")}
                     </Button>
                     {canHandle && open
                       ? nextStatuses.map((next) => (
                           <Button key={next} size="small" disabled={busy} onClick={() => void changeStatus(next)}>
-                            {STATUS_LABEL[next]}
+                            {statusText(next, tr)}
                           </Button>
                         ))
                       : null}
                     {canHandle && open && props.canCancel ? (
                       <Button size="small" danger disabled={busy} onClick={() => void changeStatus("CANCELLED")}>
-                        Hủy
+                        {tr("Hủy", "取消")}
                       </Button>
                     ) : null}
                     {canPull ? (
                       <Button size="small" disabled={busy} onClick={() => void takeBack()}>
-                        Thu về
+                        {tr("Thu về", "收回")}
                       </Button>
                     ) : null}
                     {canGive ? (
                       <Button size="small" type="primary" disabled={busy} onClick={() => void openTransfer()}>
-                        Giao
+                        {tr("Giao", "分配")}
                       </Button>
                     ) : null}
                     {canMove ? (
                       <Button size="small" disabled={busy} onClick={() => void openTransfer()}>
-                        Chuyển
+                        {tr("Chuyển", "转交")}
                       </Button>
                     ) : null}
                   </Space>
                 </header>
                 <div className="chat-thread" ref={threadRef}>
-                  {threadLoading === detail.id && detail.messages.length === 0 ? <p className="chat-empty">Đang tải tin…</p> : null}
+                  {threadLoading === detail.id && detail.messages.length === 0 ? <p className="chat-empty">{tr("Đang tải tin…", "正在加载消息…")}</p> : null}
                   {detail.messages.map((message, index) => {
                     const mine = message.sender_type === "agent";
                     const kind = message.sender_type === "customer" ? "customer" : message.sender_type === "bot" ? "bot" : "agent";
@@ -921,7 +943,7 @@ export function WorkBoard(props: {
                         {kind === "bot" ? <span className="chat-who">Bot</span> : null}
                         <ChatBody taskId={detail.id} message={message} />
                         <time>{message.created_at ? formatStamp(message.created_at) : ""}</time>
-                        {showReadMark(detail.messages, index, (item) => item.sender_type === "agent") && mine ? <span className="chat-read">Đã đọc</span> : null}
+                        {showReadMark(detail.messages, index, (item) => item.sender_type === "agent") && mine ? <span className="chat-read">{tr("Đã đọc", "已读")}</span> : null}
                       </article>
                     );
                   })}
@@ -933,7 +955,7 @@ export function WorkBoard(props: {
                     <Input.TextArea
                       value={reply}
                       autoSize={{ minRows: 1, maxRows: 4 }}
-                      placeholder={detail.channel === "telegram" ? "Nhắn khách trên Telegram" : "Nhắn khách"}
+                      placeholder={detail.channel === "telegram" ? tr("Nhắn khách trên Telegram", "通过 Telegram 给客户发消息") : tr("Nhắn khách", "给客户发消息")}
                       onChange={(event) => writeReply(event.target.value)}
                       onCompositionStart={() => {
                         composingRef.current = true;
@@ -953,7 +975,7 @@ export function WorkBoard(props: {
                         void sendReply();
                       }}
                     />
-                    <label className="chat-photo-send" title="Gửi ảnh" aria-label="Gửi ảnh">
+                    <label className="chat-photo-send" title={tr("Gửi ảnh", "发送图片")} aria-label={tr("Gửi ảnh", "发送图片")}>
                       <PictureOutlined />
                       <input
                         type="file"
@@ -969,100 +991,100 @@ export function WorkBoard(props: {
                       />
                     </label>
                     <Button type="primary" htmlType="submit" loading={busy} disabled={reply.trim().length === 0}>
-                      Gửi
+                      {tr("Gửi", "发送")}
                     </Button>
                   </Form>
                 ) : canReopen ? (
                   <div className="chat-compose">
-                    <p className="chat-note">Hội thoại Telegram đã đóng. Mở lại để nhắn tiếp.</p>
+                    <p className="chat-note">{tr("Hội thoại Telegram đã đóng. Mở lại để nhắn tiếp.", "Telegram 会话已关闭。重新打开后可继续发送。")}</p>
                     <Button type="primary" loading={busy} onClick={() => void reopenChat()}>
-                      Mở lại
+                      {tr("Mở lại", "重新打开")}
                     </Button>
                   </div>
                 ) : canPull ? (
-                  <p className="chat-note">Hội thoại đang của nhân viên. Thu về nếu bạn muốn trả lời.</p>
+                  <p className="chat-note">{tr("Hội thoại đang của nhân viên. Thu về nếu bạn muốn trả lời.", "会话目前由员工负责。如需回复请先收回。")}</p>
                 ) : canGive ? (
-                  <p className="chat-note">Chưa có người nhận. Bấm Giao để đưa hội thoại cho nhân viên chăm sóc.</p>
+                  <p className="chat-note">{tr("Chưa có người nhận. Bấm Giao để đưa hội thoại cho nhân viên chăm sóc.", "还没有接收人。点击「分配」，将会话交给关怀员工。")}</p>
                 ) : (
-                  <p className="chat-closed">Hội thoại đã đóng.</p>
+                  <p className="chat-closed">{tr("Hội thoại đã đóng.", "会话已关闭。")}</p>
                 )}
               </>
             ) : (
-              <p className="chat-empty">Chọn một hội thoại để chat với khách.</p>
+              <p className="chat-empty">{tr("Chọn một hội thoại để chat với khách.", "选择一个会话与客户聊天。")}</p>
             )}
           </div>
         </div>
       ) : (
-        <Table rowKey="id" size="middle" loading={loading} columns={columns} dataSource={items} pagination={false} locale={{ emptyText: "Không có task." }} onRow={(row) => ({ onClick: () => void openTask(row.id) })} />
+        <Table rowKey="id" size="middle" loading={loading} columns={columns} dataSource={items} pagination={false} locale={{ emptyText: tr("Không có task.", "没有任务。") }} onRow={(row) => ({ onClick: () => void openTask(row.id) })} />
       )}
       {chatLayout ? null : (
-      <Drawer title={detail ? detail.customer_ref : "Task"} open={detail !== null} width={480} onClose={() => setDetail(null)}>
+      <Drawer title={detail ? detail.customer_ref : tr("Task", "任务")} open={detail !== null} width={480} onClose={() => setDetail(null)}>
         {detail ? (
           <>
             <p className="page-note">
-              {oversight ? "Đài " : null}
-              {detail.member?.site ? <StationMark code={detail.member.site} logos={logos} /> : oversight ? "chưa gắn" : null}
+              {oversight ? tr("Đài ", "站点 ") : null}
+              {detail.member?.site ? <StationMark code={detail.member.site} logos={logos} /> : oversight ? tr("chưa gắn", "未关联") : null}
               {detail.member?.site || oversight ? " · " : ""}
               {detail.channel === "telegram" ? "Telegram" : "Web"}
               {customerPlace(detail.client_ip, detail.client_country) ? ` · ${customerPlace(detail.client_ip, detail.client_country)}` : ""}
               {detail.campaign_name ? ` · ${detail.campaign_name}` : ""}
-              {oversight ? ` · ${detail.assignee_name ? `Đang chăm ${detail.assignee_name}` : "Chưa giao"}` : detail.assignee_name ? ` · ${detail.assignee_name}` : ""} · {STATUS_LABEL[detail.status] ?? detail.status}
+              {oversight ? ` · ${detail.assignee_name ? tr(`Đang chăm ${detail.assignee_name}`, `由 ${detail.assignee_name} 负责`) : tr("Chưa giao", "未分配")}` : detail.assignee_name ? ` · ${detail.assignee_name}` : ""} · {statusText(detail.status, tr)}
             </p>
             <div className="task-thread">
               {detail.messages.map((message) => (
                 <div key={message.id} className={message.sender_type === "customer" ? "task-line" : "task-line task-line--agent"}>
-                  <span>{message.sender_type === "customer" ? "Khách" : message.sender_type === "bot" ? "Bot" : oversight ? detail.assignee_name || "Nhân viên" : "Bạn"}</span>
+                  <span>{message.sender_type === "customer" ? tr("Khách", "客户") : message.sender_type === "bot" ? "Bot" : oversight ? detail.assignee_name || tr("Nhân viên", "员工") : tr("Bạn", "我")}</span>
                   <ChatBody taskId={detail.id} message={message} />
                 </div>
               ))}
             </div>
             {canHandle && open ? (
               <Form layout="vertical" requiredMark={false} onFinish={() => void sendReply()}>
-                <Form.Item label="Câu trả lời">
+                <Form.Item label={tr("Câu trả lời", "回复内容")}>
                   <Input.TextArea rows={3} value={reply} onChange={(event) => writeReply(event.target.value)} />
                 </Form.Item>
-                <Form.Item label="Ghi chú liên hệ" help="Bắt buộc khi hội thoại đã gắn hội viên.">
+                <Form.Item label={tr("Ghi chú liên hệ", "联系备注")} help={tr("Bắt buộc khi hội thoại đã gắn hội viên.", "会话已绑定会员时必填。")}>
                   <Input value={careNote} maxLength={200} onChange={(event) => setCareNote(event.target.value)} />
                 </Form.Item>
                 <Space wrap>
                   <Button type="primary" htmlType="submit" loading={busy} disabled={reply.trim().length === 0}>
-                    Gửi
+                    {tr("Gửi", "发送")}
                   </Button>
                   {nextStatuses.map((next) => (
                     <Button key={next} disabled={busy} onClick={() => void changeStatus(next)}>
-                      {STATUS_LABEL[next]}
+                      {statusText(next, tr)}
                     </Button>
                   ))}
                   {props.canCancel ? (
                     <Button danger disabled={busy} onClick={() => void changeStatus("CANCELLED")}>
-                      Hủy
+                      {tr("Hủy", "取消")}
                     </Button>
                   ) : null}
                 </Space>
               </Form>
             ) : canReopen ? (
               <Button type="primary" loading={busy} onClick={() => void reopenChat()}>
-                Mở lại
+                {tr("Mở lại", "重新打开")}
               </Button>
             ) : open && !canHandle ? (
-              <p className="page-note">Hội thoại đang của nhân viên. Thu về nếu bạn muốn trả lời.</p>
+              <p className="page-note">{tr("Hội thoại đang của nhân viên. Thu về nếu bạn muốn trả lời.", "会话目前由员工负责。如需回复请先收回。")}</p>
             ) : (
-              <Tag>{STATUS_LABEL[detail.status] ?? detail.status}</Tag>
+              <Tag>{statusText(detail.status, tr)}</Tag>
             )}
             {canGive ? (
               <Button style={{ marginTop: 12 }} disabled={busy} onClick={() => void openTransfer()}>
-                Giao nhân viên
+                {tr("Giao nhân viên", "分配员工")}
               </Button>
             ) : null}
             {canMove ? (
               <Space wrap style={{ marginTop: 12 }}>
                 {canPull ? (
                   <Button disabled={busy} onClick={() => void takeBack()}>
-                    Thu về
+                    {tr("Thu về", "收回")}
                   </Button>
                 ) : null}
                 <Button disabled={busy} onClick={() => void openTransfer()}>
-                  Chuyển
+                  {tr("Chuyển", "转交")}
                 </Button>
               </Space>
             ) : null}
@@ -1071,29 +1093,29 @@ export function WorkBoard(props: {
       </Drawer>
       )}
       <Modal
-        title={detail?.status === "QUEUED" ? "Giao nhân viên" : "Chuyển task"}
+        title={detail?.status === "QUEUED" ? tr("Giao nhân viên", "分配员工") : tr("Chuyển task", "转交任务")}
         open={transferOpen}
-        okText={detail?.status === "QUEUED" ? "Giao" : "Chuyển"}
+        okText={detail?.status === "QUEUED" ? tr("Giao", "分配") : tr("Chuyển", "转交")}
         confirmLoading={busy}
         okButtonProps={{ disabled: !userId || reason.trim().length === 0 }}
         onOk={() => void transfer()}
         onCancel={() => setTransferOpen(false)}
       >
         <Form layout="vertical" requiredMark={false}>
-          <Form.Item label="Người nhận" help={staffLoaded && staff.length === 0 ? "Không có nhân viên CSKH hoặc tổ trưởng đang làm." : undefined}>
+          <Form.Item label={tr("Người nhận", "接收人")} help={staffLoaded && staff.length === 0 ? tr("Không có nhân viên CSKH hoặc tổ trưởng đang làm.", "没有在岗的客服或组长。") : undefined}>
             <Select
               showSearch
               optionFilterProp="label"
-              placeholder="Chọn nhân viên"
+              placeholder={tr("Chọn nhân viên", "选择员工")}
               value={userId}
               onChange={setUserId}
               options={staff.map((person) => ({
                 value: person.id,
-                label: person.id === props.selfId ? `${person.display_name} — thu về mình` : person.display_name,
+                label: person.id === props.selfId ? tr(`${person.display_name} — thu về mình`, `${person.display_name} — 收回给自己`) : person.display_name,
               }))}
             />
           </Form.Item>
-          <Form.Item label="Lý do">
+          <Form.Item label={tr("Lý do", "原因")}>
             <Input value={reason} maxLength={64} onChange={(event) => setReason(event.target.value)} />
           </Form.Item>
         </Form>
@@ -1116,19 +1138,20 @@ function ChatFacts(props: {
   clientIp?: string | null;
   clientCountry?: string | null;
 }) {
+  const tr = useTr();
   const channel = props.channel === "telegram" ? "Telegram" : "Web";
   const place = customerPlace(props.clientIp, props.clientCountry);
   return (
     <span className="chat-meta">
       <span className="chat-meta__station">
-        {props.oversight ? "Đài " : null}
-        {props.site ? <StationMark code={props.site} logos={props.logos} /> : props.oversight ? "chưa gắn" : channel}
+        {props.oversight ? tr("Đài ", "站点 ") : null}
+        {props.site ? <StationMark code={props.site} logos={props.logos} /> : props.oversight ? tr("chưa gắn", "未关联") : channel}
       </span>
-      {props.oversight ? <span className="chat-meta__who">{props.assignee ? `Đang chăm ${props.assignee}` : "Chưa giao"}</span> : null}
+      {props.oversight ? <span className="chat-meta__who">{props.assignee ? tr(`Đang chăm ${props.assignee}`, `由 ${props.assignee} 负责`) : tr("Chưa giao", "未分配")}</span> : null}
       {place ? <span className="chat-meta__place">{place}</span> : null}
       <span>
         {props.site || props.oversight ? `${channel} · ` : ""}
-        {STATUS_LABEL[props.status] ?? props.status}
+        {statusText(props.status, tr)}
       </span>
     </span>
   );

@@ -1,22 +1,23 @@
+import { deskLang } from "./desk/language.tsx";
 import { generatePassword, passwordProblem } from "./password.ts";
 import type { Draft, FieldErrors, Staff, UpdateStaffBody } from "./types.ts";
 
 export function usernameProblem(username: string): string | null {
   if (!/^[A-Za-z0-9._-]{3,64}$/.test(username)) {
-    return "Tên đăng nhập từ 3 đến 64 ký tự: chữ, số, dấu chấm, gạch dưới hoặc gạch ngang";
+    return say("Tên đăng nhập từ 3 đến 64 ký tự: chữ, số, dấu chấm, gạch dưới hoặc gạch ngang", "用户名为 3 到 64 个字符，可用字母、数字、点、下划线或短横线");
   }
   return null;
 }
 
 export function timezoneProblem(value: string): string | null {
   if (!value.trim()) {
-    return "Chọn múi giờ";
+    return say("Chọn múi giờ", "请选择时区");
   }
   try {
     Intl.DateTimeFormat("vi-VN", { timeZone: value }).format(new Date());
     return null;
   } catch {
-    return "Múi giờ không hợp lệ";
+    return say("Múi giờ không hợp lệ", "时区无效");
   }
 }
 
@@ -67,16 +68,16 @@ export function validateDraft(mode: "create" | "edit", draft: Draft): FieldError
   const errors: FieldErrors = {};
   const name = draft.display_name.trim();
   if (!name) {
-    errors.display_name = "Nhập tên hiển thị";
+    errors.display_name = say("Nhập tên hiển thị", "请输入显示名");
   } else if (name.length > 80) {
-    errors.display_name = "Tên hiển thị tối đa 80 ký tự";
+    errors.display_name = say("Tên hiển thị tối đa 80 ký tự", "显示名最多 80 个字符");
   }
   const zone = timezoneProblem(draft.timezone);
   if (zone) {
     errors.timezone = zone;
   }
   if (draft.role_codes.length === 0) {
-    errors.role_codes = "Chọn ít nhất một vai trò";
+    errors.role_codes = say("Chọn ít nhất một vai trò", "请至少选择一个角色");
   }
   if (mode === "create") {
     const username = usernameProblem(draft.username.trim());
@@ -135,17 +136,21 @@ export function saveBlockReason(input: {
     return null;
   }
   if (input.isSelf && input.draft.status === "disabled") {
-    return "Không thể tự khóa tài khoản đang dùng";
+    return say("Không thể tự khóa tài khoản đang dùng", "不能停用当前正在使用的账号");
   }
   const removesAdmin = !input.draft.role_codes.includes("admin");
   if (input.lastAdmin && (input.draft.status === "disabled" || removesAdmin)) {
-    return "Cần còn ít nhất một quản trị viên đang hoạt động";
+    return say("Cần còn ít nhất một quản trị viên đang hoạt động", "至少需要保留一名在职管理员");
   }
   return null;
 }
 
 export function groupSecret(secret: string): string {
   return secret.replace(/(.{4})/g, "$1 ").trim();
+}
+
+function say(vi: string, zh: string): string {
+  return deskLang() === "zh" ? zh : vi;
 }
 
 function sameRoles(left: string[], right: string[]): boolean {

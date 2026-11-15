@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import { deskLang } from "./language.tsx";
 import { api } from "../api.ts";
 import { StaffChat, type LiveChatMessage, type LiveChatTask, type ReplyAck } from "./staffChat.ts";
 
@@ -218,12 +219,12 @@ function noteCustomerMessage(event: LiveChatMessage): void {
   const previous = unread.get(event.task_id);
   unread.set(event.task_id, {
     taskId: event.task_id,
-    customerRef: event.customer_ref || previous?.customerRef || "Khách",
+    customerRef: event.customer_ref || previous?.customerRef || guestName(),
     body: event.body,
     count: (previous?.count ?? 0) + 1,
   });
   publish();
-  alertStaff(event.customer_ref || "Khách", event.body, event.task_id);
+  alertStaff(event.customer_ref || guestName(), event.body, event.task_id);
 }
 
 function absorb(items: TaskListItem[]): void {
@@ -247,14 +248,14 @@ function absorb(items: TaskListItem[]): void {
     const previous = unread.get(row.id);
     unread.set(row.id, {
       taskId: row.id,
-      customerRef: row.customer_ref || previous?.customerRef || "Khách",
-      body: row.last_message?.body || "Có hội thoại mới",
+      customerRef: row.customer_ref || previous?.customerRef || guestName(),
+      body: row.last_message?.body || newChatNotice(),
       count: (previous?.count ?? 0) + 1,
     });
     changed = true;
     alert = {
-      name: row.customer_ref || "Khách",
-      body: row.last_message?.body || "Có hội thoại mới",
+      name: row.customer_ref || guestName(),
+      body: row.last_message?.body || newChatNotice(),
       taskId: row.id,
     };
   }
@@ -291,7 +292,7 @@ async function catchUp(): Promise<void> {
 }
 
 function alertStaff(name: string, body: string, taskId: string, sound = true): void {
-  const title = "Chat mới";
+  const title = deskLang() === "zh" ? "新聊天" : "Chat mới";
   const text = `${name}: ${body}`.slice(0, 140);
   if ("Notification" in window && Notification.permission === "granted" && (document.hidden || !focusVisible)) {
     const notice = new Notification(title, { body: text, tag: taskId });
@@ -366,7 +367,7 @@ function paintChrome(): void {
     return;
   }
   const marked = `(${count}) ${baseTitle}`;
-  document.title = document.hidden && flashOn ? `(${count}) Chat mới` : marked;
+  document.title = document.hidden && flashOn ? `(${count}) ${deskLang() === "zh" ? "新聊天" : "Chat mới"}` : marked;
   paintIcon();
 }
 
@@ -412,6 +413,14 @@ function loadSeen(): void {
   } catch {
     sessionStorage.removeItem(SEEN_KEY);
   }
+}
+
+function guestName(): string {
+  return deskLang() === "zh" ? "客户" : "Khách";
+}
+
+function newChatNotice(): string {
+  return deskLang() === "zh" ? "有新会话" : "Có hội thoại mới";
 }
 
 function saveSeen(): void {

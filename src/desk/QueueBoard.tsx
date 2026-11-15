@@ -1,8 +1,9 @@
 import { ReloadOutlined } from "@ant-design/icons";
 import { Alert, Button, Form, Input, Modal, Select, Table, Typography } from "antd";
 import type { TableColumnsType } from "antd";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, api } from "../api.ts";
+import { useTr } from "./language.tsx";
 import { formatStamp } from "../copy.ts";
 import type { Staff } from "../types.ts";
 import { ErrorAlert } from "../ui.tsx";
@@ -24,13 +25,16 @@ type AssignResult = {
 };
 
 export function QueueBoard(props: { canAssign: boolean; canListStaff: boolean; onUnauthorized: () => void; onMfaSetup: () => void }) {
+  const tr = useTr();
+  const trRef = useRef(tr);
+  trRef.current = tr;
   const [items, setItems] = useState<QueueItem[]>([]);
   const [staff, setStaff] = useState<Staff[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<ApiError | null>(null);
   const [target, setTarget] = useState<QueueItem | null>(null);
   const [userId, setUserId] = useState<string | undefined>();
-  const [reason, setReason] = useState("Giao tay");
+  const [reason, setReason] = useState(() => tr("Giao tay", "手动分配"));
   const [saving, setSaving] = useState(false);
   const [warning, setWarning] = useState<string | null>(null);
 
@@ -69,7 +73,7 @@ export function QueueBoard(props: { canAssign: boolean; canListStaff: boolean; o
         if (ignore) {
           return;
         }
-        const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không tải được hàng chờ", "");
+        const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", trRef.current("Không tải được hàng chờ", "无法加载队列"), "");
         if (!failAuth(problem)) {
           setError(problem);
         }
@@ -98,17 +102,17 @@ export function QueueBoard(props: { canAssign: boolean; canListStaff: boolean; o
       });
       const notes: string[] = [];
       if (result.outside_shift) {
-        notes.push("Người nhận đang ngoài ca.");
+        notes.push(tr("Người nhận đang ngoài ca.", "接收人当前不在班。"));
       }
       if (result.over_capacity) {
-        notes.push("Người nhận đã đủ 8 hội thoại mở.");
+        notes.push(tr("Người nhận đã đủ 8 hội thoại mở.", "接收人已有 8 个进行中的会话。"));
       }
       setWarning(notes.length > 0 ? notes.join(" ") : null);
       setTarget(null);
       setUserId(undefined);
       await load();
     } catch (caught) {
-      const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không giao được task", "");
+      const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", tr("Không giao được task", "无法分配任务"), "");
       if (!failAuth(problem)) {
         setError(problem);
       }
@@ -118,12 +122,12 @@ export function QueueBoard(props: { canAssign: boolean; canListStaff: boolean; o
   }
 
   const columns: TableColumnsType<QueueItem> = [
-    { title: "Khách", dataIndex: "customer_ref", ellipsis: true },
-    { title: "Đài", width: 110, render: (_, row) => row.member?.site || "—" },
-    { title: "Kênh", width: 110, dataIndex: "channel", render: (value: string) => (value === "telegram" ? "Telegram" : "Web") },
-    { title: "Chiến dịch", dataIndex: "campaign_name", ellipsis: true, render: (value: string | null) => value || "—" },
-    { title: "Tin cuối", dataIndex: "last_message_body", ellipsis: true, render: (value: string | null) => value || "—" },
-    { title: "Vào hàng", dataIndex: "received_at", width: 160, render: (value: string) => formatStamp(value) },
+    { title: tr("Khách", "会员"), dataIndex: "customer_ref", ellipsis: true },
+    { title: tr("Đài", "站点"), width: 110, render: (_, row) => row.member?.site || "—" },
+    { title: tr("Kênh", "渠道"), width: 110, dataIndex: "channel", render: (value: string) => (value === "telegram" ? "Telegram" : "Web") },
+    { title: tr("Chiến dịch", "活动"), dataIndex: "campaign_name", ellipsis: true, render: (value: string | null) => value || "—" },
+    { title: tr("Tin cuối", "最后一条消息"), dataIndex: "last_message_body", ellipsis: true, render: (value: string | null) => value || "—" },
+    { title: tr("Vào hàng", "入队时间"), dataIndex: "received_at", width: 160, render: (value: string) => formatStamp(value) },
   ];
 
   return (
@@ -131,12 +135,12 @@ export function QueueBoard(props: { canAssign: boolean; canListStaff: boolean; o
       <div className="page-header">
         <div>
           <Typography.Title level={3} className="page-header__title">
-            Hàng chờ
+            {tr("Hàng chờ", "队列")}
           </Typography.Title>
-          <Typography.Text type="secondary">Task chưa có người nhận. Worker vẫn tự giao trong ca.</Typography.Text>
+          <Typography.Text type="secondary">{tr("Task chưa có người nhận. Worker vẫn tự giao trong ca.", "尚未分配的任务。班次内系统仍会自动分配。")}</Typography.Text>
         </div>
-        <Button icon={<ReloadOutlined />} onClick={() => void load().catch((caught: unknown) => { const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không tải được hàng chờ", ""); if (!failAuth(problem)) setError(problem); })}>
-          Tải lại
+        <Button icon={<ReloadOutlined />} onClick={() => void load().catch((caught: unknown) => { const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", tr("Không tải được hàng chờ", "无法加载队列"), ""); if (!failAuth(problem)) setError(problem); })}>
+          {tr("Tải lại", "刷新")}
         </Button>
       </div>
       {error ? <ErrorAlert error={error} /> : null}
@@ -148,32 +152,32 @@ export function QueueBoard(props: { canAssign: boolean; canListStaff: boolean; o
         columns={columns}
         dataSource={items}
         pagination={false}
-        locale={{ emptyText: "Hàng chờ trống." }}
+        locale={{ emptyText: tr("Hàng chờ trống.", "队列是空的。") }}
         onRow={
           props.canAssign
             ? (row) => ({
                 onClick: () => {
                   setTarget(row);
                   setUserId(undefined);
-                  setReason("Giao tay");
+                  setReason(tr("Giao tay", "手动分配"));
                 },
               })
             : undefined
         }
       />
-      <Modal title="Giao task" open={target !== null} okText="Giao" confirmLoading={saving} okButtonProps={{ disabled: !userId || reason.trim().length === 0 }} onOk={() => void assign()} onCancel={() => setTarget(null)}>
+      <Modal title={tr("Giao task", "分配任务")} open={target !== null} okText={tr("Giao", "分配")} confirmLoading={saving} okButtonProps={{ disabled: !userId || reason.trim().length === 0 }} onOk={() => void assign()} onCancel={() => setTarget(null)}>
         <Form layout="vertical" requiredMark={false}>
-          <Form.Item label="Người nhận">
+          <Form.Item label={tr("Người nhận", "接收人")}>
             <Select
               showSearch
               optionFilterProp="label"
-              placeholder="Chọn nhân viên"
+              placeholder={tr("Chọn nhân viên", "选择员工")}
               value={userId}
               onChange={setUserId}
               options={staff.map((person) => ({ value: person.id, label: person.display_name }))}
             />
           </Form.Item>
-          <Form.Item label="Lý do">
+          <Form.Item label={tr("Lý do", "原因")}>
             <Input value={reason} maxLength={64} onChange={(event) => setReason(event.target.value)} />
           </Form.Item>
         </Form>

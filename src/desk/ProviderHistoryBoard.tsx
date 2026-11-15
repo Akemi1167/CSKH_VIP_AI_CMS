@@ -5,6 +5,7 @@ import { ApiError, api } from "../api.ts";
 import { formatStamp } from "../copy.ts";
 import { ErrorAlert } from "../ui.tsx";
 import { LaafficWebhooks } from "./LaafficWebhooks.tsx";
+import { useDeskLang, useTr } from "./language.tsx";
 
 type Channel = "sms" | "ai_voice";
 
@@ -47,6 +48,8 @@ type HistoryItem = {
 
 type VoiceFilter = { task: string; phone: string; account: string };
 
+type Tr = (vi: string, zh: string) => string;
+
 const EMPTY_FILTER: VoiceFilter = { task: "", phone: "", account: "" };
 
 export function ProviderHistoryBoard(props: {
@@ -57,6 +60,8 @@ export function ProviderHistoryBoard(props: {
   onUnauthorized: () => void;
   onMfaSetup: () => void;
 }) {
+  const tr = useTr();
+  const lang = useDeskLang();
   const [items, setItems] = useState<HistoryItem[]>([]);
   const [draft, setDraft] = useState<VoiceFilter>(EMPTY_FILTER);
   const [filters, setFilters] = useState<VoiceFilter>(EMPTY_FILTER);
@@ -104,14 +109,14 @@ export function ProviderHistoryBoard(props: {
     }
     const timer = window.setInterval(() => {
       load().catch((caught: unknown) => {
-        const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không tải được lịch sử", "");
+        const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", tr("Không tải được lịch sử", "无法加载记录"), "");
         if (!failAuth(problem)) {
           setError(problem);
         }
       });
     }, 60_000);
     return () => window.clearInterval(timer);
-  }, [failAuth, load, props.channel]);
+  }, [failAuth, lang, load, props.channel]);
 
   useEffect(() => {
     let ignore = false;
@@ -121,7 +126,7 @@ export function ProviderHistoryBoard(props: {
         if (ignore) {
           return;
         }
-        const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không tải được lịch sử", "");
+        const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", tr("Không tải được lịch sử", "无法加载记录"), "");
         if (!failAuth(problem)) {
           setError(problem);
         }
@@ -147,12 +152,12 @@ export function ProviderHistoryBoard(props: {
       });
       setNotice(
         props.channel === "ai_voice" && !result.recordings
-          ? `Đã đồng bộ ${result.pulled} task. Danh sách này không có mã file ghi âm.`
-          : `Đã đồng bộ ${result.pulled} dòng từ Laaffic.`,
+          ? tr(`Đã đồng bộ ${result.pulled} task. Danh sách này không có mã file ghi âm.`, `已同步 ${result.pulled} 个任务。此列表没有录音文件编号。`)
+          : tr(`Đã đồng bộ ${result.pulled} dòng từ Laaffic.`, `已从 Laaffic 同步 ${result.pulled} 行。`),
       );
       await load();
     } catch (caught) {
-      const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", "Không đồng bộ được", "");
+      const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", tr("Không đồng bộ được", "无法同步"), "");
       if (!failAuth(problem)) {
         setError(problem);
       }
@@ -162,20 +167,20 @@ export function ProviderHistoryBoard(props: {
   }
 
   const smsColumns: TableColumnsType<HistoryItem> = [
-    { title: "Lúc", dataIndex: "happened_at", width: 160, render: (value: string | null) => stamp(value) },
-    { title: "Số", dataIndex: "phone_mask", width: 140 },
-    { title: "Trạng thái", dataIndex: "status_label", width: 140 },
-    { title: "Mã Laaffic", dataIndex: "provider_ref", ellipsis: true },
+    { title: tr("Lúc", "时间"), dataIndex: "happened_at", width: 160, render: (value: string | null) => stamp(value) },
+    { title: tr("Số", "号码"), dataIndex: "phone_mask", width: 140 },
+    { title: tr("Trạng thái", "状态"), dataIndex: "status_label", width: 140, render: (value: string) => providerStatus(value, tr) },
+    { title: tr("Mã Laaffic", "Laaffic 编号"), dataIndex: "provider_ref", ellipsis: true },
   ];
   const callColumns: TableColumnsType<HistoryItem> = [
-    { title: "Lúc gọi", dataIndex: "happened_at", width: 168, render: (value: string | null) => stamp(value) },
-    { title: "Số", dataIndex: "phone_mask", width: 140 },
-    { title: "Tài khoản", width: 150, ellipsis: true, render: (_value, row) => row.game_account || "—" },
-    { title: "Trạng thái", width: 150, render: (_value, row) => callStatus(row) },
-    { title: "Thời lượng", width: 120, render: (_value, row) => durationLabel(row.facts?.duration_seconds) },
-    { title: "Kết quả", render: (_value, row) => <CallOutcome row={row} /> },
-    { title: "Hội thoại", width: 120, render: (_value, row) => <DialogueCell turns={row.facts?.dialogue ?? null} /> },
-    { title: "Nghe lại", width: 110 },
+    { title: tr("Lúc gọi", "呼叫时间"), dataIndex: "happened_at", width: 168, render: (value: string | null) => stamp(value) },
+    { title: tr("Số", "号码"), dataIndex: "phone_mask", width: 140 },
+    { title: tr("Tài khoản", "账号"), width: 150, ellipsis: true, render: (_value, row) => row.game_account || "—" },
+    { title: tr("Trạng thái", "状态"), width: 150, render: (_value, row) => callStatus(row, tr) },
+    { title: tr("Thời lượng", "时长"), width: 120, render: (_value, row) => durationLabel(row.facts?.duration_seconds, tr) },
+    { title: tr("Kết quả", "结果"), render: (_value, row) => <CallOutcome row={row} /> },
+    { title: tr("Hội thoại", "对话"), width: 120, render: (_value, row) => <DialogueCell turns={row.facts?.dialogue ?? null} /> },
+    { title: tr("Nghe lại", "回听"), width: 110 },
   ];
   const calls = items.filter((row) => !isTaskRow(row)).sort((a, b) => timeValue(b.happened_at) - timeValue(a.happened_at));
   const tasks = items.filter(isTaskRow).sort((a, b) => timeValue(taskMoment(b, calls)) - timeValue(taskMoment(a, calls)));
@@ -193,14 +198,14 @@ export function ProviderHistoryBoard(props: {
         </div>
         {props.canSync ? (
           <Button type="primary" loading={syncing} onClick={() => void sync()}>
-            Đồng bộ Laaffic
+            {tr("Đồng bộ Laaffic", "同步 Laaffic")}
           </Button>
         ) : null}
       </div>
       <p className="page-note" style={{ marginTop: 0 }}>
         {props.channel === "sms"
-          ? "Lấy 7 ngày gần nhất. Số được che. Không lưu nội dung tin."
-          : "Tự lấy báo cáo Laaffic mỗi 2 phút. Mỗi task là một thẻ, các cuộc gọi nằm trong thẻ đó. Số và file nghe chỉ có khi Laaffic gửi báo cáo cuộc gọi về."}
+          ? tr("Lấy 7 ngày gần nhất. Số được che. Không lưu nội dung tin.", "取最近 7 天。号码已掩码。不保存短信内容。")
+          : tr("Tự lấy báo cáo Laaffic mỗi 2 phút. Mỗi task là một thẻ, các cuộc gọi nằm trong thẻ đó. Số và file nghe chỉ có khi Laaffic gửi báo cáo cuộc gọi về.", "每 2 分钟自动拉取 Laaffic 报告。每个任务为一张卡片，通话列在卡片内。号码和录音仅在 Laaffic 回传通话报告后才有。")}
       </p>
       {props.channel === "ai_voice" ? <LaafficWebhooks onUnauthorized={props.onUnauthorized} onMfaSetup={props.onMfaSetup} /> : null}
       {error ? <ErrorAlert error={error} /> : null}
@@ -209,7 +214,7 @@ export function ProviderHistoryBoard(props: {
           <div className="filter-bar__fields">
             <Input
               allowClear
-              placeholder="Task hoặc tên chiến dịch"
+              placeholder={tr("Task hoặc tên chiến dịch", "任务或活动名称")}
               value={draft.task}
               onChange={(event) => setDraft({ ...draft, task: event.target.value })}
               onPressEnter={() => setFilters(draft)}
@@ -217,7 +222,7 @@ export function ProviderHistoryBoard(props: {
             />
             <Input
               allowClear
-              placeholder="Số điện thoại"
+              placeholder={tr("Số điện thoại", "电话号码")}
               value={draft.phone}
               onChange={(event) => setDraft({ ...draft, phone: event.target.value })}
               onPressEnter={() => setFilters(draft)}
@@ -225,14 +230,14 @@ export function ProviderHistoryBoard(props: {
             />
             <Input
               allowClear
-              placeholder="Tên tài khoản"
+              placeholder={tr("Tên tài khoản", "账号")}
               value={draft.account}
               onChange={(event) => setDraft({ ...draft, account: event.target.value })}
               onPressEnter={() => setFilters(draft)}
               style={{ width: 180 }}
             />
             <Button type="primary" onClick={() => setFilters(draft)}>
-              Tìm
+              {tr("Tìm", "搜索")}
             </Button>
             <Button
               onClick={() => {
@@ -240,14 +245,14 @@ export function ProviderHistoryBoard(props: {
                 setFilters(EMPTY_FILTER);
               }}
             >
-              Xóa lọc
+              {tr("Xóa lọc", "清除筛选")}
             </Button>
           </div>
         </div>
       ) : null}
       {notice ? <p className="page-note">{notice}</p> : null}
       {props.channel === "sms" ? (
-        <Table rowKey="provider_ref" size="middle" columns={smsColumns} dataSource={items} loading={loading} pagination={false} locale={{ emptyText: "Chưa có lịch sử. Bấm đồng bộ để lấy từ Laaffic." }} />
+        <Table rowKey="provider_ref" size="middle" columns={smsColumns} dataSource={items} loading={loading} pagination={false} locale={{ emptyText: tr("Chưa có lịch sử. Bấm đồng bộ để lấy từ Laaffic.", "还没有记录。点同步从 Laaffic 获取。") }} />
       ) : (
         <>
           {loading && tasks.length === 0 ? (
@@ -255,7 +260,7 @@ export function ProviderHistoryBoard(props: {
               <Spin />
             </div>
           ) : tasks.length === 0 ? (
-            <p className="page-note">{filters.task || filters.phone || filters.account ? "Không có task khớp bộ lọc." : "Chưa có task."}</p>
+            <p className="page-note">{filters.task || filters.phone || filters.account ? tr("Không có task khớp bộ lọc.", "没有符合筛选的任务。") : tr("Chưa có task.", "还没有任务。")}</p>
           ) : (
             <div className="voice-tasks">
               {tasks.map((task) => (
@@ -275,7 +280,7 @@ export function ProviderHistoryBoard(props: {
           )}
           {looseCalls.length > 0 ? (
             <div className="history-block">
-              <Typography.Title level={5}>Cuộc gọi chưa gắn task</Typography.Title>
+              <Typography.Title level={5}>{tr("Cuộc gọi chưa gắn task", "未关联任务的通话")}</Typography.Title>
               <CallTable
                 calls={looseCalls}
                 columns={callColumns}
@@ -330,16 +335,16 @@ function percent(value: string | null | undefined): string {
   return value.endsWith("%") ? value : `${value}%`;
 }
 
-function durationLabel(seconds: number | null | undefined): string {
+function durationLabel(seconds: number | null | undefined, tr: Tr): string {
   if (!seconds) {
     return "—";
   }
   if (seconds < 60) {
-    return `${seconds} giây`;
+    return tr(`${seconds} giây`, `${seconds} 秒`);
   }
   const minutes = Math.floor(seconds / 60);
   const rest = seconds % 60;
-  return rest === 0 ? `${minutes} phút` : `${minutes} phút ${rest} giây`;
+  return rest === 0 ? tr(`${minutes} phút`, `${minutes} 分钟`) : tr(`${minutes} phút ${rest} giây`, `${minutes} 分 ${rest} 秒`);
 }
 
 function callsFor(task: HistoryItem, calls: HistoryItem[]): HistoryItem[] {
@@ -351,30 +356,31 @@ function callsFor(task: HistoryItem, calls: HistoryItem[]): HistoryItem[] {
 }
 
 function VoiceTaskCard(props: { task: HistoryItem; calls: HistoryItem[]; columns: TableColumnsType<HistoryItem>; onFail: (error: ApiError) => void }) {
+  const tr = useTr();
   const named = props.task.facts?.task_name;
   const campaign = props.task.campaign_name;
-  const title = named || campaign || "Task gọi nhóm";
+  const title = named || campaign || tr("Task gọi nhóm", "群呼任务");
   const id = props.task.facts?.task_id || props.task.provider_ref;
   const facts = props.task.facts;
   const stats = [
-    ["Tiến độ", percent(facts?.progress)],
-    ["Số", facts?.number_count != null ? String(facts.number_count) : "—"],
-    ["Đã gọi", facts?.called_count != null ? String(facts.called_count) : "—"],
-    ["Nghe máy", facts?.answered_count != null ? String(facts.answered_count) : "—"],
-    ["Lỗi", facts?.failed_count != null ? String(facts.failed_count) : "—"],
-    ["Tỷ lệ nghe", percent(facts?.answer_rate)],
+    [tr("Tiến độ", "进度"), percent(facts?.progress)],
+    [tr("Số", "号码"), facts?.number_count != null ? String(facts.number_count) : "—"],
+    [tr("Đã gọi", "已呼叫"), facts?.called_count != null ? String(facts.called_count) : "—"],
+    [tr("Nghe máy", "已接听"), facts?.answered_count != null ? String(facts.answered_count) : "—"],
+    [tr("Lỗi", "失败"), facts?.failed_count != null ? String(facts.failed_count) : "—"],
+    [tr("Tỷ lệ nghe", "接听率"), percent(facts?.answer_rate)],
   ];
   return (
     <article className="voice-task">
       <header className="voice-task__head">
         <div>
-          <p className="voice-task__kicker">Task gọi nhóm</p>
+          <p className="voice-task__kicker">{tr("Task gọi nhóm", "群呼任务")}</p>
           <h3 className="voice-task__title">{title}</h3>
           <p className="voice-task__id">{id}</p>
-          {named && campaign && named !== campaign ? <p className="voice-task__campaign">Chiến dịch {campaign}</p> : null}
+          {named && campaign && named !== campaign ? <p className="voice-task__campaign">{tr(`Chiến dịch ${campaign}`, `活动 ${campaign}`)}</p> : null}
         </div>
         <div className="voice-task__meta">
-          <Tag color={taskStatusColor(props.task.status_label)}>{props.task.status_label}</Tag>
+          <Tag color={taskStatusColor(props.task.status_label)}>{providerStatus(props.task.status_label, tr)}</Tag>
           <time>{stamp(taskMoment(props.task, props.calls))}</time>
         </div>
       </header>
@@ -387,7 +393,7 @@ function VoiceTaskCard(props: { task: HistoryItem; calls: HistoryItem[]; columns
         ))}
       </dl>
       <div className="voice-task__calls">
-        <p className="voice-task__calls-label">{props.calls.length > 0 ? `${props.calls.length} cuộc gọi` : "Từng cuộc gọi"}</p>
+        <p className="voice-task__calls-label">{props.calls.length > 0 ? tr(`${props.calls.length} cuộc gọi`, `${props.calls.length} 通通话`) : tr("Từng cuộc gọi", "通话明细")}</p>
         <TaskCalls task={props.task} calls={props.calls} columns={props.columns} onFail={props.onFail} />
       </div>
     </article>
@@ -411,17 +417,20 @@ function taskStatusColor(label: string): string {
 }
 
 function TaskCalls(props: { task: HistoryItem; calls: HistoryItem[]; columns: TableColumnsType<HistoryItem>; onFail: (error: ApiError) => void }) {
+  const tr = useTr();
   if (props.calls.length === 0) {
     const expected = props.task.facts?.number_count;
-    return <p className="page-note">{expected ? `Task có ${expected} số, nhưng Laaffic chưa gửi báo cáo từng cuộc gọi.` : "Laaffic chưa gửi báo cáo từng cuộc gọi."}</p>;
+    return <p className="page-note">{expected ? tr(`Task có ${expected} số, nhưng Laaffic chưa gửi báo cáo từng cuộc gọi.`, `任务有 ${expected} 个号码，但 Laaffic 尚未回传每通通话报告。`) : tr("Laaffic chưa gửi báo cáo từng cuộc gọi.", "Laaffic 尚未回传每通通话报告。")}</p>;
   }
   return <CallTable calls={props.calls} columns={props.columns} onFail={props.onFail} />;
 }
 
 function CallTable(props: { calls: HistoryItem[]; columns: TableColumnsType<HistoryItem>; onFail: (error: ApiError) => void }) {
+  const tr = useTr();
   const [clip, setClip] = useState<{ ref: string; url: string } | null>(null);
+  const replay = tr("Nghe lại", "回听");
   const columns = props.columns.map((column) =>
-    column.title === "Nghe lại"
+    column.title === replay
       ? {
           ...column,
           render: (_value: unknown, row: HistoryItem) => (
@@ -449,7 +458,8 @@ function CallTable(props: { calls: HistoryItem[]; columns: TableColumnsType<Hist
 }
 
 function CallOutcome(props: { row: HistoryItem }) {
-  const description = callDescription(props.row.facts?.call_description);
+  const tr = useTr();
+  const description = callDescription(props.row.facts?.call_description, tr);
   const reason = props.row.facts?.termination_reason?.trim() ?? "";
   const headline = description === "—" ? reason || "—" : description;
   return (
@@ -460,62 +470,82 @@ function CallOutcome(props: { row: HistoryItem }) {
   );
 }
 
-function callStatus(row: HistoryItem): string {
+function callStatus(row: HistoryItem, tr: Tr): string {
   const code = row.facts?.call_status;
   if (code === "1") {
-    return "Đã nối máy";
+    return tr("Đã nối máy", "已接通");
   }
   if (code === "2") {
-    return "Nối máy lỗi";
+    return tr("Nối máy lỗi", "接通失败");
   }
   if (code === "3") {
-    return "Không nghe máy";
+    return tr("Không nghe máy", "未接听");
   }
   if (code === "4") {
-    return "Không nghe, lỗi";
+    return tr("Không nghe, lỗi", "未接听，失败");
   }
-  return row.status_label;
+  return providerStatus(row.status_label, tr);
 }
 
-function callDescription(code: string | null | undefined): string {
+function providerStatus(label: string, tr: Tr): string {
+  if (label === "Đang gọi") {
+    return tr("Đang gọi", "正在呼叫");
+  }
+  if (label === "Đang gửi") {
+    return tr("Đang gửi", "正在发送");
+  }
+  if (label === "Đã gọi xong") {
+    return tr("Đã gọi xong", "呼叫完成");
+  }
+  if (label === "Gửi lỗi") {
+    return tr("Gửi lỗi", "发送失败");
+  }
+  if (label === "Tạm dừng") {
+    return tr("Tạm dừng", "已暂停");
+  }
+  return label;
+}
+
+function callDescription(code: string | null | undefined, tr: Tr): string {
   switch (code) {
     case "1":
-      return "Hợp lệ";
+      return tr("Hợp lệ", "有效");
     case "2":
-      return "Thư thoại";
+      return tr("Thư thoại", "语音信箱");
     case "3":
-      return "Cúp nhanh";
+      return tr("Cúp nhanh", "快速挂断");
     case "4":
-      return "Im lặng";
+      return tr("Im lặng", "无声");
     case "5":
-      return "AI cúp";
+      return tr("AI cúp", "AI挂断");
     case "6":
-      return "Khách từ chối";
+      return tr("Khách từ chối", "客户拒接");
     case "7":
-      return "Ngoài vùng";
+      return tr("Ngoài vùng", "区域外");
     case "8":
-      return "Không bắt máy";
+      return tr("Không bắt máy", "未接听");
     case "10":
-      return "Lỗi đường truyền";
+      return tr("Lỗi đường truyền", "线路故障");
     default:
       return "—";
   }
 }
 
 function DialogueCell(props: { turns: DialogueTurn[] | null }) {
+  const tr = useTr();
   const [open, setOpen] = useState(false);
   const turns = props.turns ?? [];
   if (turns.length === 0) {
-    return <span>Chưa có thoại</span>;
+    return <span>{tr("Chưa có thoại", "暂无对话")}</span>;
   }
   const first = turns[0];
   return (
     <>
       <div className="call-log-preview">{first ? `${first.role}: ${first.text}` : ""}</div>
       <Button size="small" onClick={() => setOpen(true)}>
-        Xem {turns.length} lượt
+        {tr(`Xem ${turns.length} lượt`, `查看 ${turns.length} 轮`)}
       </Button>
-      <Modal open={open} title="Nội dung cuộc gọi" footer={null} onCancel={() => setOpen(false)}>
+      <Modal open={open} title={tr("Nội dung cuộc gọi", "通话内容")} footer={null} onCancel={() => setOpen(false)}>
         <div className="log-dialogue">
           {turns.map((turn, index) => (
             <p key={`${turn.role}-${index}`}>
@@ -530,9 +560,10 @@ function DialogueCell(props: { turns: DialogueTurn[] | null }) {
 }
 
 function RecordingCell(props: { providerRef: string; canTry: boolean; active: boolean; onPlay: (url: string) => void; onFail: (error: ApiError) => void }) {
+  const tr = useTr();
   const [busy, setBusy] = useState(false);
   if (!props.canTry) {
-    return <span>Chưa có file</span>;
+    return <span>{tr("Chưa có file", "暂无文件")}</span>;
   }
   return (
     <Button
@@ -544,12 +575,12 @@ function RecordingCell(props: { providerRef: string; canTry: boolean; active: bo
         api<{ url: string }>(`/api/v1/admin/laaffic/history/${encodeURIComponent(props.providerRef)}/recording`)
           .then((result) => props.onPlay(result.url))
           .catch((caught: unknown) => {
-            props.onFail(caught instanceof ApiError ? caught : new ApiError(0, "network", "Không mở được file nghe", ""));
+            props.onFail(caught instanceof ApiError ? caught : new ApiError(0, "network", tr("Không mở được file nghe", "无法打开录音"), ""));
           })
           .finally(() => setBusy(false));
       }}
     >
-      Nghe
+      {tr("Nghe", "播放")}
     </Button>
   );
 }
