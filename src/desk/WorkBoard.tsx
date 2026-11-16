@@ -135,16 +135,6 @@ function asStatus(value: string, fallback: TaskStatus): TaskStatus {
   return fallback;
 }
 
-function liveLabel(status: "connecting" | "live" | "down", tr: (vi: string, zh: string) => string): string {
-  if (status === "live") {
-    return tr("Chat trực tiếp đang mở. Tin của khách giao cho bạn tới ngay.", "实时聊天已接通。分配给您的客户消息会马上到达。");
-  }
-  if (status === "connecting") {
-    return tr("Đang nối chat trực tiếp…", "正在连接实时聊天…");
-  }
-  return tr("Chưa nối socket. Vẫn gửi được bằng API.", "尚未连接 socket，仍可通过 API 发送。");
-}
-
 function chatCount(shown: number, total: number, query: string, tr: (vi: string, zh: string) => string): string {
   if (query && total === 0) {
     return tr("Không có hội thoại khớp.", "没有匹配的会话。");
@@ -207,7 +197,6 @@ export function WorkBoard(props: {
   const [warning, setWarning] = useState<string | null>(null);
   const [reminders, setReminders] = useState<{ id: string; customer_ref: string; site: string | null; due_on: string }[]>([]);
   const [logos, setLogos] = useState<Set<string>>(new Set());
-  const [live, setLive] = useState<"connecting" | "live" | "down">("down");
   const listRef = useRef({ status, assigneeId, ids: new Set<string>() });
   const listFlight = useRef(false);
   listRef.current = { status, assigneeId, ids: new Set(items.map((row) => row.id)) };
@@ -746,7 +735,7 @@ export function WorkBoard(props: {
       return;
     }
     return bindInboxBoard({
-      onStatus: setLive,
+      onStatus: () => undefined,
       onMessage: (event) => applyLiveMessage(event),
       onRead: (event) => {
         setDetail((current) => (current && current.id === event.task_id ? { ...current, messages: withRead(current.messages, event.message_ids, event.read_at) } : current));
@@ -788,14 +777,13 @@ export function WorkBoard(props: {
   }, [lastMessageId]);
 
   return (
-    <section>
+    <section className={chatLayout ? "chat-board" : undefined}>
       <div className="page-header">
         <div>
           <Typography.Title level={3} className="page-header__title">
             {props.heading}
           </Typography.Title>
-          <Typography.Text type="secondary">{props.lead}</Typography.Text>
-          {chatLayout ? <p className="page-note">{liveLabel(live, tr)}</p> : null}
+          {chatLayout ? null : <Typography.Text type="secondary">{props.lead}</Typography.Text>}
           {loading && items.length === 0 ? null : <p className="page-note">{chatCount(items.length, total, query, tr)}</p>}
         </div>
         <Space>

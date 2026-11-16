@@ -466,13 +466,7 @@ export function Desk(props: {
           {page === "inbox" && canReadTasks ? (
             <WorkBoard
               heading={pageLabel("inbox")}
-              lead={
-                canReadAllTasks
-                  ? DESK_TEXT.inboxLeadAll[lang]
-                  : canReadTeamTasks
-                    ? DESK_TEXT.inboxLeadTeam[lang]
-                    : DESK_TEXT.inboxLeadOwn[lang]
-              }
+              lead=""
               layout="chat"
               scope={canReadAllTasks ? "staff" : canReadTeamTasks ? "team" : "own"}
               canUpdate={canUpdateTasks}

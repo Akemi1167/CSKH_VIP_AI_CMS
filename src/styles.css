@@ -318,6 +318,39 @@ a {
   background: #10131a;
 }
 
+@media (min-width: 861px) {
+  .app-main:has(.chat-board) {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .app-main:has(.chat-board) .app-main__inner {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .chat-board {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .chat-board .page-header {
+    margin-bottom: 12px;
+  }
+
+  .chat-board .chat-shell {
+    flex: 1;
+    height: auto;
+    min-height: 0;
+  }
+}
+
 .chat-list {
   overflow-y: auto;
   background: var(--c-card);

@@ -134,18 +134,6 @@ export const DESK_TEXT = {
   discard: { vi: "Bỏ ca đang sửa", zh: "放弃正在修改的班次" },
   unsavedBody: { vi: "Giờ bạn vừa chọn chưa được lưu.", zh: "刚选的时间还没保存。" },
   collapse: { vi: "Thu gọn", zh: "收起" },
-  inboxLeadAll: {
-    vi: "Mọi hội thoại của tất cả đài, kể cả đài chưa có nhân viên. Chat chưa giao hiện ở đây. Mở rồi bấm Giao để đưa cho người chăm sóc.",
-    zh: "所有站点的会话，包括还没有员工的站点。未分配的聊天显示在这里。打开后点分配给客服。",
-  },
-  inboxLeadTeam: {
-    vi: "Hội thoại của nhân viên các đài bạn phụ trách. Có thể chuyển cho người khác hoặc thu về tự xử lý.",
-    zh: "你负责站点的员工会话。可以转给别人，或收回自己处理。",
-  },
-  inboxLeadOwn: {
-    vi: "Hội thoại đang giao cho bạn. Mở cửa sổ để chăm nhiều khách cùng lúc, kể cả khi sang màn khác.",
-    zh: "分配给你的会话。可以同时处理多位客户，换页面也不会关掉。",
-  },
   tasksLeadTeam: { vi: "Việc của nhân viên các đài bạn phụ trách.", zh: "你负责站点的员工任务。" },
   tasksLeadOwn: { vi: "Việc đang giao. Bấm một dòng để cập nhật trạng thái hoặc chuyển người.", zh: "已分配的任务。点一行可更新状态或转给别人。" },
   smsHistoryLead: { vi: "Tin đã gửi qua Laaffic trong 7 ngày gần nhất.", zh: "最近 7 天通过 Laaffic 发出的短信。" },
