@@ -118,7 +118,9 @@ export function HangupSmsBoard(props: { canWrite: boolean; onUnauthorized: () =>
             {"${text1}"}
             {tr(" đến ", " 到 ")}
             {"${text10}"}
-            {tr(" trong nội dung để lấy giá trị bên dưới. Mỗi biến tối đa 30 ký tự.", " 即可代入下方的值。每个变量最多 30 个字符。")}
+            {tr(" trong nội dung để lấy giá trị bên dưới. Viết ", " 即可代入下方的值。写入 ")}
+            {"${account}"}
+            {tr(" để điền tên tài khoản game của đúng số đang gọi. Không thấy tài khoản thì chỗ đó để trống. Mỗi biến tối đa 30 ký tự.", " 就会填入该号码对应的游戏账号。找不到账号则留空。每个变量最多 30 个字符。")}
           </Typography.Text>
         </div>
         {props.canWrite ? (
@@ -136,7 +138,7 @@ export function HangupSmsBoard(props: { canWrite: boolean; onUnauthorized: () =>
           maxLength={1024}
           value={draft.content}
           disabled={!props.canWrite || loading}
-          placeholder={tr("Ví dụ: Liên hệ Telegram ${text1}. Trang hỗ trợ ${text2}.", "例如：联系 Telegram ${text1}。支持页 ${text2}。")}
+          placeholder={tr("Ví dụ: Chào ${account}. Liên hệ Telegram ${text1}.", "例如：你好 ${account}。联系 Telegram ${text1}。")}
           onChange={(event) => {
             setNotice(null);
             setDraft({ ...draft, content: event.target.value });
