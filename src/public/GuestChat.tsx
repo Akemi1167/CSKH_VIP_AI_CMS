@@ -2,6 +2,7 @@ import { PictureOutlined } from "@ant-design/icons";
 import { Button, Input } from "antd";
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { ApiError, api, toApiUrl, toWsUrl } from "../api.ts";
+import { imageFromPaste } from "../clipboardImage.ts";
 import { formatStamp } from "../copy.ts";
 import { showReadMark, withRead } from "../readMark.ts";
 import { UiFrame } from "../uiFrame.tsx";
@@ -42,13 +43,13 @@ const COPY = {
     name: "Tên của bạn",
     nameError: "Nhập tên của bạn.",
     start: "Bắt đầu chat",
-    placeholder: "Nhắn nhân viên",
+    placeholder: "Nhắn nhân viên hoặc dán ảnh",
     connecting: "Đang nối…",
     live: "Đang nối",
     down: "Mất kết nối",
     retry: "Nối lại",
     send: "Gửi",
-    photo: "Gửi ảnh",
+    photo: "Gửi ảnh hoặc dán ảnh đã copy",
     imageError: "Không gửi được ảnh",
     connectError: "Không nối được chat",
     read: "Đã đọc",
@@ -60,13 +61,13 @@ const COPY = {
     name: "您的姓名",
     nameError: "请输入您的姓名。",
     start: "开始聊天",
-    placeholder: "给客服发消息",
+    placeholder: "给客服发消息或粘贴图片",
     connecting: "连接中…",
     live: "已连接",
     down: "连接已断开",
     retry: "重新连接",
     send: "发送",
-    photo: "发送图片",
+    photo: "发送图片或粘贴已复制的图片",
     imageError: "图片发送失败",
     connectError: "无法连接聊天",
     read: "已读",
@@ -89,6 +90,7 @@ export function GuestChat() {
   const lastSentRef = useRef({ body: "", at: 0 });
   const uploadTokenRef = useRef("");
   const fileRef = useRef<HTMLInputElement>(null);
+  const imageBusy = useRef(false);
 
   const connect = useCallback(async (session: GuestSession) => {
     setStatus("connecting");
@@ -234,6 +236,9 @@ export function GuestChat() {
   }
 
   async function sendImage(file: File) {
+    if (imageBusy.current) {
+      return;
+    }
     const socket = socketRef.current;
     const token = uploadTokenRef.current;
     if (!token || !socket || socket.readyState !== WebSocket.OPEN) {
@@ -245,6 +250,7 @@ export function GuestChat() {
       return;
     }
     setError(null);
+    imageBusy.current = true;
     try {
       const saved = await api<{ media_id: string; url: string }>("/api/v1/chat/guest/images", {
         method: "POST",
@@ -259,6 +265,8 @@ export function GuestChat() {
       writeText("");
     } catch (caught) {
       setError(caught instanceof ApiError ? caught.message : COPY[lang].imageError);
+    } finally {
+      imageBusy.current = false;
     }
   }
 
@@ -350,6 +358,17 @@ export function GuestChat() {
                 onSubmit={(event) => {
                   event.preventDefault();
                   send();
+                }}
+                onPaste={(event) => {
+                  if (!live) {
+                    return;
+                  }
+                  const file = imageFromPaste(event.clipboardData);
+                  if (!file) {
+                    return;
+                  }
+                  event.preventDefault();
+                  void sendImage(file);
                 }}
               >
                 <label className="chat-photo-send" title={textCopy.photo} aria-label={textCopy.photo}>

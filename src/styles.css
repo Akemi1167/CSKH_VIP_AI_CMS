@@ -1319,7 +1319,7 @@ a {
 
 .voice-tasks {
   display: grid;
-  gap: 16px;
+  gap: 8px;
 }
 
 .voice-tasks__loading {
@@ -1336,17 +1336,44 @@ a {
   background: #161922;
 }
 
-.voice-task__head {
-  display: flex;
-  gap: 16px;
-  align-items: flex-start;
-  justify-content: space-between;
-  padding: 16px;
-  background: linear-gradient(90deg, #1a4a8a 0%, #17315c 55%, #152238 100%);
-  border-bottom: 1px solid #3d6ec4;
+.voice-task.is-open {
+  border-left-color: #3d7eff;
 }
 
-.voice-task__kicker,
+.voice-task__toggle {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+  padding: 10px 14px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.voice-task__toggle:focus-visible {
+  outline: 2px solid #3d7eff;
+  outline-offset: -2px;
+}
+
+.voice-task.is-open .voice-task__toggle {
+  background: linear-gradient(90deg, #1a4a8a 0%, #17315c 55%, #152238 100%);
+}
+
+.voice-task__chevron {
+  flex: none;
+  color: #9ec0ff;
+  font-size: 12px;
+  transition: transform 0.15s ease;
+}
+
+.voice-task.is-open .voice-task__chevron {
+  transform: rotate(90deg);
+}
+
 .voice-task__id,
 .voice-task__meta {
   margin: 0;
@@ -1354,27 +1381,35 @@ a {
   font-size: 12px;
 }
 
-.voice-task__kicker {
-  margin-bottom: 4px;
-  color: #9ec0ff;
-  font-weight: 600;
+.voice-task__title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.voice-task__title {
-  margin: 0;
-  color: #ffffff;
-  font-size: 18px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
+.voice-task__summary {
+  flex: none;
+  color: #c5d7f5;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .voice-task__id {
-  margin-top: 4px;
+  margin: 0;
+  padding: 10px 16px 0 40px;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 .voice-task__campaign {
-  margin: 6px 0 0;
+  margin: 4px 0 0;
+  padding: 0 16px 0 40px;
   color: #ffffff;
   font-size: 14px;
   font-weight: 650;
@@ -1382,9 +1417,9 @@ a {
 
 .voice-task__meta {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-  align-items: flex-end;
+  flex: none;
+  gap: 10px;
+  align-items: center;
   white-space: nowrap;
 }
 
@@ -1393,7 +1428,7 @@ a {
   grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 8px;
   margin: 0;
-  padding: 0 16px 12px;
+  padding: 12px 16px;
 }
 
 .voice-task__stats div {
@@ -1429,12 +1464,12 @@ a {
 }
 
 @media (max-width: 900px) {
-  .voice-task__head {
-    flex-direction: column;
+  .voice-task__toggle {
+    flex-wrap: wrap;
   }
 
-  .voice-task__meta {
-    align-items: flex-start;
+  .voice-task__title {
+    flex-basis: calc(100% - 28px);
   }
 
   .voice-task__stats {

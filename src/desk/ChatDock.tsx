@@ -2,6 +2,7 @@ import { CloseOutlined, MinusOutlined, PictureOutlined } from "@ant-design/icons
 import { Button, Input } from "antd";
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import { ApiError, api } from "../api.ts";
+import { imageFromPaste } from "../clipboardImage.ts";
 import { formatStamp } from "../copy.ts";
 import { ChatBody } from "./ChatBody.tsx";
 import { bindInboxBoard, markInboxRead, reportTaskRead, sendStaffReply, staffChatLive } from "./inboxWatch.ts";
@@ -306,11 +307,21 @@ export function ChatDock(props: {
                   event.preventDefault();
                   void send(chat.task.id, chat.task, chat.draft);
                 }}
+                onPaste={(event) => {
+                  const file = imageFromPaste(event.clipboardData);
+                  if (!file) {
+                    return;
+                  }
+                  event.preventDefault();
+                  if (busyId !== chat.task.id) {
+                    void sendImage(chat.task.id, chat.task, file, chat.draft);
+                  }
+                }}
               >
                 <Input.TextArea
                   value={chat.draft}
                   rows={2}
-                  placeholder={chat.task.channel === "telegram" ? tr("Nhắn khách trên Telegram", "通过 Telegram 给客户发消息") : tr("Nhắn khách", "给客户发消息")}
+                  placeholder={chat.task.channel === "telegram" ? tr("Nhắn khách trên Telegram hoặc dán ảnh", "通过 Telegram 给客户发消息，或粘贴图片") : tr("Nhắn khách hoặc dán ảnh", "给客户发消息或粘贴图片")}
                   onFocus={() => noteDockFocus(chat.task.id)}
                   onBlur={() => noteDockFocus(null)}
                   onChange={(event) => setDockDraft(chat.task.id, event.target.value)}
@@ -322,7 +333,7 @@ export function ChatDock(props: {
                     void send(chat.task.id, chat.task, chat.draft);
                   }}
                 />
-                <label className="chat-photo-send" title={tr("Gửi ảnh", "发送图片")} aria-label={tr("Gửi ảnh", "发送图片")}>
+                <label className="chat-photo-send" title={tr("Gửi ảnh hoặc dán ảnh đã copy", "发送图片或粘贴已复制的图片")} aria-label={tr("Gửi ảnh", "发送图片")}>
                   <PictureOutlined />
                   <input
                     type="file"

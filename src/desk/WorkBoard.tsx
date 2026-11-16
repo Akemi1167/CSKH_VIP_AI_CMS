@@ -3,6 +3,7 @@ import { Alert, Button, Drawer, Form, Input, Modal, Select, Space, Table, Tag, T
 import type { TableColumnsType } from "antd";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, api, toApiUrl } from "../api.ts";
+import { imageFromPaste } from "../clipboardImage.ts";
 import { formatStamp } from "../copy.ts";
 import type { Staff } from "../types.ts";
 import { ErrorAlert } from "../ui.tsx";
@@ -955,11 +956,24 @@ export function WorkBoard(props: {
                 {error ? <p className="chat-compose__error">{error.message}</p> : null}
                 {warning ? <p className="chat-note">{warning}</p> : null}
                 {canHandle && open ? (
-                  <Form className="chat-compose" onFinish={() => void sendReply()}>
+                  <Form
+                    className="chat-compose"
+                    onFinish={() => void sendReply()}
+                    onPaste={(event) => {
+                      const file = imageFromPaste(event.clipboardData);
+                      if (!file) {
+                        return;
+                      }
+                      event.preventDefault();
+                      if (!busy) {
+                        void sendImage(file);
+                      }
+                    }}
+                  >
                     <Input.TextArea
                       value={reply}
                       autoSize={{ minRows: 1, maxRows: 4 }}
-                      placeholder={detail.channel === "telegram" ? tr("Nhắn khách trên Telegram", "通过 Telegram 给客户发消息") : tr("Nhắn khách", "给客户发消息")}
+                      placeholder={detail.channel === "telegram" ? tr("Nhắn khách trên Telegram hoặc dán ảnh", "通过 Telegram 给客户发消息，或粘贴图片") : tr("Nhắn khách hoặc dán ảnh", "给客户发消息或粘贴图片")}
                       onChange={(event) => writeReply(event.target.value)}
                       onCompositionStart={() => {
                         composingRef.current = true;
@@ -979,7 +993,7 @@ export function WorkBoard(props: {
                         void sendReply();
                       }}
                     />
-                    <label className="chat-photo-send" title={tr("Gửi ảnh", "发送图片")} aria-label={tr("Gửi ảnh", "发送图片")}>
+                    <label className="chat-photo-send" title={tr("Gửi ảnh hoặc dán ảnh đã copy", "发送图片或粘贴已复制的图片")} aria-label={tr("Gửi ảnh", "发送图片")}>
                       <PictureOutlined />
                       <input
                         type="file"

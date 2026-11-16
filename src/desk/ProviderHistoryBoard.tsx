@@ -1,3 +1,4 @@
+import { RightOutlined } from "@ant-design/icons";
 import { Button, Input, Modal, Spin, Table, Tag, Typography } from "antd";
 import type { TableColumnsType } from "antd";
 import { useCallback, useEffect, useState } from "react";
@@ -69,6 +70,7 @@ export function ProviderHistoryBoard(props: {
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [openTask, setOpenTask] = useState<string | null>(null);
 
   const failAuth = useCallback(
     (caught: ApiError) => {
@@ -205,7 +207,7 @@ export function ProviderHistoryBoard(props: {
       <p className="page-note" style={{ marginTop: 0 }}>
         {props.channel === "sms"
           ? tr("Lấy 7 ngày gần nhất. Số được che. Không lưu nội dung tin.", "取最近 7 天。号码已掩码。不保存短信内容。")
-          : tr("Tự lấy báo cáo Laaffic mỗi 2 phút. Mỗi task là một thẻ, các cuộc gọi nằm trong thẻ đó. Số và file nghe chỉ có khi Laaffic gửi báo cáo cuộc gọi về.", "每 2 分钟自动拉取 Laaffic 报告。每个任务为一张卡片，通话列在卡片内。号码和录音仅在 Laaffic 回传通话报告后才有。")}
+          : tr("Tự lấy báo cáo Laaffic mỗi 2 phút. Bấm một task để xem tiến độ và từng cuộc gọi. Số và file nghe chỉ có khi Laaffic gửi báo cáo cuộc gọi về.", "每 2 分钟自动拉取 Laaffic 报告。点一个任务查看进度和每通通话。号码和录音仅在 Laaffic 回传通话报告后才有。")}
       </p>
       {props.channel === "ai_voice" ? <LaafficWebhooks onUnauthorized={props.onUnauthorized} onMfaSetup={props.onMfaSetup} /> : null}
       {error ? <ErrorAlert error={error} /> : null}
@@ -269,6 +271,8 @@ export function ProviderHistoryBoard(props: {
                   task={task}
                   calls={callsFor(task, calls)}
                   columns={callColumns}
+                  open={openTask === task.provider_ref}
+                  onToggle={() => setOpenTask((current) => (current === task.provider_ref ? null : task.provider_ref))}
                   onFail={(problem) => {
                     if (!failAuth(problem)) {
                       setError(problem);
@@ -355,47 +359,56 @@ function callsFor(task: HistoryItem, calls: HistoryItem[]): HistoryItem[] {
   });
 }
 
-function VoiceTaskCard(props: { task: HistoryItem; calls: HistoryItem[]; columns: TableColumnsType<HistoryItem>; onFail: (error: ApiError) => void }) {
+function VoiceTaskCard(props: { task: HistoryItem; calls: HistoryItem[]; columns: TableColumnsType<HistoryItem>; open: boolean; onToggle: () => void; onFail: (error: ApiError) => void }) {
   const tr = useTr();
   const named = props.task.facts?.task_name;
   const campaign = props.task.campaign_name;
   const title = named || campaign || tr("Task gọi nhóm", "群呼任务");
   const id = props.task.facts?.task_id || props.task.provider_ref;
   const facts = props.task.facts;
+  const called = facts?.called_count != null ? String(facts.called_count) : "—";
+  const numbers = facts?.number_count != null ? String(facts.number_count) : "—";
   const stats = [
     [tr("Tiến độ", "进度"), percent(facts?.progress)],
-    [tr("Số", "号码"), facts?.number_count != null ? String(facts.number_count) : "—"],
-    [tr("Đã gọi", "已呼叫"), facts?.called_count != null ? String(facts.called_count) : "—"],
+    [tr("Số", "号码"), numbers],
+    [tr("Đã gọi", "已呼叫"), called],
     [tr("Nghe máy", "已接听"), facts?.answered_count != null ? String(facts.answered_count) : "—"],
     [tr("Lỗi", "失败"), facts?.failed_count != null ? String(facts.failed_count) : "—"],
     [tr("Tỷ lệ nghe", "接听率"), percent(facts?.answer_rate)],
   ];
   return (
-    <article className="voice-task">
-      <header className="voice-task__head">
-        <div>
-          <p className="voice-task__kicker">{tr("Task gọi nhóm", "群呼任务")}</p>
-          <h3 className="voice-task__title">{title}</h3>
-          <p className="voice-task__id">{id}</p>
-          {named && campaign && named !== campaign ? <p className="voice-task__campaign">{tr(`Chiến dịch ${campaign}`, `活动 ${campaign}`)}</p> : null}
-        </div>
-        <div className="voice-task__meta">
+    <article className={props.open ? "voice-task is-open" : "voice-task"}>
+      <button type="button" className="voice-task__toggle" aria-expanded={props.open} onClick={props.onToggle}>
+        <RightOutlined className="voice-task__chevron" />
+        <span className="voice-task__title">{title}</span>
+        <span className="voice-task__summary">
+          {called}/{numbers}
+          {" · "}
+          {percent(facts?.progress)}
+        </span>
+        <span className="voice-task__meta">
           <Tag color={taskStatusColor(props.task.status_label)}>{providerStatus(props.task.status_label, tr)}</Tag>
           <time>{stamp(taskMoment(props.task, props.calls))}</time>
-        </div>
-      </header>
-      <dl className="voice-task__stats">
-        {stats.map(([label, value]) => (
-          <div key={label}>
-            <dt>{label}</dt>
-            <dd>{value}</dd>
+        </span>
+      </button>
+      {props.open ? (
+        <>
+          <p className="voice-task__id">{id}</p>
+          {named && campaign && named !== campaign ? <p className="voice-task__campaign">{tr(`Chiến dịch ${campaign}`, `活动 ${campaign}`)}</p> : null}
+          <dl className="voice-task__stats">
+            {stats.map(([label, value]) => (
+              <div key={label}>
+                <dt>{label}</dt>
+                <dd>{value}</dd>
+              </div>
+            ))}
+          </dl>
+          <div className="voice-task__calls">
+            <p className="voice-task__calls-label">{props.calls.length > 0 ? tr(`${props.calls.length} cuộc gọi`, `${props.calls.length} 通通话`) : tr("Từng cuộc gọi", "通话明细")}</p>
+            <TaskCalls task={props.task} calls={props.calls} columns={props.columns} onFail={props.onFail} />
           </div>
-        ))}
-      </dl>
-      <div className="voice-task__calls">
-        <p className="voice-task__calls-label">{props.calls.length > 0 ? tr(`${props.calls.length} cuộc gọi`, `${props.calls.length} 通通话`) : tr("Từng cuộc gọi", "通话明细")}</p>
-        <TaskCalls task={props.task} calls={props.calls} columns={props.columns} onFail={props.onFail} />
-      </div>
+        </>
+      ) : null}
     </article>
   );
 }
