@@ -58,8 +58,28 @@ type Options = {
   headers?: Record<string, string>;
 };
 
+const inflightGets = new Map<string, Promise<unknown>>();
+
 export async function api<T>(path: string, options: Options = {}): Promise<T> {
   const method = options.method ?? (options.body === undefined ? "GET" : "POST");
+  if (method === "GET" && options.body === undefined) {
+    const pending = inflightGets.get(path);
+    if (pending) {
+      return pending as Promise<T>;
+    }
+    const run = send<T>(path, method, options);
+    inflightGets.set(path, run);
+    void run.finally(() => {
+      if (inflightGets.get(path) === run) {
+        inflightGets.delete(path);
+      }
+    });
+    return run;
+  }
+  return send<T>(path, method, options);
+}
+
+async function send<T>(path: string, method: string, options: Options): Promise<T> {
   const headers = new Headers();
   headers.set("x-request-id", crypto.randomUUID());
   if (MUTATING.has(method) && csrfToken) {

@@ -3,6 +3,9 @@ import { deskLang } from "./language.tsx";
 import { api } from "../api.ts";
 import { StaffChat, type LiveChatMessage, type LiveChatTask, type ReplyAck } from "./staffChat.ts";
 
+const LIVE_CATCH_UP_MS = 30_000;
+const DOWN_CATCH_UP_MS = 5_000;
+
 export type UnreadChat = {
   taskId: string;
   customerRef: string;
@@ -138,7 +141,12 @@ export function startInboxWatch(scope: "own" | "staff" | "team" = "own"): void {
   loadSeen();
   chat = new StaffChat({
     onStatus: (next) => {
+      const becameLive = status !== "live" && next === "live";
       status = next;
+      scheduleCatchUp();
+      if (becameLive) {
+        void catchUp();
+      }
       for (const board of boards) {
         board.onStatus(next);
       }
@@ -165,7 +173,7 @@ export function startInboxWatch(scope: "own" | "staff" | "team" = "own"): void {
   });
   chat.start();
   void catchUp();
-  catchUpTimer = window.setInterval(() => void catchUp(), 5_000);
+  scheduleCatchUp();
   flashTimer = window.setInterval(paintChrome, 1_200);
   document.addEventListener("visibilitychange", onVisible);
   window.addEventListener("focus", onVisible);
@@ -266,6 +274,11 @@ function absorb(items: TaskListItem[]): void {
   if (alert) {
     alertStaff(alert.name, alert.body, alert.taskId, false);
   }
+}
+
+function scheduleCatchUp(): void {
+  window.clearInterval(catchUpTimer);
+  catchUpTimer = window.setInterval(() => void catchUp(), status === "live" ? LIVE_CATCH_UP_MS : DOWN_CATCH_UP_MS);
 }
 
 async function catchUp(): Promise<void> {

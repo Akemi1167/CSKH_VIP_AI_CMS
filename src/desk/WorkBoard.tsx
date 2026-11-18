@@ -36,7 +36,7 @@ type TaskRow = {
 };
 
 type TaskDetail = TaskRow & {
-  messages: { id: string; sender_type: string; body: string; created_at: string; has_image?: boolean; read_at?: string | null }[];
+  messages: { id: string; sender_type: string; body: string; created_at: string; has_image?: boolean; image_url?: string; read_at?: string | null }[];
 };
 
 function statusText(status: string, tr: (vi: string, zh: string) => string, hold?: boolean): string {
@@ -473,7 +473,7 @@ export function WorkBoard(props: {
         version: event.version || current.version,
         status: statusNext,
         ...place,
-        messages: [...current.messages, { id: event.message_id, sender_type: event.sender_type, body: event.body, created_at: event.created_at, has_image: event.has_image }],
+        messages: [...current.messages, { id: event.message_id, sender_type: event.sender_type, body: event.body, created_at: event.created_at, has_image: event.has_image, image_url: event.image_url }],
       };
       rememberDetail(next);
       return next;
@@ -756,7 +756,9 @@ export function WorkBoard(props: {
       return;
     }
     const id = detail.id;
-    const timer = window.setInterval(() => {
+    let timer = 0;
+    let stopped = false;
+    const tick = () => {
       void api<TaskDetail>(`/api/v1/tasks/${id}`)
         .then((result) => {
           rememberDetail(result);
@@ -764,8 +766,15 @@ export function WorkBoard(props: {
         })
         .catch(() => undefined);
       void load(status, assigneeId).catch(() => undefined);
-    }, 8000);
-    return () => window.clearInterval(timer);
+      if (!stopped) {
+        timer = window.setTimeout(tick, staffChatLive() ? 25_000 : 8_000);
+      }
+    };
+    timer = window.setTimeout(tick, staffChatLive() ? 25_000 : 8_000);
+    return () => {
+      stopped = true;
+      window.clearTimeout(timer);
+    };
   }, [assigneeId, chatLayout, detail?.id, load, status]);
 
   const lastMessageId = detail?.messages.at(-1)?.id;

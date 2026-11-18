@@ -27,6 +27,7 @@ type VerifyMessage = {
   body: string;
   created_at: string;
   has_image?: boolean;
+  image_url?: string;
 };
 
 type VerifyDetail = VerifyItem & {
@@ -140,8 +141,11 @@ export function VerifyBoard(props: { onUnauthorized: () => void; onMfaSetup: () 
     }
     const taskId = detail.id;
     const timer = window.setInterval(() => {
+      if (document.hidden) {
+        return;
+      }
       void readChat(taskId).catch(() => undefined);
-    }, 4000);
+    }, 12_000);
     return () => window.clearInterval(timer);
   }, [detail?.id, readChat]);
 

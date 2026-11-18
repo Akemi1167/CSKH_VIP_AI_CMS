@@ -4,7 +4,7 @@ import { withRead } from "../readMark.ts";
 import type { LiveChatMessage, LiveChatTask } from "./staffChat.ts";
 import { reportTaskRead } from "./inboxWatch.ts";
 
-export type DockMessage = { id: string; sender_type: string; body: string; created_at: string; has_image?: boolean; read_at?: string | null };
+export type DockMessage = { id: string; sender_type: string; body: string; created_at: string; has_image?: boolean; image_url?: string; read_at?: string | null };
 
 export type DockTask = {
   id: string;
@@ -97,7 +97,7 @@ export function seedDockBubble(event: LiveChatMessage): void {
         channel: event.channel || "web_chat",
         client_ip: event.client_ip,
         client_country: event.client_country,
-        messages: [{ id: event.message_id, sender_type: event.sender_type, body: event.body, created_at: event.created_at, has_image: event.has_image }],
+        messages: [{ id: event.message_id, sender_type: event.sender_type, body: event.body, created_at: event.created_at, has_image: event.has_image, image_url: event.image_url }],
       },
       expanded: false,
       draft: "",
@@ -172,7 +172,7 @@ export function applyDockLiveMessage(event: LiveChatMessage): void {
   const exists = window.task.messages.some((message) => message.id === event.message_id);
   const messages = exists
     ? window.task.messages
-    : [...window.task.messages, { id: event.message_id, sender_type: event.sender_type, body: event.body, created_at: event.created_at, has_image: event.has_image }];
+    : [...window.task.messages, { id: event.message_id, sender_type: event.sender_type, body: event.body, created_at: event.created_at, has_image: event.has_image, image_url: event.image_url }];
   const incoming = event.sender_type === "customer" && !exists;
   if (incoming && window.expanded && document.hasFocus() && !document.hidden) {
     reportTaskRead(event.task_id);
