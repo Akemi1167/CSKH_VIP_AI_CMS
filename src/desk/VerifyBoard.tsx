@@ -34,6 +34,18 @@ type VerifyDetail = VerifyItem & {
   messages: VerifyMessage[];
 };
 
+async function claimOpen(taskId: string, version: number): Promise<{ version: number }> {
+  try {
+    return await api<{ version: number }>(`/api/v1/tasks/${taskId}/verify-claim`, { method: "POST", body: { version } });
+  } catch (caught) {
+    if (!(caught instanceof ApiError) || caught.status !== 409 || caught.message !== "Task đã được cập nhật") {
+      throw caught;
+    }
+    const fresh = await api<{ version: number }>(`/api/v1/tasks/${taskId}`);
+    return api<{ version: number }>(`/api/v1/tasks/${taskId}/verify-claim`, { method: "POST", body: { version: fresh.version } });
+  }
+}
+
 function reasonText(reason: VerifyItem["reason"], tr: (vi: string, zh: string) => string): string {
   if (reason === "account_unknown") {
     return tr("Sai tên", "名称错误");
@@ -68,6 +80,7 @@ export function VerifyBoard(props: { onUnauthorized: () => void; onMfaSetup: () 
   const threadRef = useRef<HTMLDivElement>(null);
   const replyRef = useRef("");
   const detailId = useRef<string | null>(null);
+  const openingId = useRef<string | null>(null);
   detailId.current = detail?.id ?? null;
 
   const failAuth = useCallback(
@@ -150,17 +163,27 @@ export function VerifyBoard(props: { onUnauthorized: () => void; onMfaSetup: () 
   }, [detail?.id, readChat]);
 
   async function openChat(row: VerifyItem) {
+    if (openingId.current === row.id || detailId.current === row.id) {
+      return;
+    }
+    openingId.current = row.id;
     setOpening(true);
     setError(null);
     setNotice(null);
     detailId.current = row.id;
     setDetail({ ...row, messages: [] });
     try {
-      const claimed = await api<{ version: number }>(`/api/v1/tasks/${row.id}/verify-claim`, { method: "POST", body: { version: row.version } });
+      const claimed = await claimOpen(row.id, row.version);
+      if (openingId.current !== row.id) {
+        return;
+      }
       detailId.current = row.id;
       await readChat(row.id);
       setItems((current) => current.map((item) => (item.id === row.id ? { ...item, version: claimed.version, status: item.status === "QUEUED" ? "ASSIGNED" : item.status } : item)));
     } catch (caught) {
+      if (openingId.current !== row.id) {
+        return;
+      }
       const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", tr("Không mở được hội thoại", "无法打开会话"), "");
       if (!failAuth(problem)) {
         setError(problem);
@@ -170,7 +193,10 @@ export function VerifyBoard(props: { onUnauthorized: () => void; onMfaSetup: () 
         detailId.current = null;
       }
     } finally {
-      setOpening(false);
+      if (openingId.current === row.id) {
+        openingId.current = null;
+        setOpening(false);
+      }
     }
   }
 
