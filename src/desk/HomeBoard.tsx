@@ -189,10 +189,19 @@ export function HomeBoard(props: { canWrite: boolean; onUnauthorized: () => void
             ) : null}
           </header>
           {menu.length === 0 ? <Typography.Text type="secondary">{tr("Chưa có mục menu.", "还没有菜单项。")}</Typography.Text> : null}
+          {menu.length > 0 ? (
+            <div className="home-row home-row--menu home-row--head">
+              <span>{tr("Tên mục", "名称")}</span>
+              <span>{tr("Kiểu chuyển hướng", "跳转方式")}</span>
+              <span>{tr("Đường dẫn", "路径")}</span>
+              <span />
+            </div>
+          ) : null}
           {menu.map((item, index) => (
             <article key={`menu-${index}`} className="home-row home-row--menu">
               <Input value={item.label} maxLength={40} placeholder={tr("Tên mục", "名称")} disabled={!props.canWrite || loading} onChange={(event) => updateMenu(index, { label: event.target.value })} />
               <LinkChoice
+                lined
                 linkType={item.link_type}
                 href={item.href}
                 disabled={!props.canWrite || loading}
@@ -267,37 +276,54 @@ export function HomeBoard(props: { canWrite: boolean; onUnauthorized: () => void
   );
 }
 
-function LinkChoice(props: { linkType: LinkType; href: string; disabled: boolean; onChange: (next: { link_type: LinkType; href: string }) => void }) {
+function LinkChoice(props: { lined?: boolean; linkType: LinkType; href: string; disabled: boolean; onChange: (next: { link_type: LinkType; href: string }) => void }) {
   const tr = useTr();
   const options = [
     { value: "page" as const, label: tr("Trong trang", "站内打开") },
     { value: "blank" as const, label: tr("Link ngoài", "外部链接") },
     { value: "none" as const, label: tr("Không chuyển", "不跳转") },
   ];
+  const select = (
+    <Select
+      value={props.linkType}
+      options={options}
+      disabled={props.disabled}
+      onChange={(value: LinkType) => props.onChange({ link_type: value, href: value === "none" ? "" : props.href })}
+    />
+  );
+  const path =
+    props.linkType === "none" ? (
+      <span />
+    ) : (
+      <Input
+        value={props.href}
+        maxLength={300}
+        placeholder={props.linkType === "blank" ? "https://example.com" : "/khuyen-mai"}
+        disabled={props.disabled}
+        onChange={(event) => {
+          const href = event.target.value;
+          props.onChange({ link_type: props.linkType === "page" && looksExternal(href) ? "blank" : props.linkType, href });
+        }}
+      />
+    );
+  if (props.lined) {
+    return (
+      <>
+        {select}
+        {path}
+      </>
+    );
+  }
   return (
     <>
       <div className="home-field">
         <span>{tr("Kiểu chuyển hướng", "跳转方式")}</span>
-        <Select
-          value={props.linkType}
-          options={options}
-          disabled={props.disabled}
-          onChange={(value: LinkType) => props.onChange({ link_type: value, href: value === "none" ? "" : props.href })}
-        />
+        {select}
       </div>
       {props.linkType === "none" ? null : (
         <div className="home-field">
           <span>{props.linkType === "blank" ? tr("Địa chỉ web", "网址") : tr("Đường dẫn trong trang", "站内路径")}</span>
-          <Input
-            value={props.href}
-            maxLength={300}
-            placeholder={props.linkType === "blank" ? "https://example.com" : "/khuyen-mai"}
-            disabled={props.disabled}
-            onChange={(event) => {
-              const href = event.target.value;
-              props.onChange({ link_type: props.linkType === "page" && looksExternal(href) ? "blank" : props.linkType, href });
-            }}
-          />
+          {path}
         </div>
       )}
     </>
