@@ -129,8 +129,8 @@ export function HomeBoard(props: { canWrite: boolean; onUnauthorized: () => void
     }
     setError(null);
     try {
-      const saved = await api<{ image_id: string }>("/api/v1/admin/home/banners/images", { method: "POST", body: file });
-      updateBanner(index, { image_id: saved.image_id, image_url: null, preview: URL.createObjectURL(file) });
+      const saved = await api<{ image_id: string; image_url: string }>("/api/v1/admin/home/banners/images", { method: "POST", body: file });
+      updateBanner(index, { image_id: saved.image_id, image_url: saved.image_url, preview: URL.createObjectURL(file) });
     } catch (caught) {
       const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", tr("Không tải được ảnh banner", "无法上传横幅图片"), "");
       if (!failAuth(problem)) {
@@ -346,7 +346,13 @@ function bannerPreview(item: Banner): string {
   if (item.preview) {
     return item.preview;
   }
-  return item.image_url ? toApiUrl(item.image_url) : "";
+  if (!item.image_url) {
+    return "";
+  }
+  if (item.image_url.startsWith("http://") || item.image_url.startsWith("https://")) {
+    return item.image_url;
+  }
+  return toApiUrl(item.image_url);
 }
 
 function move<T>(items: T[], index: number, direction: -1 | 1): T[] {
