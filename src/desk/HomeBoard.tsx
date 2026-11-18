@@ -1,8 +1,8 @@
-import { PictureOutlined } from "@ant-design/icons";
 import { Button, Input, Select, Typography } from "antd";
 import { useCallback, useEffect, useState } from "react";
-import { ApiError, api, toApiUrl } from "../api.ts";
+import { ApiError, api } from "../api.ts";
 import { ErrorAlert } from "../ui.tsx";
+import { ImageField } from "./ImageField.tsx";
 import { useTr } from "./language.tsx";
 
 type MenuItem = { label: string; link_type: LinkType; href: string };
@@ -18,8 +18,8 @@ type Banner = {
   link_type: LinkType;
   href: string;
   image_id: string | null;
+  image_key: string | null;
   image_url: string | null;
-  preview?: string;
 };
 
 type HomePage = {
@@ -27,7 +27,7 @@ type HomePage = {
   banners: Banner[];
 };
 
-const EMPTY_BANNER: Banner = { eyebrow: "", title: "", body: "", action_label: "", link_type: "page", href: "", image_id: null, image_url: null };
+const EMPTY_BANNER: Banner = { eyebrow: "", title: "", body: "", action_label: "", link_type: "page", href: "", image_id: null, image_key: null, image_url: null };
 
 export function HomeBoard(props: { canWrite: boolean; onUnauthorized: () => void; onMfaSetup: () => void }) {
   const tr = useTr();
@@ -38,7 +38,7 @@ export function HomeBoard(props: { canWrite: boolean; onUnauthorized: () => void
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const draft = JSON.stringify({ menu, banners: banners.map(({ preview: _preview, ...item }) => item) });
+  const draft = JSON.stringify({ menu, banners });
   const dirty = draft !== baseline;
 
   const failAuth = useCallback(
@@ -71,6 +71,7 @@ export function HomeBoard(props: { canWrite: boolean; onUnauthorized: () => void
       link_type: item.link_type ?? "page",
       href: item.href,
       image_id: item.image_url ? item.id ?? null : null,
+      image_key: null,
       image_url: item.image_url,
     }));
     setMenu(nextMenu);
@@ -122,23 +123,6 @@ export function HomeBoard(props: { canWrite: boolean; onUnauthorized: () => void
     setMenu((current) => current.map((item, itemIndex) => (itemIndex === index ? { ...item, ...patch } : item)));
   }
 
-  async function chooseBannerImage(index: number, file: File) {
-    if (file.size === 0 || file.size > 5 * 1024 * 1024 || !/^image\/(png|jpe?g|webp|gif)$/i.test(file.type)) {
-      setError(new ApiError(400, "validation_error", tr("Chỉ gửi ảnh PNG, JPEG, WEBP hoặc GIF, tối đa 5 MB", "只能上传 PNG、JPEG、WEBP 或 GIF，最大 5 MB"), ""));
-      return;
-    }
-    setError(null);
-    try {
-      const saved = await api<{ image_id: string; image_url: string }>("/api/v1/admin/home/banners/images", { method: "POST", body: file });
-      updateBanner(index, { image_id: saved.image_id, image_url: saved.image_url, preview: URL.createObjectURL(file) });
-    } catch (caught) {
-      const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", tr("Không tải được ảnh banner", "无法上传横幅图片"), "");
-      if (!failAuth(problem)) {
-        setError(problem);
-      }
-    }
-  }
-
   function updateBanner(index: number, patch: Partial<Banner>) {
     setNotice(null);
     setBanners((current) => current.map((item, itemIndex) => (itemIndex === index ? { ...item, ...patch } : item)));
@@ -160,7 +144,8 @@ export function HomeBoard(props: { canWrite: boolean; onUnauthorized: () => void
             action_label: item.action_label.trim(),
             link_type: item.link_type,
             href: item.link_type === "none" ? "" : item.href.trim(),
-            image_id: item.image_id,
+            image_id: item.image_key ? null : item.image_id,
+            image_key: item.image_key,
           })),
         },
       });
@@ -251,34 +236,16 @@ export function HomeBoard(props: { canWrite: boolean; onUnauthorized: () => void
                 disabled={!props.canWrite || loading}
                 onChange={(next) => updateBanner(index, next)}
               />
-              <label className="home-field">
-                <span>{tr("Ảnh banner", "横幅图片")}</span>
-                {bannerPreview(item) ? <img className="home-banner-preview" alt="" src={bannerPreview(item)} /> : <Typography.Text type="secondary">{tr("Chưa có ảnh", "还没有图片")}</Typography.Text>}
-                {props.canWrite ? (
-                  <div className="home-banner-image">
-                    <label className="chat-photo-send" title={tr("Chọn ảnh banner", "选择横幅图片")} aria-label={tr("Chọn ảnh banner", "选择横幅图片")}>
-                      <PictureOutlined />
-                      <input
-                        type="file"
-                        accept="image/png,image/jpeg,image/webp,image/gif"
-                        disabled={loading}
-                        onChange={(event) => {
-                          const file = event.target.files?.[0];
-                          event.target.value = "";
-                          if (file) {
-                            void chooseBannerImage(index, file);
-                          }
-                        }}
-                      />
-                    </label>
-                    {item.image_id || item.preview ? (
-                      <Button size="small" disabled={loading} onClick={() => updateBanner(index, { image_id: null, image_url: null, preview: undefined })}>
-                        {tr("Gỡ ảnh", "移除图片")}
-                      </Button>
-                    ) : null}
-                  </div>
-                ) : null}
-              </label>
+              <ImageField
+                url={item.image_url ?? ""}
+                disabled={!props.canWrite || loading}
+                onChange={(next) => updateBanner(index, { image_id: null, image_key: next.key, image_url: next.url || null })}
+                onError={(problem) => {
+                  if (!failAuth(problem)) {
+                    setError(problem);
+                  }
+                }}
+              />
               {props.canWrite ? (
                 <div className="home-row__actions">
                   <Button size="small" disabled={index === 0} onClick={() => changeBanners(move(banners, index, -1))}>
@@ -340,19 +307,6 @@ function LinkChoice(props: { linkType: LinkType; href: string; disabled: boolean
 function looksExternal(value: string): boolean {
   const text = value.trim();
   return /^https?:\/\//i.test(text) || /^[A-Za-z0-9.-]+\.[A-Za-z]{2,}(?:[/?#]\S*)?$/.test(text);
-}
-
-function bannerPreview(item: Banner): string {
-  if (item.preview) {
-    return item.preview;
-  }
-  if (!item.image_url) {
-    return "";
-  }
-  if (item.image_url.startsWith("http://") || item.image_url.startsWith("https://")) {
-    return item.image_url;
-  }
-  return toApiUrl(item.image_url);
 }
 
 function move<T>(items: T[], index: number, direction: -1 | 1): T[] {

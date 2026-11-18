@@ -1,12 +1,16 @@
+import { CopyOutlined, UploadOutlined } from "@ant-design/icons";
 import { Button, Modal, Typography } from "antd";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, api } from "../api.ts";
 import { formatStamp } from "../copy.ts";
+import { copyText } from "../password.ts";
 import { ErrorAlert } from "../ui.tsx";
 import { useTr } from "./language.tsx";
+import { trackLibraryUpload } from "./uploadImage.ts";
 
 type MediaItem = {
   id: string;
+  key?: string;
   url: string;
   content_type: string;
   size_bytes: number;
@@ -26,7 +30,10 @@ export function MediaBoard(props: { canWrite: boolean; onUnauthorized: () => voi
   const [next, setNext] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [copiedId, setCopiedId] = useState("");
   const [error, setError] = useState<ApiError | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const failAuth = useCallback(
     (caught: ApiError) => {
@@ -92,6 +99,39 @@ export function MediaBoard(props: { canWrite: boolean; onUnauthorized: () => voi
     }
   }
 
+  function upload(file: File | undefined) {
+    if (!file) {
+      return;
+    }
+    setUploading(true);
+    setError(null);
+    trackLibraryUpload(file, {
+      onDone: () => {
+        setUploading(false);
+        void load().catch((caught: unknown) => {
+          const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", tr("Không tải được ảnh", "无法加载图片"), "");
+          if (!failAuth(problem)) {
+            setError(problem);
+          }
+        });
+      },
+      onFail: (problem) => {
+        setUploading(false);
+        if (!failAuth(problem)) {
+          setError(problem);
+        }
+      },
+    });
+  }
+
+  async function copyUrl(item: MediaItem) {
+    if (!item.url || !(await copyText(item.url))) {
+      return;
+    }
+    setCopiedId(item.id);
+    window.setTimeout(() => setCopiedId((current) => (current === item.id ? "" : current)), 1500);
+  }
+
   function remove(item: MediaItem) {
     Modal.confirm({
       title: tr("Xóa ảnh này?", "删除这张图片？"),
@@ -120,8 +160,26 @@ export function MediaBoard(props: { canWrite: boolean; onUnauthorized: () => voi
           <Typography.Title level={3} className="page-header__title">
             {tr("Media", "素材")}
           </Typography.Title>
-          <Typography.Text type="secondary">{tr("Ảnh khách và nhân viên gửi trong chat, lưu trên kho S3.", "客户和员工在聊天中发送的图片，保存在 S3。")}</Typography.Text>
+          <Typography.Text type="secondary">{tr("Tải ảnh thẳng lên kho, rồi chép đường dẫn hoặc chọn lại ở banner.", "图片直接传到仓库，之后可以复制地址，或在横幅里再次选用。")}</Typography.Text>
         </div>
+        {props.canWrite ? (
+          <div>
+            <Button type="primary" icon={<UploadOutlined />} disabled={uploading} onClick={() => fileRef.current?.click()}>
+              {tr("Tải ảnh lên", "上传图片")}
+            </Button>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/gif"
+              hidden
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                event.target.value = "";
+                upload(file);
+              }}
+            />
+          </div>
+        ) : null}
       </div>
       {error ? <ErrorAlert error={error} /> : null}
       {loading ? <Typography.Text type="secondary">{tr("Đang tải…", "加载中…")}</Typography.Text> : null}
@@ -134,6 +192,11 @@ export function MediaBoard(props: { canWrite: boolean; onUnauthorized: () => voi
               <strong>{item.source_label}</strong>
               <span>{formatStamp(item.created_at)}</span>
               <span>{formatSize(item.size_bytes)}</span>
+              {item.url ? (
+                <Button size="small" icon={<CopyOutlined />} onClick={() => void copyUrl(item)}>
+                  {copiedId === item.id ? tr("Đã chép", "已复制") : tr("Chép đường dẫn", "复制地址")}
+                </Button>
+              ) : null}
               {props.canWrite ? (
                 <Button size="small" danger onClick={() => remove(item)}>
                   {tr("Xóa", "删除")}

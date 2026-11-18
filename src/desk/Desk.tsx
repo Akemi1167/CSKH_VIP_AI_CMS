@@ -9,6 +9,7 @@ import type { UserProfile } from "../types.ts";
 import { ErrorAlert } from "../ui.tsx";
 import { UiFrame } from "../uiFrame.tsx";
 import { ChatDock } from "./ChatDock.tsx";
+import { UploadBar } from "./UploadBar.tsx";
 import { PasswordDialog } from "./PasswordDialog.tsx";
 import { armAlertSound, askChatNotification, setDeskChromeTitle, startInboxWatch, stopInboxWatch, useInboxUnread } from "./inboxWatch.ts";
 import { DESK_TEXT, LangSwitch, deskLang, pageLabel, useDeskLang } from "./language.tsx";
@@ -701,6 +702,7 @@ export function Desk(props: {
         {DESK_TEXT.unsavedBody[lang]}
       </Modal>
       {passwordOpen ? <PasswordDialog onClose={() => setPasswordOpen(false)} onChanged={() => props.onLoggedOut(DESK_TEXT.passwordChanged[lang])} /> : null}
+      <UploadBar />
     </div>
     </ConfigProvider>
     </UiFrame>
