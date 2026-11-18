@@ -55,7 +55,7 @@ export function VerifyBoard(props: { onUnauthorized: () => void; onMfaSetup: () 
 
   const load = useCallback(async () => {
     const result = await api<{ items: VerifyItem[] }>("/api/v1/tasks/verify");
-    setItems(result.items);
+    setItems([...result.items].sort((left, right) => Date.parse(right.received_at) - Date.parse(left.received_at)));
     setError(null);
   }, []);
 

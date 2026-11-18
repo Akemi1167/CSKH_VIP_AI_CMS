@@ -5,7 +5,7 @@ import { ApiError, api, toApiUrl } from "../api.ts";
 import { ErrorAlert } from "../ui.tsx";
 import { useTr } from "./language.tsx";
 
-type MenuItem = { label: string; href: string };
+type MenuItem = { label: string; link_type: LinkType; href: string };
 
 type LinkType = "page" | "blank" | "none";
 
@@ -57,7 +57,11 @@ export function HomeBoard(props: { canWrite: boolean; onUnauthorized: () => void
   );
 
   const apply = useCallback((page: HomePage) => {
-    const nextMenu = page.menu.map((item) => ({ label: item.label, href: item.href }));
+    const nextMenu = page.menu.map((item) => ({
+      label: item.label,
+      link_type: item.link_type ?? (looksExternal(item.href) ? "blank" : "page"),
+      href: item.href,
+    }));
     const nextBanners = page.banners.map((item) => ({
       id: item.id,
       eyebrow: item.eyebrow,
@@ -148,7 +152,7 @@ export function HomeBoard(props: { canWrite: boolean; onUnauthorized: () => void
       const page = await api<HomePage>("/api/v1/admin/home", {
         method: "PUT",
         body: {
-          menu: menu.map((item) => ({ label: item.label.trim(), href: item.href.trim() })),
+          menu: menu.map((item) => ({ label: item.label.trim(), link_type: item.link_type, href: item.link_type === "none" ? "" : item.href.trim() })),
           banners: banners.map((item) => ({
             eyebrow: item.eyebrow.trim(),
             title: item.title.trim(),
@@ -172,12 +176,6 @@ export function HomeBoard(props: { canWrite: boolean; onUnauthorized: () => void
     }
   }
 
-  const linkTypes: { value: LinkType; label: string }[] = [
-    { value: "page", label: tr("Trong trang", "站内打开") },
-    { value: "blank", label: tr("Tab mới", "新标签页") },
-    { value: "none", label: tr("Không chuyển", "不跳转") },
-  ];
-
   return (
     <section>
       <div className="page-header">
@@ -200,16 +198,21 @@ export function HomeBoard(props: { canWrite: boolean; onUnauthorized: () => void
           <header>
             <Typography.Title level={5}>{tr("Menu", "菜单")}</Typography.Title>
             {props.canWrite ? (
-              <Button size="small" disabled={loading || menu.length >= 12} onClick={() => changeMenu([...menu, { label: "", href: "/" }])}>
+              <Button size="small" disabled={loading || menu.length >= 12} onClick={() => changeMenu([...menu, { label: "", link_type: "page", href: "/" }])}>
                 {tr("Thêm mục", "添加项")}
               </Button>
             ) : null}
           </header>
           {menu.length === 0 ? <Typography.Text type="secondary">{tr("Chưa có mục menu.", "还没有菜单项。")}</Typography.Text> : null}
           {menu.map((item, index) => (
-            <article key={`menu-${index}`} className="home-row">
+            <article key={`menu-${index}`} className="home-row home-row--menu">
               <Input value={item.label} maxLength={40} placeholder={tr("Tên mục", "名称")} disabled={!props.canWrite || loading} onChange={(event) => updateMenu(index, { label: event.target.value })} />
-              <Input value={item.href} maxLength={300} placeholder={tr("/khuyen-mai hoặc https://", "/khuyen-mai 或 https://")} disabled={!props.canWrite || loading} onChange={(event) => updateMenu(index, { href: event.target.value })} />
+              <LinkChoice
+                linkType={item.link_type}
+                href={item.href}
+                disabled={!props.canWrite || loading}
+                onChange={(next) => updateMenu(index, next)}
+              />
               {props.canWrite ? (
                 <div className="home-row__actions">
                   <Button size="small" disabled={index === 0} onClick={() => changeMenu(move(menu, index, -1))}>
@@ -242,27 +245,12 @@ export function HomeBoard(props: { canWrite: boolean; onUnauthorized: () => void
               <Input value={item.title} maxLength={120} placeholder={tr("Tiêu đề", "标题")} disabled={!props.canWrite || loading} onChange={(event) => updateBanner(index, { title: event.target.value })} />
               <Input.TextArea value={item.body} maxLength={400} rows={2} placeholder={tr("Nội dung", "内容")} disabled={!props.canWrite || loading} onChange={(event) => updateBanner(index, { body: event.target.value })} />
               <Input value={item.action_label} maxLength={40} placeholder={tr("Chữ trên nút", "按钮文字")} disabled={!props.canWrite || loading} onChange={(event) => updateBanner(index, { action_label: event.target.value })} />
-              <label className="home-field">
-                <span>{tr("Kiểu chuyển hướng", "跳转方式")}</span>
-                <Select
-                  value={item.link_type}
-                  options={linkTypes}
-                  disabled={!props.canWrite || loading}
-                  onChange={(value: LinkType) => updateBanner(index, { link_type: value, href: value === "none" ? "" : item.href })}
-                />
-              </label>
-              {item.link_type !== "none" ? (
-                <label className="home-field">
-                  <span>{tr("Link chuyển hướng", "跳转链接")}</span>
-                  <Input
-                    value={item.href}
-                    maxLength={300}
-                    placeholder={item.link_type === "blank" ? "https://" : "/khuyen-mai"}
-                    disabled={!props.canWrite || loading}
-                    onChange={(event) => updateBanner(index, { href: event.target.value })}
-                  />
-                </label>
-              ) : null}
+              <LinkChoice
+                linkType={item.link_type}
+                href={item.href}
+                disabled={!props.canWrite || loading}
+                onChange={(next) => updateBanner(index, next)}
+              />
               <label className="home-field">
                 <span>{tr("Ảnh banner", "横幅图片")}</span>
                 {bannerPreview(item) ? <img className="home-banner-preview" alt="" src={bannerPreview(item)} /> : <Typography.Text type="secondary">{tr("Chưa có ảnh", "还没有图片")}</Typography.Text>}
@@ -310,6 +298,48 @@ export function HomeBoard(props: { canWrite: boolean; onUnauthorized: () => void
       </div>
     </section>
   );
+}
+
+function LinkChoice(props: { linkType: LinkType; href: string; disabled: boolean; onChange: (next: { link_type: LinkType; href: string }) => void }) {
+  const tr = useTr();
+  const options = [
+    { value: "page" as const, label: tr("Trong trang", "站内打开") },
+    { value: "blank" as const, label: tr("Link ngoài", "外部链接") },
+    { value: "none" as const, label: tr("Không chuyển", "不跳转") },
+  ];
+  return (
+    <>
+      <div className="home-field">
+        <span>{tr("Kiểu chuyển hướng", "跳转方式")}</span>
+        <Select
+          value={props.linkType}
+          options={options}
+          disabled={props.disabled}
+          onChange={(value: LinkType) => props.onChange({ link_type: value, href: value === "none" ? "" : props.href })}
+        />
+      </div>
+      {props.linkType === "none" ? null : (
+        <div className="home-field">
+          <span>{props.linkType === "blank" ? tr("Địa chỉ web", "网址") : tr("Đường dẫn trong trang", "站内路径")}</span>
+          <Input
+            value={props.href}
+            maxLength={300}
+            placeholder={props.linkType === "blank" ? "https://example.com" : "/khuyen-mai"}
+            disabled={props.disabled}
+            onChange={(event) => {
+              const href = event.target.value;
+              props.onChange({ link_type: props.linkType === "page" && looksExternal(href) ? "blank" : props.linkType, href });
+            }}
+          />
+        </div>
+      )}
+    </>
+  );
+}
+
+function looksExternal(value: string): boolean {
+  const text = value.trim();
+  return /^https?:\/\//i.test(text) || /^[A-Za-z0-9.-]+\.[A-Za-z]{2,}(?:[/?#]\S*)?$/.test(text);
 }
 
 function bannerPreview(item: Banner): string {

@@ -1281,6 +1281,10 @@ a {
   margin-bottom: 8px;
 }
 
+.home-row--menu {
+  grid-template-columns: minmax(140px, 200px) minmax(150px, 190px) minmax(0, 1fr) auto;
+}
+
 .home-row--banner {
   grid-template-columns: minmax(0, 1fr);
   padding: 12px;
