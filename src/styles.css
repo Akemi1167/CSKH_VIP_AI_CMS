@@ -351,6 +351,13 @@ a {
   }
 }
 
+.verify-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 16px 16px;
+}
+
 .chat-list {
   overflow-y: auto;
   background: var(--c-card);
