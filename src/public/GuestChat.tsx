@@ -22,11 +22,17 @@ type GuestSession = {
   invite?: string;
 };
 
+type GuestAgent = {
+  display_name: string;
+  avatar_url?: string | null;
+};
+
 type GuestTicket = {
   ticket: string;
   upload_token: string;
   conversation_id: string;
   messages: Bubble[];
+  agent?: GuestAgent | null;
 };
 
 const STORAGE = "cskh.guest-chat";
@@ -46,6 +52,8 @@ const COPY = {
     placeholder: "Nhắn nhân viên hoặc dán ảnh",
     connecting: "Đang nối…",
     live: "Đang nối",
+    chatting: "Đang chat với {name}",
+    joined: "{name} đã kết nối",
     down: "Mất kết nối",
     retry: "Nối lại",
     send: "Gửi",
@@ -65,6 +73,8 @@ const COPY = {
     placeholder: "给客服发消息或粘贴图片",
     connecting: "连接中…",
     live: "已连接",
+    chatting: "正在与 {name} 聊天",
+    joined: "{name} 已接入",
     down: "连接已断开",
     retry: "重新连接",
     send: "发送",
@@ -83,6 +93,9 @@ export function GuestChat() {
   const [text, setText] = useState("");
   const [status, setStatus] = useState<"form" | "connecting" | "live" | "down">(saved.current ? "connecting" : "form");
   const [error, setError] = useState<string | null>(null);
+  const [agent, setAgent] = useState<GuestAgent | null>(null);
+  const [joined, setJoined] = useState<string | null>(null);
+  const [avatarTick, setAvatarTick] = useState(0);
   const [lang, setLang] = useState<GuestLang>(loadLang);
   const threadRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<WebSocket | null>(null);
@@ -93,6 +106,7 @@ export function GuestChat() {
   const uploadTokenRef = useRef("");
   const fileRef = useRef<HTMLInputElement>(null);
   const imageBusy = useRef(false);
+  const agentNameRef = useRef("");
 
   const connect = useCallback(async (session: GuestSession) => {
     setStatus("connecting");
@@ -113,6 +127,9 @@ export function GuestChat() {
       localStorage.setItem(STORAGE, JSON.stringify(next));
       uploadTokenRef.current = issued.upload_token;
       setMessages(issued.messages);
+      setAgent(issued.agent?.display_name ? issued.agent : null);
+      agentNameRef.current = issued.agent?.display_name ?? "";
+      setJoined(null);
       openSocket(issued.ticket);
     } catch (caught) {
       setStatus("down");
@@ -165,6 +182,9 @@ export function GuestChat() {
       if (frame.type === "error") {
         if (frame.code === "conversation_closed") {
           pendingRef.current = [];
+          setAgent(null);
+          setJoined(null);
+          agentNameRef.current = "";
           const session = saved.current;
           if (session) {
             const fresh = { ...session, conversationId: "" };
@@ -186,6 +206,16 @@ export function GuestChat() {
         const ids = frame.message_ids;
         const readAt = frame.read_at;
         setMessages((current) => withRead(current, ids, readAt));
+        return;
+      }
+      if (frame.type === "agent" && frame.display_name) {
+        const name = frame.display_name;
+        if (agentNameRef.current !== name) {
+          agentNameRef.current = name;
+          setJoined(name);
+        }
+        setAgent({ display_name: name, avatar_url: frame.avatar_url ?? null });
+        setAvatarTick(Date.now());
         return;
       }
       if (frame.type === "message" && frame.message_id && frame.sender_type === "agent" && (frame.body || frame.image_url)) {
@@ -330,7 +360,10 @@ export function GuestChat() {
           ) : null}
           <div>
             <strong>{stationCode || "CSKH VIP"}</strong>
-            <p>{started ? statusLabel(status, lang) : textCopy.contact}</p>
+            <p className={agent ? "guest-agent" : undefined}>
+              {agent?.avatar_url ? <img src={`${toApiUrl(agent.avatar_url)}${avatarTick ? `?v=${avatarTick}` : ""}`} alt="" /> : agent ? <span>{agent.display_name.slice(0, 1).toUpperCase()}</span> : null}
+              {agent ? textCopy.chatting.replace("{name}", agent.display_name) : started ? statusLabel(status, lang) : textCopy.contact}
+            </p>
           </div>
           <div className="guest-lang">
             <button type="button" className={lang === "vi" ? "is-on" : undefined} onClick={() => chooseLang("vi")}>
@@ -347,6 +380,7 @@ export function GuestChat() {
               <article className="chat-bubble chat-bubble--agent">
                 <p>{textCopy.greeting}</p>
               </article>
+              {joined ? <p className="guest-join">{textCopy.joined.replace("{name}", joined)}</p> : null}
               {messages.map((message, index) => {
                 const caption = message.image_url && (message.body === "Khách gửi ảnh." || message.body === "Đã gửi ảnh.") ? "" : message.body;
                 return (
@@ -486,9 +520,9 @@ function loadSession(): GuestSession | null {
   }
 }
 
-function readFrame(raw: string): { type?: string; code?: string; message_id?: string; sender_type?: string; body?: string; created_at?: string; message?: string; image_url?: string; message_ids?: string[]; read_at?: string } | undefined {
+function readFrame(raw: string): { type?: string; code?: string; display_name?: string; avatar_url?: string | null; message_id?: string; sender_type?: string; body?: string; created_at?: string; message?: string; image_url?: string; message_ids?: string[]; read_at?: string } | undefined {
   try {
-    const parsed = JSON.parse(raw) as { type?: string; code?: string; message_id?: string; sender_type?: string; body?: string; created_at?: string; message?: string; image_url?: string; message_ids?: string[]; read_at?: string };
+    const parsed = JSON.parse(raw) as { type?: string; code?: string; display_name?: string; avatar_url?: string | null; message_id?: string; sender_type?: string; body?: string; created_at?: string; message?: string; image_url?: string; message_ids?: string[]; read_at?: string };
     return parsed && typeof parsed === "object" ? parsed : undefined;
   } catch {
     return undefined;

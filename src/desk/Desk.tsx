@@ -3,7 +3,7 @@ import { Button, ConfigProvider, Input, Modal, Space, Spin, Switch } from "antd"
 import zhCN from "antd/locale/zh_CN";
 import viVN from "antd/locale/vi_VN";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from "react";
-import { ApiError, api, probe, setCsrfToken } from "../api.ts";
+import { ApiError, api, probe, setCsrfToken, toApiUrl } from "../api.ts";
 import { roleName } from "../copy.ts";
 import type { UserProfile } from "../types.ts";
 import { ErrorAlert } from "../ui.tsx";
@@ -62,6 +62,8 @@ export function Desk(props: {
   onMfaSetup: () => void;
 }) {
   const [profile, setProfile] = useState(props.user);
+  const [avatarTick, setAvatarTick] = useState(0);
+  const avatarRef = useRef<HTMLInputElement>(null);
   const [health, setHealth] = useState<Health>("ok");
   const [passwordOpen, setPasswordOpen] = useState(false);
   const [leaving, setLeaving] = useState(false);
@@ -352,6 +354,36 @@ export function Desk(props: {
     };
   }, []);
 
+  async function uploadAvatar(file: File | undefined) {
+    if (!file) {
+      return;
+    }
+    const allowed = file.type === "image/png" || file.type === "image/jpeg" || file.type === "image/webp";
+    if (!allowed || file.size > 512 * 1024) {
+      setError(new ApiError(400, "validation_error", DESK_TEXT.avatarError[deskLang()], ""));
+      return;
+    }
+    setError(null);
+    try {
+      const body = new FormData();
+      body.append("file", file);
+      await api("/api/v1/staff/avatar", { method: "PUT", body });
+      setProfile((current) => ({ ...current, has_avatar: true }));
+      setAvatarTick(Date.now());
+    } catch (caught) {
+      const problem = caught instanceof ApiError ? caught : new ApiError(0, "network", DESK_TEXT.avatarError[deskLang()], "");
+      if (problem.status === 401) {
+        props.onLoggedOut(DESK_TEXT.sessionEnded[lang]);
+        return;
+      }
+      if (problem.code === "mfa_setup_required") {
+        props.onMfaSetup();
+        return;
+      }
+      setError(problem);
+    }
+  }
+
   async function setAvailability(next: boolean) {
     setAcceptingBusy(true);
     setError(null);
@@ -419,7 +451,20 @@ export function Desk(props: {
         </nav>
         <div className="app-sidebar__footer">
           <div className="sidebar-user">
-            <div className="sidebar-user__avatar">{initial}</div>
+            <button type="button" className="sidebar-user__avatar" title={DESK_TEXT.avatar[lang]} onClick={() => avatarRef.current?.click()}>
+              {profile.has_avatar ? <img src={`${toApiUrl(`/api/v1/public/staff/${profile.id}/avatar`)}?v=${avatarTick}`} alt="" /> : initial}
+            </button>
+            <input
+              ref={avatarRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              hidden
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                event.target.value = "";
+                void uploadAvatar(file);
+              }}
+            />
             <div className="sidebar-user__meta">
               <p className="sidebar-user__name">{profile.display_name}</p>
               <p className="sidebar-user__role">{roleLine || profile.username}</p>

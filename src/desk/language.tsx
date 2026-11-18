@@ -115,6 +115,8 @@ export const DESK_TEXT = {
   acceptingHint: { vi: "Gạt tắt khi ăn cơm hoặc đi vệ sinh. Việc đang mở vẫn ở chỗ bạn.", zh: "吃饭或离开时关掉。进行中的工作仍留在你这里。" },
   pausedHint: { vi: "Việc mới chưa giao cho bạn. Gạt lại khi sẵn sàng nhận tiếp.", zh: "新工作暂不分配给你。准备好后再打开。" },
   password: { vi: "Đổi mật khẩu", zh: "修改密码" },
+  avatar: { vi: "Đổi ảnh đại diện", zh: "更换头像" },
+  avatarError: { vi: "Ảnh đại diện cần là PNG, JPEG hoặc WebP, tối đa 512 KB", zh: "头像需为 PNG、JPEG 或 WebP，最大 512 KB" },
   logout: { vi: "Đăng xuất", zh: "退出" },
   sessionEnded: { vi: "Phiên đã hết. Đăng nhập lại.", zh: "会话已结束。请重新登录。" },
   availabilityError: { vi: "Không đổi được trạng thái nhận việc", zh: "无法更改接单状态" },

@@ -5,6 +5,7 @@ export type UserProfile = {
   roles: string[];
   permissions: string[];
   accepting_work: boolean;
+  has_avatar?: boolean;
 };
 
 export type Me = {
