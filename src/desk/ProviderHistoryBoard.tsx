@@ -5,7 +5,6 @@ import { useCallback, useEffect, useState } from "react";
 import { ApiError, api } from "../api.ts";
 import { formatStamp } from "../copy.ts";
 import { ErrorAlert } from "../ui.tsx";
-import { LaafficWebhooks } from "./LaafficWebhooks.tsx";
 import { useDeskLang, useTr } from "./language.tsx";
 
 type Channel = "sms" | "ai_voice";
@@ -204,12 +203,11 @@ export function ProviderHistoryBoard(props: {
           </Button>
         ) : null}
       </div>
-      <p className="page-note" style={{ marginTop: 0 }}>
-        {props.channel === "sms"
-          ? tr("Lấy 7 ngày gần nhất. Số được che. Không lưu nội dung tin.", "取最近 7 天。号码已掩码。不保存短信内容。")
-          : tr("Tự lấy báo cáo Laaffic mỗi 2 phút. Bấm một task để xem tiến độ và từng cuộc gọi. Số và file nghe chỉ có khi Laaffic gửi báo cáo cuộc gọi về.", "每 2 分钟自动拉取 Laaffic 报告。点一个任务查看进度和每通通话。号码和录音仅在 Laaffic 回传通话报告后才有。")}
-      </p>
-      {props.channel === "ai_voice" ? <LaafficWebhooks onUnauthorized={props.onUnauthorized} onMfaSetup={props.onMfaSetup} /> : null}
+      {props.channel === "sms" ? (
+        <p className="page-note" style={{ marginTop: 0 }}>
+          {tr("Lấy 7 ngày gần nhất. Số được che. Không lưu nội dung tin.", "取最近 7 天。号码已掩码。不保存短信内容。")}
+        </p>
+      ) : null}
       {error ? <ErrorAlert error={error} /> : null}
       {props.channel === "ai_voice" ? (
         <div className="filter-bar">

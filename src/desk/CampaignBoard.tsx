@@ -146,6 +146,7 @@ export function CampaignBoard(props: {
   const [readingFile, setReadingFile] = useState(false);
   const rosterFileRef = useRef<HTMLInputElement>(null);
   const [createOpen, setCreateOpen] = useState(false);
+  const [rosterOpen, setRosterOpen] = useState(false);
   const [stations, setStations] = useState<string[]>([]);
   const [draft, setDraft] = useState({ name: "", channel: (props.voiceTasks ? "ai_voice" : "sms") as Channel, site: "", body: "", destinationUrl: "", agentId: "", dimensionId: "", maxAttempts: "2" });
 
@@ -478,6 +479,7 @@ export function CampaignBoard(props: {
       if (taskCount > 0) {
         setCallList("");
         setDraft({ ...draft, name: "" });
+        setRosterOpen(false);
       }
       await load(status);
     } catch (caught) {
@@ -504,11 +506,9 @@ export function CampaignBoard(props: {
           <Typography.Title level={3} className="page-header__title">
             {props.voiceTasks ? tr("Task gọi nhóm", "群呼任务") : tr("Chiến dịch", "活动")}
           </Typography.Title>
-          <Typography.Text type="secondary">
-            {props.voiceTasks
-              ? tr("Nhập tài khoản, số điện thoại, cấp VIP và đài. Hệ thống tạo hội viên VIP rồi tạo task gọi từ đúng danh sách đó.", "填写账号、电话、VIP 等级和站点。系统会创建 VIP 会员，并按该名单创建呼叫任务。")
-              : tr("SMS hoặc cuộc gọi AI cho hội viên đã đồng ý kênh đó.", "向已同意该渠道的会员发送短信或发起 AI 呼叫。")}
-          </Typography.Text>
+          {props.voiceTasks ? null : (
+            <Typography.Text type="secondary">{tr("SMS hoặc cuộc gọi AI cho hội viên đã đồng ý kênh đó.", "向已同意该渠道的会员发送短信或发起 AI 呼叫。")}</Typography.Text>
+          )}
         </div>
         <Space>
           <Select
@@ -526,6 +526,11 @@ export function CampaignBoard(props: {
           <Button icon={<ReloadOutlined />} onClick={() => void load(status).catch((caught: unknown) => catchProblem(caught, tr("Không tải được chiến dịch", "无法加载活动")))}>
             {tr("Tải lại", "刷新")}
           </Button>
+          {props.canCreate && props.voiceTasks && props.canImport ? (
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => setRosterOpen((open) => !open)}>
+              {rosterOpen ? tr("Đóng", "关闭") : tr("Tạo task", "创建任务")}
+            </Button>
+          ) : null}
           {props.canCreate && !props.voiceTasks ? (
             <Button type="primary" icon={<PlusOutlined />} onClick={() => { setSelected(null); setCreateOpen(true); }}>
               {tr("Tạo nháp", "创建草稿")}
@@ -534,7 +539,7 @@ export function CampaignBoard(props: {
         </Space>
       </div>
       {error ? <ErrorAlert error={error} /> : null}
-      {props.voiceTasks && props.canCreate && props.canImport ? (
+      {rosterOpen && props.voiceTasks && props.canCreate && props.canImport ? (
         <Form className="shift-form" layout="vertical" requiredMark={false} style={{ maxWidth: 720, marginBottom: 16 }} onFinish={() => void createTask()}>
           <Form.Item label={tr("Tên task", "任务名称")}>
             <Input value={draft.name} maxLength={80} onChange={(event) => setDraft({ ...draft, name: event.target.value })} />
