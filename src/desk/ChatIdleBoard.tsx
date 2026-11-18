@@ -90,7 +90,7 @@ export function ChatIdleBoard(props: { canWrite: boolean; onUnauthorized: () => 
             {tr("Thời gian chat", "聊天时长")}
           </Typography.Title>
           <Typography.Text type="secondary">
-            {tr("Sau câu trả lời của nhân viên, khách không nhắn lại trong khoảng này thì hội thoại kết thúc và chỗ đó được trả cho người khác. Khách nhắn lại thì hội thoại mở lại. Nhập 0 để tắt.", "员工回复后，如果客户在此时长内没有再发消息，会话会结束，名额会交给其他人。客户再次发消息时会话会重新打开。输入 0 即可关闭。")}
+            {tr("Sau câu trả lời của nhân viên, khách không nhắn lại trong khoảng này thì hội thoại kết thúc và chỗ đó được trả cho người khác. Mã chat web đã đóng không mở lại ticket cũ. Khách Telegram nhắn lại thì hội thoại đó mở lại. Nhập 0 để tắt.", "员工回复后，如果客户在此时长内没有再发消息，会话会结束，名额会交给其他人。已关闭的网页聊天编号不能重新打开旧任务。Telegram 客户再次发消息时，该会话会重新打开。输入 0 即可关闭。")}
           </Typography.Text>
         </div>
         {props.canWrite ? (

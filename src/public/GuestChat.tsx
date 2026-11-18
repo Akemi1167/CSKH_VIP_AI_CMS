@@ -51,6 +51,7 @@ const COPY = {
     send: "Gửi",
     photo: "Gửi ảnh hoặc dán ảnh đã copy",
     imageError: "Không gửi được ảnh",
+    closed: "Hội thoại cũ đã đóng. Đây là cuộc chat mới.",
     connectError: "Không nối được chat",
     read: "Đã đọc",
   },
@@ -69,6 +70,7 @@ const COPY = {
     send: "发送",
     photo: "发送图片或粘贴已复制的图片",
     imageError: "图片发送失败",
+    closed: "旧会话已关闭。这是一次新的聊天。",
     connectError: "无法连接聊天",
     read: "已读",
   },
@@ -161,6 +163,18 @@ export function GuestChat() {
         return;
       }
       if (frame.type === "error") {
+        if (frame.code === "conversation_closed") {
+          pendingRef.current = [];
+          const session = saved.current;
+          if (session) {
+            const fresh = { ...session, conversationId: "" };
+            saved.current = fresh;
+            localStorage.setItem(STORAGE, JSON.stringify(fresh));
+            setMessages([]);
+            void connect(fresh).then(() => setError(COPY[langRef.current].closed));
+          }
+          return;
+        }
         const sourceId = pendingRef.current.shift();
         if (sourceId) {
           setMessages((current) => current.filter((item) => item.id !== sourceId));
@@ -472,9 +486,9 @@ function loadSession(): GuestSession | null {
   }
 }
 
-function readFrame(raw: string): { type?: string; message_id?: string; sender_type?: string; body?: string; created_at?: string; message?: string; image_url?: string; message_ids?: string[]; read_at?: string } | undefined {
+function readFrame(raw: string): { type?: string; code?: string; message_id?: string; sender_type?: string; body?: string; created_at?: string; message?: string; image_url?: string; message_ids?: string[]; read_at?: string } | undefined {
   try {
-    const parsed = JSON.parse(raw) as { type?: string; message_id?: string; sender_type?: string; body?: string; created_at?: string; message?: string; image_url?: string; message_ids?: string[]; read_at?: string };
+    const parsed = JSON.parse(raw) as { type?: string; code?: string; message_id?: string; sender_type?: string; body?: string; created_at?: string; message?: string; image_url?: string; message_ids?: string[]; read_at?: string };
     return parsed && typeof parsed === "object" ? parsed : undefined;
   } catch {
     return undefined;
