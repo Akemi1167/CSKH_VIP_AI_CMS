@@ -1,5 +1,5 @@
 import { DownloadOutlined, PlusOutlined, ReloadOutlined, UploadOutlined } from "@ant-design/icons";
-import { Button, Drawer, Form, Input, Select, Space, Table, Typography } from "antd";
+import { Button, Drawer, Form, Input, Modal, Select, Space, Table, Typography } from "antd";
 import type { TableColumnsType } from "antd";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, api, toApiUrl } from "../api.ts";
@@ -527,8 +527,8 @@ export function CampaignBoard(props: {
             {tr("Tải lại", "刷新")}
           </Button>
           {props.canCreate && props.voiceTasks && props.canImport ? (
-            <Button type="primary" icon={<PlusOutlined />} onClick={() => setRosterOpen((open) => !open)}>
-              {rosterOpen ? tr("Đóng", "关闭") : tr("Tạo task", "创建任务")}
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => setRosterOpen(true)}>
+              {tr("Tạo task", "创建任务")}
             </Button>
           ) : null}
           {props.canCreate && !props.voiceTasks ? (
@@ -539,8 +539,18 @@ export function CampaignBoard(props: {
         </Space>
       </div>
       {error ? <ErrorAlert error={error} /> : null}
-      {rosterOpen && props.voiceTasks && props.canCreate && props.canImport ? (
-        <Form className="shift-form" layout="vertical" requiredMark={false} style={{ maxWidth: 720, marginBottom: 16 }} onFinish={() => void createTask()}>
+      <Modal
+        title={tr("Tạo task gọi nhóm", "创建群呼任务")}
+        open={rosterOpen && Boolean(props.voiceTasks)}
+        width={720}
+        footer={null}
+        onCancel={() => {
+          if (!busy && !readingFile) {
+            setRosterOpen(false);
+          }
+        }}
+      >
+        <Form layout="vertical" requiredMark={false} onFinish={() => void createTask()}>
           <Form.Item label={tr("Tên task", "任务名称")}>
             <Input value={draft.name} maxLength={80} onChange={(event) => setDraft({ ...draft, name: event.target.value })} />
           </Form.Item>
@@ -574,13 +584,13 @@ export function CampaignBoard(props: {
                 }}
               />
             </div>
-            <Input.TextArea rows={8} value={callList} placeholder={"vipuser01\t0901234567\tVIP1\tJ88"} onChange={(event) => setCallList(event.target.value)} />
+            <Input.TextArea rows={6} value={callList} placeholder={"vipuser01\t0901234567\tVIP1\tJ88"} onChange={(event) => setCallList(event.target.value)} />
           </Form.Item>
           <Button type="primary" htmlType="submit" loading={busy} disabled={callList.trim().length === 0 || draft.name.trim().length < 2 || draft.agentId.trim().length === 0}>
             {tr("Nhập danh sách và tạo task", "导入名单并创建任务")}
           </Button>
         </Form>
-      ) : null}
+      </Modal>
       {props.voiceTasks && listNote ? <p className="page-note">{listNote}</p> : null}
       {props.voiceTasks && skips.length > 0 ? (
         <ul className="import-errors">

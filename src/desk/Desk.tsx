@@ -227,13 +227,6 @@ export function Desk(props: {
     if (voice.length > 0) {
       sections.push({ id: "voice", label: DESK_TEXT.voice[lang], items: voice });
     }
-    if (settingsGroups.length > 0) {
-      sections.push({
-        id: "settings",
-        label: DESK_TEXT.settings[lang],
-        items: [{ kind: "branch", id: "settings", label: DESK_TEXT.settings[lang], panelTitle: canReadSettings ? DESK_TEXT.settingsSystem[lang] : DESK_TEXT.settings[lang], icon: <SettingOutlined />, groups: settingsGroups }],
-      });
-    }
     const central: NavLeaf[] = [];
     if (canReadSettings) {
       central.push({ kind: "leaf", id: "stations", label: pageLabel("stations"), icon: <ShopOutlined /> });
@@ -254,6 +247,13 @@ export function Desk(props: {
     }
     if (canReadAudit) {
       sections.push({ id: "other", label: DESK_TEXT.other[lang], items: [{ kind: "leaf", id: "journal", label: pageLabel("journal"), icon: <AuditOutlined /> }] });
+    }
+    if (settingsGroups.length > 0) {
+      sections.push({
+        id: "settings",
+        label: DESK_TEXT.settings[lang],
+        items: [{ kind: "branch", id: "settings", label: DESK_TEXT.settings[lang], panelTitle: canReadSettings ? DESK_TEXT.settingsSystem[lang] : DESK_TEXT.settings[lang], icon: <SettingOutlined />, groups: settingsGroups }],
+      });
     }
     const query = keyword.trim().toLocaleLowerCase(lang === "zh" ? "zh-CN" : "vi");
     return { sections: filterSections(sections, query), query, allowed: leafPages(sections) };
