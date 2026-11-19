@@ -1,11 +1,25 @@
-import { lazy, Suspense, useCallback, useEffect, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useState, type ComponentType } from "react";
 import { ApiError, api } from "./api.ts";
+import { ChunkBoundary, isMissingChunk, reloadForNewBuild } from "./chunk.tsx";
 import { deskLang, useDeskLang } from "./desk/language.tsx";
 import type { Me, UserProfile } from "./types.ts";
 
-const AuthScreen = lazy(() => import("./auth/AuthScreen.tsx").then((module) => ({ default: module.AuthScreen })));
-const Desk = lazy(() => import("./desk/Desk.tsx").then((module) => ({ default: module.Desk })));
-const GuestChat = lazy(() => import("./public/GuestChat.tsx").then((module) => ({ default: module.GuestChat })));
+function screen<P extends object>(load: () => Promise<ComponentType<P>>) {
+  return lazy(() =>
+    load()
+      .then((component) => ({ default: component }))
+      .catch((error: unknown) => {
+        if (isMissingChunk(error) && reloadForNewBuild()) {
+          return new Promise(() => undefined);
+        }
+        throw error;
+      }),
+  );
+}
+
+const AuthScreen = screen(() => import("./auth/AuthScreen.tsx").then((module) => module.AuthScreen));
+const Desk = screen(() => import("./desk/Desk.tsx").then((module) => module.Desk));
+const GuestChat = screen(() => import("./public/GuestChat.tsx").then((module) => module.GuestChat));
 
 function Booting() {
   const lang = useDeskLang();
@@ -58,9 +72,11 @@ export function App() {
 
   if (guestPage) {
     return (
-      <Suspense fallback={<Booting />}>
-        <GuestChat />
-      </Suspense>
+      <ChunkBoundary>
+        <Suspense fallback={<Booting />}>
+          <GuestChat />
+        </Suspense>
+      </ChunkBoundary>
     );
   }
 
@@ -70,6 +86,7 @@ export function App() {
 
   if (phase === "desk" && user) {
     return (
+      <ChunkBoundary>
       <Suspense fallback={<Booting />}>
         <Desk
           user={user}
@@ -81,10 +98,12 @@ export function App() {
           }}
         />
       </Suspense>
+      </ChunkBoundary>
     );
   }
 
   return (
+    <ChunkBoundary>
     <Suspense fallback={<Booting />}>
       <AuthScreen
         start={phase === "mfa_setup" ? "mfa_setup" : "login"}
@@ -101,5 +120,6 @@ export function App() {
         }}
       />
     </Suspense>
+    </ChunkBoundary>
   );
 }

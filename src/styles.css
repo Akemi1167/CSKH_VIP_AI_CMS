@@ -2626,6 +2626,22 @@ html button.leave-dot.leave-dot--blocked {
   place-items: center;
 }
 
+.chunk-miss {
+  gap: 12px;
+  color: #d5dbea;
+  text-align: center;
+}
+
+.chunk-miss button {
+  height: 32px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 8px;
+  background: #16a34a;
+  color: white;
+  cursor: pointer;
+}
+
 .login-page {
   position: relative;
   min-height: 100vh;

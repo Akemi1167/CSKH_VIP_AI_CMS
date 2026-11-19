@@ -4,6 +4,7 @@ import zhCN from "antd/locale/zh_CN";
 import viVN from "antd/locale/vi_VN";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from "react";
 import { ApiError, api, probe, setCsrfToken, toApiUrl } from "../api.ts";
+import { ChunkBoundary, isMissingChunk, reloadForNewBuild } from "../chunk.tsx";
 import { roleName } from "../copy.ts";
 import type { UserProfile } from "../types.ts";
 import { ErrorAlert } from "../ui.tsx";
@@ -16,7 +17,16 @@ import { DESK_TEXT, LangSwitch, deskLang, pageLabel, useDeskLang } from "./langu
 import { deskPath, deskTitle, pageFromPath, rememberPage, type DeskPage } from "./routes.ts";
 
 function screen<P extends object>(load: () => Promise<ComponentType<P>>) {
-  return lazy(() => load().then((component) => ({ default: component })));
+  return lazy(() =>
+    load()
+      .then((component) => ({ default: component }))
+      .catch((error: unknown) => {
+        if (isMissingChunk(error) && reloadForNewBuild()) {
+          return new Promise(() => undefined);
+        }
+        throw error;
+      }),
+  );
 }
 
 const CareHome = screen(() => import("./CareDesk.tsx").then((module) => module.CareHome));
@@ -505,6 +515,7 @@ export function Desk(props: {
             </div>
           </div>
           <ErrorAlert error={error} />
+          <ChunkBoundary resetKey={page}>
           <Suspense fallback={<div className="page-loading"><Spin /></div>}>
           {page === "overview" ? (
             <CareHome canReadTasks={canReadTasks} canReport={canReadCustomers || canReadTasks} onUnauthorized={endSession} onMfaSetup={props.onMfaSetup} />
@@ -674,6 +685,7 @@ export function Desk(props: {
             <TelegramBoard onUnauthorized={endSession} onMfaSetup={props.onMfaSetup} />
           ) : null}
           </Suspense>
+          </ChunkBoundary>
         </div>
       </main>
       <Modal
