@@ -15,6 +15,7 @@ export type DeskPage =
   | "distribute"
   | "campaigns"
   | "shift"
+  | "memberWork"
   | "effect"
   | "rewards"
   | "journal"
@@ -51,6 +52,7 @@ export const DESK_PATH: Record<DeskPage, string> = {
   distribute: "/phan-bo",
   campaigns: "/chien-dich",
   shift: "/bao-cao-ca",
+  memberWork: "/cong-viec-thanh-vien",
   effect: "/hieu-qua",
   rewards: "/thuong",
   journal: "/nhat-ky",

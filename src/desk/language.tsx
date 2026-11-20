@@ -72,6 +72,7 @@ const PAGE_LABEL: Record<DeskPage, { vi: string; zh: string }> = {
   distribute: { vi: "Phân bổ Data", zh: "数据分配" },
   campaigns: { vi: "Chiến dịch", zh: "活动" },
   shift: { vi: "Báo cáo ca", zh: "班次报表" },
+  memberWork: { vi: "Công việc thành viên", zh: "成员工作" },
   effect: { vi: "Thống kê hiệu quả", zh: "效果统计" },
   rewards: { vi: "Thưởng", zh: "奖励" },
   journal: { vi: "Nhật ký", zh: "日志" },

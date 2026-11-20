@@ -45,6 +45,7 @@ const VerifyBoard = screen(() => import("./VerifyBoard.tsx").then((module) => mo
 const RateLimitBoard = screen(() => import("./RateLimitBoard.tsx").then((module) => module.RateLimitBoard));
 const RewardBoard = screen(() => import("./RewardBoard.tsx").then((module) => module.RewardBoard));
 const EffectBoard = screen(() => import("./EffectBoard.tsx").then((module) => module.EffectBoard));
+const MemberWorkBoard = screen(() => import("./MemberWorkBoard.tsx").then((module) => module.MemberWorkBoard));
 const ShiftBoard = screen(() => import("./ShiftBoard.tsx").then((module) => module.ShiftBoard));
 const VoiceReviewBoard = screen(() => import("./VoiceReviewBoard.tsx").then((module) => module.VoiceReviewBoard));
 const StationBoard = screen(() => import("./StationBoard.tsx").then((module) => module.StationBoard));
@@ -215,6 +216,9 @@ export function Desk(props: {
     }
     if (canReadCampaigns) {
       extras.push({ kind: "leaf", id: "campaigns", label: pageLabel("campaigns"), icon: <MailOutlined /> });
+    }
+    if (canReadStaff) {
+      extras.push({ kind: "leaf", id: "memberWork", label: pageLabel("memberWork"), icon: <FundOutlined /> });
     }
     if (canReportCampaigns) {
       extras.push({ kind: "leaf", id: "shift", label: pageLabel("shift"), icon: <FundOutlined /> });
@@ -607,6 +611,7 @@ export function Desk(props: {
               onMfaSetup={props.onMfaSetup}
             />
           ) : null}
+          {page === "memberWork" && canReadStaff ? <MemberWorkBoard onUnauthorized={endSession} onMfaSetup={props.onMfaSetup} /> : null}
           {page === "shift" && canReportCampaigns ? <ShiftBoard onUnauthorized={endSession} onMfaSetup={props.onMfaSetup} /> : null}
           {page === "effect" && canReportCampaigns ? <EffectBoard onUnauthorized={endSession} onMfaSetup={props.onMfaSetup} /> : null}
           {page === "rewards" && canApproveRewards ? (

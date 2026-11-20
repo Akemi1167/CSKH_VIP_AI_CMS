@@ -1818,6 +1818,23 @@ a {
   align-items: center;
 }
 
+.work-row {
+  cursor: pointer;
+}
+
+.work-row.is-on td {
+  background: #1c2433 !important;
+}
+
+.work-detail {
+  margin-top: 20px;
+}
+
+.work-detail h5 {
+  margin-bottom: 8px !important;
+  color: #eef0f6 !important;
+}
+
 .staff-table {
   border: 1px solid #2a3040;
   border-radius: 12px;
