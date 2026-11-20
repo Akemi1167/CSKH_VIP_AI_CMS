@@ -18,6 +18,7 @@ type VerifyItem = {
   channel: string;
   reason: "account_unknown" | "account_forgotten" | "web_direct";
   attempted_account: string | null;
+  station: string | null;
   last_message_body: string | null;
 };
 
@@ -46,9 +47,13 @@ async function claimOpen(taskId: string, version: number): Promise<{ version: nu
   }
 }
 
+function enteredAccount(row: { station: string | null; attempted_account: string | null }): string {
+  return [row.station, row.attempted_account].filter(Boolean).join(" ");
+}
+
 function reasonText(reason: VerifyItem["reason"], tr: (vi: string, zh: string) => string): string {
   if (reason === "account_unknown") {
-    return tr("Sai tên", "名称错误");
+    return tr("Không khớp tài khoản", "账号不匹配");
   }
   if (reason === "account_forgotten") {
     return tr("Không nhớ tài khoản", "不记得账号");
@@ -320,7 +325,7 @@ export function VerifyBoard(props: { onUnauthorized: () => void; onMfaSetup: () 
                   <strong>{reasonText(row.reason, tr)}</strong>
                   <time>{formatStamp(row.received_at)}</time>
                 </span>
-                <span className="chat-list__preview">{row.last_message_body || row.attempted_account || "—"}</span>
+                <span className="chat-list__preview">{row.last_message_body || enteredAccount(row) || "—"}</span>
                 <span className="chat-list__preview">{row.status === "QUEUED" ? tr("Chưa nhận", "未领取") : tr("Đang xác minh", "正在核验")} · {row.channel === "telegram" ? "Telegram" : "Web"}</span>
               </span>
             </button>
@@ -332,7 +337,7 @@ export function VerifyBoard(props: { onUnauthorized: () => void; onMfaSetup: () 
               <header className="chat-pane__head">
                 <div>
                   <strong>{reasonText(detail.reason, tr)}</strong>
-                  <p className="chat-list__preview">{detail.attempted_account ? tr(`Tên đã nhập: ${detail.attempted_account}`, `填写的名称：${detail.attempted_account}`) : tr("Khách chưa nhập tên", "客户还没有填写名称")}</p>
+                  <p className="chat-list__preview">{enteredAccount(detail) ? tr(`Đã nhập: ${enteredAccount(detail)}`, `已填写：${enteredAccount(detail)}`) : tr("Khách chưa nhập tài khoản", "客户还没有填写账号")}</p>
                 </div>
               </header>
               <div className="chat-thread" ref={threadRef}>

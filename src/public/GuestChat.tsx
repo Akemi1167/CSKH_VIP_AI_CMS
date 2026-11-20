@@ -1,5 +1,5 @@
 import { PictureOutlined } from "@ant-design/icons";
-import { Button, Input } from "antd";
+import { Button, Input, Select } from "antd";
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { ApiError, api, toApiUrl, toWsUrl } from "../api.ts";
 import { imageFromPaste } from "../clipboardImage.ts";
@@ -18,7 +18,8 @@ type Bubble = {
 
 type GuestSession = {
   conversationId: string;
-  name: string;
+  account: string;
+  site: string;
   invite?: string;
 };
 
@@ -45,10 +46,15 @@ const COPY = {
   vi: {
     title: "Liên hệ",
     contact: "Liên hệ nhân viên",
-    greeting: "Xin chào. Nhân viên sẽ trả lời bạn trong khung này.",
-    name: "Tên của bạn",
-    nameError: "Nhập tên của bạn.",
-    start: "Bắt đầu chat",
+    greeting: "Nhập tài khoản game và đài. Khớp hồ sơ thì nhân viên nhận việc. Không khớp thì hội thoại vào mục xác minh tài khoản.",
+    account: "Tài khoản game",
+    accountError: "Nhập tài khoản game, từ 3 đến 32 ký tự.",
+    site: "Đài",
+    siteError: "Chọn đài.",
+    start: "Xác minh và chat",
+    matched: "Đã xác minh tài khoản {account} tại đài {site}. Nhân viên sẽ hỗ trợ bạn.",
+    unknown: "Chưa thấy tài khoản này tại đài đã chọn. Hội thoại được chuyển tới mục xác minh tài khoản.",
+    welcome: "Nhân viên sẽ trả lời bạn trong khung này.",
     placeholder: "Nhắn nhân viên hoặc dán ảnh",
     connecting: "Đang nối…",
     live: "Đang nối",
@@ -66,10 +72,15 @@ const COPY = {
   zh: {
     title: "联系客服",
     contact: "联系客服",
-    greeting: "您好。客服会在此窗口回复您。",
-    name: "您的姓名",
-    nameError: "请输入您的姓名。",
-    start: "开始聊天",
+    greeting: "请输入游戏账号和站点。资料匹配后客服会接单。不匹配则进入账号核实。",
+    account: "游戏账号",
+    accountError: "请输入 3 到 32 位游戏账号。",
+    site: "站点",
+    siteError: "请选择站点。",
+    start: "核实并开始",
+    matched: "已核实账号 {account}，站点 {site}。客服将为您处理。",
+    unknown: "所选站点未找到该账号。会话已转入账号核实。",
+    welcome: "客服会在此窗口回复您。",
     placeholder: "给客服发消息或粘贴图片",
     connecting: "连接中…",
     live: "已连接",
@@ -88,7 +99,10 @@ const COPY = {
 
 export function GuestChat() {
   const saved = useRef(loadSession());
-  const [name, setName] = useState(saved.current?.name ?? "");
+  const [account, setAccount] = useState(saved.current?.account ?? "");
+  const [site, setSite] = useState(saved.current?.site || stationCode);
+  const [stations, setStations] = useState<string[]>(stationCode ? [stationCode] : []);
+  const [checkNote, setCheckNote] = useState<string | null>(null);
   const [messages, setMessages] = useState<Bubble[]>([]);
   const [text, setText] = useState("");
   const [status, setStatus] = useState<"form" | "connecting" | "live" | "down">(saved.current ? "connecting" : "form");
@@ -114,15 +128,27 @@ export function GuestChat() {
     pendingRef.current = [];
     socketRef.current?.close();
     try {
-      const issued = await api<GuestTicket>("/api/v1/chat/guest", {
+      const issued = await api<GuestTicket & { verified?: boolean; account?: string; site?: string }>("/api/v1/chat/guest", {
         method: "POST",
         body: {
-          name: session.name,
+          account: session.account,
+          site: session.site,
           conversation_id: session.conversationId || undefined,
           invite: session.invite || undefined,
         },
       });
-      const next = { conversationId: issued.conversation_id, name: session.name, invite: session.invite };
+      const next = {
+        conversationId: issued.conversation_id,
+        account: issued.account || session.account,
+        site: issued.site || session.site,
+        invite: session.invite,
+      };
+      const note = COPY[langRef.current];
+      setCheckNote(
+        (issued.verified ? note.matched : note.unknown)
+          .replace("{account}", next.account)
+          .replace("{site}", next.site),
+      );
       saved.current = next;
       localStorage.setItem(STORAGE, JSON.stringify(next));
       uploadTokenRef.current = issued.upload_token;
@@ -132,7 +158,7 @@ export function GuestChat() {
       setJoined(null);
       openSocket(issued.ticket);
     } catch (caught) {
-      setStatus("down");
+      setStatus(saved.current ? "down" : "form");
       setError(caught instanceof ApiError ? caught.message : COPY[langRef.current].connectError);
     }
   }, []);
@@ -152,6 +178,20 @@ export function GuestChat() {
       socketRef.current?.close();
     };
   }, [connect]);
+
+  useEffect(() => {
+    let ignore = false;
+    api<{ stations: { code: string }[] }>("/api/v1/public/home")
+      .then((result) => {
+        if (!ignore) {
+          setStations(result.stations.map((item) => item.code));
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   useEffect(() => {
     const node = threadRef.current;
@@ -326,12 +366,17 @@ export function GuestChat() {
   }
 
   function start() {
-    const trimmed = name.trim();
-    if (trimmed.length < 2) {
-      setError(COPY[lang].nameError);
+    const nextAccount = account.trim();
+    const nextSite = site.trim().toUpperCase();
+    if (!/^[A-Za-z0-9._-]{3,32}$/.test(nextAccount)) {
+      setError(COPY[lang].accountError);
       return;
     }
-    void connect({ conversationId: saved.current?.conversationId ?? "", name: trimmed, invite: saved.current?.invite || readInvite() });
+    if (!/^[A-Z0-9]{2,16}$/.test(nextSite)) {
+      setError(COPY[lang].siteError);
+      return;
+    }
+    void connect({ conversationId: "", account: nextAccount, site: nextSite, invite: readInvite() || undefined });
   }
 
   const live = status === "live";
@@ -378,8 +423,13 @@ export function GuestChat() {
           <>
             <div className="chat-thread" ref={threadRef}>
               <article className="chat-bubble chat-bubble--agent">
-                <p>{textCopy.greeting}</p>
+                <p>{textCopy.welcome}</p>
               </article>
+              {checkNote ? (
+                <article className="chat-bubble chat-bubble--agent">
+                  <p>{checkNote}</p>
+                </article>
+              ) : null}
               {joined ? <p className="guest-join">{textCopy.joined.replace("{name}", joined)}</p> : null}
               {messages.map((message, index) => {
                 const caption = message.image_url && (message.body === "Khách gửi ảnh." || message.body === "Đã gửi ảnh.") ? "" : message.body;
@@ -465,7 +515,15 @@ export function GuestChat() {
             }}
           >
             <p>{textCopy.greeting}</p>
-            <Input value={name} maxLength={40} placeholder={textCopy.name} onChange={(event) => setName(event.target.value)} />
+            <Input value={account} maxLength={32} placeholder={textCopy.account} onChange={(event) => setAccount(event.target.value)} />
+            <Select
+              value={site || undefined}
+              placeholder={textCopy.site}
+              showSearch
+              style={{ width: "100%" }}
+              options={[...new Set([...(site ? [site] : []), ...stations])].map((code) => ({ value: code, label: code }))}
+              onChange={(value: string) => setSite(value)}
+            />
             {error ? <p className="chat-compose__error">{error}</p> : null}
             <Button type="primary" htmlType="submit">
               {textCopy.start}
@@ -510,11 +568,14 @@ function loadSession(): GuestSession | null {
       return null;
     }
     const parsed = JSON.parse(raw) as Partial<GuestSession>;
-    if (typeof parsed.name !== "string" || typeof parsed.conversationId !== "string" || parsed.name.trim().length < 2) {
+    if (typeof parsed.account !== "string" || typeof parsed.site !== "string" || typeof parsed.conversationId !== "string") {
+      return null;
+    }
+    if (!/^[A-Za-z0-9._-]{3,32}$/.test(parsed.account) || !/^[A-Z0-9]{2,16}$/.test(parsed.site)) {
       return null;
     }
     const invite = typeof parsed.invite === "string" && parsed.invite.length >= 8 ? parsed.invite : readInvite();
-    return { name: parsed.name.trim(), conversationId: parsed.conversationId, ...(invite ? { invite } : {}) };
+    return { account: parsed.account, site: parsed.site, conversationId: parsed.conversationId, ...(invite ? { invite } : {}) };
   } catch {
     return null;
   }
