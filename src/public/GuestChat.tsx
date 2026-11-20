@@ -55,6 +55,7 @@ const COPY = {
     matched: "Đã xác minh tài khoản {account} tại đài {site}. Nhân viên sẽ hỗ trợ bạn.",
     unknown: "Chưa thấy tài khoản này tại đài đã chọn. Hội thoại được chuyển tới mục xác minh tài khoản.",
     welcome: "Nhân viên sẽ trả lời bạn trong khung này.",
+    telegram: "Chat qua Telegram",
     placeholder: "Nhắn nhân viên hoặc dán ảnh",
     connecting: "Đang nối…",
     live: "Đang nối",
@@ -81,6 +82,7 @@ const COPY = {
     matched: "已核实账号 {account}，站点 {site}。客服将为您处理。",
     unknown: "所选站点未找到该账号。会话已转入账号核实。",
     welcome: "客服会在此窗口回复您。",
+    telegram: "通过 Telegram 聊天",
     placeholder: "给客服发消息或粘贴图片",
     connecting: "连接中…",
     live: "已连接",
@@ -102,6 +104,7 @@ export function GuestChat() {
   const [account, setAccount] = useState(saved.current?.account ?? "");
   const [site, setSite] = useState(saved.current?.site || stationCode);
   const [stations, setStations] = useState<string[]>(stationCode ? [stationCode] : []);
+  const [telegramUrl, setTelegramUrl] = useState<string | null>(null);
   const [checkNote, setCheckNote] = useState<string | null>(null);
   const [messages, setMessages] = useState<Bubble[]>([]);
   const [text, setText] = useState("");
@@ -181,10 +184,11 @@ export function GuestChat() {
 
   useEffect(() => {
     let ignore = false;
-    api<{ stations: { code: string }[] }>("/api/v1/public/home")
+    api<{ stations: { code: string }[]; telegram_url?: string | null }>("/api/v1/public/home")
       .then((result) => {
         if (!ignore) {
           setStations(result.stations.map((item) => item.code));
+          setTelegramUrl(result.telegram_url?.startsWith("https://t.me/") ? result.telegram_url : null);
         }
       })
       .catch(() => undefined);
@@ -528,6 +532,11 @@ export function GuestChat() {
             <Button type="primary" htmlType="submit">
               {textCopy.start}
             </Button>
+            {telegramUrl ? (
+              <a className="guest-telegram" href={telegramUrl} target="_blank" rel="noreferrer">
+                {textCopy.telegram}
+              </a>
+            ) : null}
           </form>
         )}
       </section>

@@ -897,6 +897,14 @@ a {
   color: #c8cdd8;
 }
 
+.guest-telegram {
+  display: block;
+  margin-top: 4px;
+  color: #7dd3fc;
+  text-align: center;
+  text-decoration: none;
+}
+
 .guest-retry {
   padding: 12px 16px 16px;
 }
